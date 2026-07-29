@@ -1,26 +1,89 @@
 @import "tailwindcss";
 
+/* Grovaitech Brand Theme */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #F8FAFC;
+  --foreground: #0F172A;
+  --primary: #3B82F6;
+  --primary-dark: #2563EB;
+  --secondary: #F1F5F9;
+  --accent: #3B82F6;
+  --border: #E2E8F0;
+  --card-bg: #FFFFFF;
+  --text-secondary: #64748B;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.dark {
+  --background: #0F172A;
+  --foreground: #FFFFFF;
+  --primary: #3B82F6;
+  --primary-dark: #2563EB;
+  --secondary: #1E293B;
+  --accent: #60A5FA;
+  --border: #1E293B;
+  --card-bg: #1E293B;
+  --text-secondary: #94A3B8;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Custom Classes */
+.grovaitech-header {
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+}
+
+.grovaitech-sidebar {
+  background: var(--background);
+  border-right: 1px solid var(--border);
+}
+
+.grovaitech-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.grovaitech-button {
+  background: #3B82F6;
+  color: #FFFFFF;
+  padding: 0.5rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.grovaitech-button:hover {
+  background: #2563EB;
+}
+
+.grovaitech-text-primary {
+  color: #FFFFFF;
+}
+
+.grovaitech-text-secondary {
+  color: #94A3B8;
+}
+
+.grovaitech-border {
+  border-color: #1E293B;
+}
+
+/* Custom glow animations and gradients */
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
