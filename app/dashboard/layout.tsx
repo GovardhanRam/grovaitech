@@ -19,7 +19,8 @@ import {
   X, 
   Bell, 
   Search,
-  ChevronRight
+  ChevronRight,
+  Calendar
 } from 'lucide-react'
 
 export default function DashboardLayout({
@@ -67,6 +68,7 @@ export default function DashboardLayout({
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'AI Chat', href: '/dashboard/chat', icon: MessageSquare },
     { name: 'Documents RAG', href: '/dashboard/documents', icon: FileText },
+    { name: 'Bookings', href: '/dashboard/bookings', icon: Calendar },
     { name: 'Clients', href: '/dashboard/clients', icon: Users },
     { name: 'Analytics', href: '/dashboard/analytics', icon: TrendingUp },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings },

@@ -15,6 +15,7 @@ import {
   Plus,
   Play
 } from 'lucide-react'
+import ClinicBooking from '@/components/ClinicBooking'
 
 export default function DashboardHome() {
   const [user, setUser] = useState<any>(null)
@@ -273,6 +274,11 @@ export default function DashboardHome() {
             </Link>
           </div>
         </div>
+      </div>
+
+      {/* Clinic Bookings Reception Section */}
+      <div className="p-6 rounded-2xl border border-[#1E293B] bg-[#1E293B]/20 backdrop-blur-xl">
+        <ClinicBooking />
       </div>
     </div>
   )

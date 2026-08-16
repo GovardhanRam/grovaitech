@@ -18,6 +18,7 @@ export interface MockDbSchema {
   messages: any[];
   documents: any[];
   clients: any[];
+  clinic_bookings: any[];
   settings: Record<string, any>;
 }
 
@@ -109,6 +110,47 @@ const SEED_DATA: MockDbSchema = {
       status: 'Active',
       services: ['AI Receptionist'],
       created_at: new Date(Date.now() - 3600000 * 10).toISOString()
+    }
+  ],
+  clinic_bookings: [
+    {
+      id: 'booking-1',
+      clinic_id: 'mock-admin-id-111',
+      patient_name: 'Suresh Kumar',
+      patient_phone: '+91 98765 43210',
+      patient_email: 'suresh.kumar@gmail.com',
+      appointment_date: '2026-08-18',
+      appointment_time: '10:00 AM',
+      doctor_name: 'Dr. Verma',
+      reason: 'Routine dental checkup and teeth cleaning.',
+      status: 'confirmed',
+      created_at: new Date().toISOString()
+    },
+    {
+      id: 'booking-2',
+      clinic_id: 'mock-admin-id-111',
+      patient_name: 'Priya Sharma',
+      patient_phone: '+91 98765 12345',
+      patient_email: 'priya.sharma@outlook.com',
+      appointment_date: '2026-08-18',
+      appointment_time: '02:30 PM',
+      doctor_name: 'Dr. Verma',
+      reason: 'Wisdom tooth extraction consultation.',
+      status: 'pending',
+      created_at: new Date().toISOString()
+    },
+    {
+      id: 'booking-3',
+      clinic_id: 'mock-admin-id-111',
+      patient_name: 'Rahul Reddy',
+      patient_phone: '+91 90000 88888',
+      patient_email: 'rahul.reddy@yahoo.com',
+      appointment_date: '2026-08-19',
+      appointment_time: '11:30 AM',
+      doctor_name: 'Dr. Verma',
+      reason: 'Root canal therapy session.',
+      status: 'pending',
+      created_at: new Date().toISOString()
     }
   ],
   settings: {
