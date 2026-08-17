@@ -412,10 +412,11 @@ export default function BookingsPage() {
                   <label className="text-[#94A3B8] font-semibold">Date *</label>
                   <input 
                     type="date" 
+                    name="appointmentDate"
                     required
                     value={appointmentDate}
                     onChange={(e) => setAppointmentDate(e.target.value)}
-                    className="w-full bg-[#0F172A] border border-[#1E293B] rounded-lg p-2.5 text-white focus:outline-none focus:border-[#3B82F6] dark:[color-scheme:dark]"
+                    className="w-full px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div className="space-y-1">

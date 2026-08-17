@@ -103,7 +103,7 @@ export default function ClinicBooking() {
               type="date"
               name="appointmentDate"
               required
-              className="px-4 py-2 rounded-lg bg-[#1E293B] border border-[#1E293B] text-white focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+              className="w-full px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <input
               type="time"
