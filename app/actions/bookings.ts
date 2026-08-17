@@ -2,15 +2,18 @@
 import { createServerClient } from '@/lib/supabase/server'
 
 export async function createBooking(formData: FormData) {
+  console.log('=== CREATE BOOKING STARTED ===')
+  
   const supabase = await createServerClient()
   
-  // Get authenticated user
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
+    console.error('Auth error:', authError)
     return { error: 'Please log in first' }
   }
 
-  // Extract form data
+  console.log('User ID:', user.id)
+
   const patientName = formData.get('patientName')?.toString()
   const patientPhone = formData.get('patientPhone')?.toString()
   const patientEmail = formData.get('patientEmail')?.toString()
@@ -19,12 +22,13 @@ export async function createBooking(formData: FormData) {
   const doctorName = formData.get('doctorName')?.toString()
   const reason = formData.get('reason')?.toString()
 
-  // Validation
+  console.log('Booking data:', { patientName, patientPhone, appointmentDate, appointmentTime })
+
   if (!patientName || !patientPhone || !appointmentDate || !appointmentTime) {
+    console.error('Validation failed: missing fields')
     return { error: 'Please fill in all required fields' }
   }
 
-  // Insert into database
   const { data, error } = await supabase
     .from('clinic_bookings')
     .insert({
@@ -35,17 +39,17 @@ export async function createBooking(formData: FormData) {
       appointment_date: appointmentDate,
       appointment_time: appointmentTime,
       doctor_name: doctorName,
-      reason: reason,
-      status: 'pending'
+      reason: reason
     })
     .select()
     .single()
 
   if (error) {
-    console.error('Booking error:', error)
-    return { error: 'Failed to create booking' }
+    console.error('Supabase insert error:', error)
+    return { error: 'Failed to create booking: ' + error.message }
   }
 
+  console.log('Booking created:', data)
   return { success: true, booking: data }
 }
 
