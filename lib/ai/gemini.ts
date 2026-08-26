@@ -2,8 +2,8 @@
  * Grovaitech AI Platform
  * lib/ai/gemini.ts
  *
- * This file handles the connections to Google's Gemini models.
- * It is fully typed, production-ready, and configured to load secrets from environment variables.
+ * This file handles direct API connections to Google's Gemini models.
+ * Fully typed, production-ready, and configured to load secrets from environment variables.
  */
 
 export interface GenerateTextOptions {
@@ -58,11 +58,11 @@ export class Gemini {
 
   /**
    * Generates text content using a Gemini model.
-   * Defaults to gemini-2.5-flash.
+   * Defaults to gemini-3.7-flash with native medium thinking mode.
    */
   async generateText(options: GenerateTextOptions): Promise<GenerateTextResponse> {
-    const model = options.model || "gemini-2.5-flash";
-    const temperature = options.temperature ?? 0.7;
+    const model = options.model || process.env.GEMINI_MODEL || "gemini-3.7-flash";
+    const temperature = options.temperature ?? 1.0;
 
     if (!this.apiKey) {
       throw new Error("GEMINI_API_KEY is missing. Configure it in .env.local.");
@@ -192,7 +192,7 @@ export class GeminiAgent {
   constructor(config: AgentConfig) {
     this.client = new Gemini();
     this.role = config.role;
-    this.temperature = config.temperature ?? 0.5;
+    this.temperature = config.temperature ?? 0.7;
   }
 
   /**

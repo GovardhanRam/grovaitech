@@ -1,9 +1,22 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --color-grovaitech-dark: #0F172A;
+  --color-grovaitech-darker: #0A0F1A;
+  --color-grovaitech-slate: #1E293B;
+  --color-grovaitech-blue: #3B82F6;
+  --color-grovaitech-blue-dark: #2563EB;
+  --color-grovaitech-blue-light: #60A5FA;
+  --color-grovaitech-text: #FFFFFF;
+  --color-grovaitech-text-secondary: #94A3B8;
+  --color-grovaitech-border: #1E293B;
+  
+  --font-inter: 'Inter', sans-serif;
+}
 
 body {
   background: #FFFFFF;
   color: #1E293B;
   font-family: 'Inter', system-ui, sans-serif;
 }
+

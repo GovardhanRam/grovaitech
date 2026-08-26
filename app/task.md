@@ -1,0 +1,6 @@
+- [x] Move existing dashboard folders to Route Group `(shell)/dashboard`
+- [x] Implement new shared sidebar shell layout `app/(shell)/layout.tsx`
+- [x] Implement new light-themed dashboard page `app/(shell)/dashboard/page.tsx`
+- [x] Create placeholders for top-level routes under `app/(shell)/`
+- [x] Delete old root `app/dashboard/layout.tsx` and `app/dashboard/page.tsx`
+- [x] Verify pages compile and load successfully

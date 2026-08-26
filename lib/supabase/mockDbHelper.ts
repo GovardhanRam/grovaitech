@@ -19,6 +19,7 @@ export interface MockDbSchema {
   documents: any[];
   clients: any[];
   clinic_bookings: any[];
+  real_estate_leads: any[];
   settings: Record<string, any>;
 }
 
@@ -153,6 +154,7 @@ const SEED_DATA: MockDbSchema = {
       created_at: new Date().toISOString()
     }
   ],
+  real_estate_leads: [],
   settings: {
     theme: 'dark',
     notificationEmail: true,
