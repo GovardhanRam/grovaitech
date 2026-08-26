@@ -275,10 +275,10 @@ export const CANONICAL_INTEGRATIONS: Integration[] = [
     slug: 'whatsapp-business',
     category: 'communication',
     description: 'Official WhatsApp cloud messaging for 24/7 lead intake, appointment reminders, and site visit alerts.',
-    status: 'demo',
+    status: 'needs_setup',
     iconType: 'whatsapp',
-    version: 'Cloud API v20.0 (Simulated)',
-    lastChecked: '8m ago',
+    version: 'Meta Cloud API v20.0 (Webhook Ready)',
+    lastChecked: 'Just now',
     latencyMs: 240,
     fields: [
       {
