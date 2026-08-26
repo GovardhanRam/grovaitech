@@ -25,6 +25,32 @@ export interface ExtractedRealEstateLead {
   site_visit_time: string | null
 }
 
+function extractNameFromText(text: string): string | null {
+  const introMatch = text.match(/(?:my name is|i am|this is|call me)\s+([A-Za-z]+)/i)
+  if (introMatch && introMatch[1]) {
+    const n = introMatch[1].trim()
+    const black = ['looking', 'interested', 'a', 'the', 'here', 'customer', 'user', 'buyer', 'my', 'and', 'number', 'phone', 'ready', 'booking', 'visiting', 'planning']
+    if (n.length > 1 && !black.includes(n.toLowerCase())) {
+      return n.charAt(0).toUpperCase() + n.slice(1)
+    }
+  }
+  const explicitMatch = text.match(/\bname\s*[:=]\s*([A-Za-z]+)/i)
+  if (explicitMatch && explicitMatch[1]) {
+    const n = explicitMatch[1].trim()
+    const black = ['is', 'looking', 'interested', 'a', 'the', 'here', 'customer', 'user', 'buyer']
+    if (n.length > 1 && !black.includes(n.toLowerCase())) {
+      return n.charAt(0).toUpperCase() + n.slice(1)
+    }
+  }
+  return null
+}
+
+function extractPhoneFromText(text: string): string | null {
+  const match = text.match(/(?:\+91[\s-]?)?[6-9]\d{4}[\s-]?\d{5}|(?:\+91[\s-]?)?[6-9]\d{9}|(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}|\b[6-9]\d{9}\b/)
+  if (match) return match[0].trim()
+  return null
+}
+
 export async function extractRealEstateLead(
   chatHistory: { role: string; content: string }[]
 ): Promise<ExtractedRealEstateLead> {
@@ -79,7 +105,7 @@ Output valid JSON only:`
     }
   }
 
-  // 2. Deterministic Regex Fallback Parser for missing or empty fields
+  // 2. Deterministic Fallback Parser
   const fallback = parseDeterministicFallback(fullUserText)
 
   const name: string | null = (extracted?.name ?? fallback.name) ?? null
@@ -136,10 +162,7 @@ function parseDeterministicFallback(text: string): Partial<ExtractedRealEstateLe
   const lower = text.toLowerCase()
 
   // Phone Extraction
-  const phoneRegex = /\b(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/
-  const phoneSimple = /\b[6-9]\d{9}\b/
-  const phoneMatch = text.match(phoneRegex) || text.match(phoneSimple)
-  const phone = phoneMatch ? phoneMatch[0].trim() : null
+  const phone = extractPhoneFromText(text)
 
   // Email Extraction
   const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/
@@ -147,21 +170,7 @@ function parseDeterministicFallback(text: string): Partial<ExtractedRealEstateLe
   const email = emailMatch ? emailMatch[0].trim() : null
 
   // Name Extraction
-  let name: string | null = null
-  const namePatterns = [
-    /(?:my name is|i am|this is|call me)\s+([A-Za-z\s]{2,30})(?:\.|\n|,|$|phone|email)/i,
-    /name[:\s]+([A-Za-z\s]{2,30})/i,
-  ]
-  for (const pat of namePatterns) {
-    const m = text.match(pat)
-    if (m && m[1] && m[1].trim()) {
-      const candidate = m[1].trim()
-      if (!['looking', 'interested', 'a', 'the', 'here'].includes(candidate.toLowerCase())) {
-        name = candidate
-        break
-      }
-    }
-  }
+  const name = extractNameFromText(text)
 
   // BHK Extraction
   let bhk: number | null = null
