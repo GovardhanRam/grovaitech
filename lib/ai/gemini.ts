@@ -15,6 +15,10 @@ export const DEFAULT_GEMINI_MODEL =
   process.env.MODEL_NAME ||
   "gemini-1.5-flash"
 
+// Default network request timeout (15 seconds)
+export const DEFAULT_GEMINI_TIMEOUT_MS =
+  parseInt(process.env.GEMINI_TIMEOUT_MS || "15000", 10) || 15000
+
 // ─── Core Interfaces ──────────────────────────────────────────────────────────
 
 export interface GenerateTextOptions {
@@ -23,6 +27,7 @@ export interface GenerateTextOptions {
   temperature?: number
   maxOutputTokens?: number
   systemInstruction?: string
+  timeoutMs?: number
 }
 
 export interface GenerateTextResponse {
@@ -37,6 +42,7 @@ export interface GenerateTextResponse {
 export interface EmbedTextOptions {
   model?: string
   text: string
+  timeoutMs?: number
 }
 
 export interface EmbedTextResponse {
@@ -63,6 +69,7 @@ export interface GenerateWithToolsOptions {
   tools?: FunctionDeclaration[]
   systemInstruction?: string
   temperature?: number
+  timeoutMs?: number
 }
 
 export interface GenerateWithToolsResponse {
@@ -203,10 +210,29 @@ function parseConversationState(fullPrompt: string): { state: FallbackConversati
   }
 }
 
-export const getSimulatedResponse = (prompt: string): string => {
-  const lowercasePrompt = prompt.toLowerCase()
-  const isClinic = lowercasePrompt.includes("medical clinic") || lowercasePrompt.includes("clinic receptionist") || lowercasePrompt.includes("clinic")
-  const isRealEstate = lowercasePrompt.includes("real estate") || lowercasePrompt.includes("property") || lowercasePrompt.includes("receptionist")
+export const getSimulatedResponse = (prompt: string, systemInstruction?: string): string => {
+  const fullContext = systemInstruction ? `${systemInstruction}\n${prompt}` : prompt
+  const lowercasePrompt = fullContext.toLowerCase()
+  const isClinic =
+    lowercasePrompt.includes("medical clinic") ||
+    lowercasePrompt.includes("clinic receptionist") ||
+    lowercasePrompt.includes("clinic") ||
+    lowercasePrompt.includes("doctor") ||
+    lowercasePrompt.includes("dentist") ||
+    lowercasePrompt.includes("appointment") ||
+    lowercasePrompt.includes("patient")
+
+  const isRealEstate =
+    lowercasePrompt.includes("real estate") ||
+    lowercasePrompt.includes("property") ||
+    lowercasePrompt.includes("receptionist") ||
+    lowercasePrompt.includes("villa") ||
+    lowercasePrompt.includes("apartment") ||
+    lowercasePrompt.includes("flat") ||
+    lowercasePrompt.includes("house") ||
+    lowercasePrompt.includes("plot") ||
+    lowercasePrompt.includes("bhk") ||
+    lowercasePrompt.includes("site visit")
 
   const { state, latestMessage } = parseConversationState(prompt)
   const query = latestMessage.toLowerCase()
@@ -279,6 +305,50 @@ What aspect of your business would you like to automate today?
 - Creating a Document Knowledge Base`
 }
 
+// ─── Content Formatting for Simulation ──────────────────────────────────────
+
+export function extractConversationTextFromContents(
+  contents?: GenerateWithToolsOptions['contents']
+): string {
+  if (!contents || !Array.isArray(contents) || contents.length === 0) {
+    return ''
+  }
+
+  const lines: string[] = []
+  for (const turn of contents) {
+    const rolePrefix =
+      turn.role === 'model' || turn.role === 'system'
+        ? 'AI Receptionist: '
+        : 'Customer: '
+    const textParts = (turn.parts || [])
+      .map((p) => {
+        if (p.text) return p.text
+        if (p.functionCall)
+          return `[Action: ${p.functionCall.name}(${JSON.stringify(p.functionCall.args || {})})]`
+        if (p.functionResponse)
+          return `[Result: ${JSON.stringify(p.functionResponse.response || {})}]`
+        return ''
+      })
+      .filter(Boolean)
+      .join(' ')
+
+    if (textParts.trim()) {
+      lines.push(`${rolePrefix}${textParts.trim()}`)
+    }
+  }
+
+  return lines.join('\n')
+}
+
+function sanitizeLogMessage(msg: any): string {
+  if (!msg) return ''
+  const str = typeof msg === 'string' ? msg : JSON.stringify(msg)
+  return str
+    .replace(/(?:AIza[0-9A-Za-z-_]{35})/g, '[REDACTED_API_KEY]')
+    .replace(/(?:ghp_[0-9A-Za-z]{36})/g, '[REDACTED_TOKEN]')
+    .replace(/(?:eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,})/g, '[REDACTED_JWT]')
+}
+
 // ─── Canonical Gemini Client Class ──────────────────────────────────────────
 
 export class Gemini {
@@ -298,22 +368,26 @@ export class Gemini {
   async generateText(options: GenerateTextOptions): Promise<GenerateTextResponse> {
     const modelName = options.model || DEFAULT_GEMINI_MODEL
     const temperature = options.temperature ?? 0.7
+    const timeoutMs = options.timeoutMs ?? DEFAULT_GEMINI_TIMEOUT_MS
 
     if (!this.genAI) {
       return {
-        text: getSimulatedResponse(options.prompt),
+        text: getSimulatedResponse(options.prompt, options.systemInstruction),
       }
     }
 
     try {
-      const model = this.genAI.getGenerativeModel({
-        model: modelName,
-        generationConfig: {
-          temperature,
-          maxOutputTokens: options.maxOutputTokens,
+      const model = this.genAI.getGenerativeModel(
+        {
+          model: modelName,
+          generationConfig: {
+            temperature,
+            maxOutputTokens: options.maxOutputTokens,
+          },
+          systemInstruction: options.systemInstruction,
         },
-        systemInstruction: options.systemInstruction,
-      })
+        { timeout: timeoutMs }
+      )
 
       const result = await model.generateContent(options.prompt)
       const res = await result.response
@@ -331,12 +405,12 @@ export class Gemini {
     } catch (error: any) {
       console.error(`[Gemini API Error] (${modelName}):`, {
         status: error?.status,
-        message: error?.message || String(error),
+        message: sanitizeLogMessage(error?.message || String(error)),
         errorDetails: error?.errorDetails,
       })
 
       return {
-        text: getSimulatedResponse(options.prompt),
+        text: getSimulatedResponse(options.prompt, options.systemInstruction),
       }
     }
   }
@@ -347,11 +421,12 @@ export class Gemini {
   async generateContentWithTools(options: GenerateWithToolsOptions): Promise<GenerateWithToolsResponse> {
     const modelName = options.model || DEFAULT_GEMINI_MODEL
     const temperature = options.temperature ?? 0.2
+    const timeoutMs = options.timeoutMs ?? DEFAULT_GEMINI_TIMEOUT_MS
 
     if (!this.genAI) {
-      const promptText = options.prompt || (options.contents ? JSON.stringify(options.contents) : '')
+      const promptText = options.prompt || extractConversationTextFromContents(options.contents)
       return {
-        text: getSimulatedResponse(promptText),
+        text: getSimulatedResponse(promptText, options.systemInstruction),
         functionCalls: [],
       }
     }
@@ -361,14 +436,17 @@ export class Gemini {
         functionDeclarations: options.tools,
       }] : undefined
 
-      const model = this.genAI.getGenerativeModel({
-        model: modelName,
-        tools: toolsConfig,
-        generationConfig: {
-          temperature,
+      const model = this.genAI.getGenerativeModel(
+        {
+          model: modelName,
+          tools: toolsConfig,
+          generationConfig: {
+            temperature,
+          },
+          systemInstruction: options.systemInstruction,
         },
-        systemInstruction: options.systemInstruction,
-      })
+        { timeout: timeoutMs }
+      )
 
       const contents = options.contents || (options.prompt ? [options.prompt] : [])
       const result = await model.generateContent(contents as any)
@@ -403,13 +481,13 @@ export class Gemini {
     } catch (error: any) {
       console.error(`[Gemini Tool Calling API Error] (${modelName}):`, {
         status: error?.status,
-        message: error?.message || String(error),
+        message: sanitizeLogMessage(error?.message || String(error)),
         errorDetails: error?.errorDetails,
       })
 
-      const promptText = options.prompt || (options.contents ? JSON.stringify(options.contents) : '')
+      const promptText = options.prompt || extractConversationTextFromContents(options.contents)
       return {
-        text: getSimulatedResponse(promptText),
+        text: getSimulatedResponse(promptText, options.systemInstruction),
         functionCalls: [],
       }
     }
@@ -420,6 +498,7 @@ export class Gemini {
    */
   async embedText(options: EmbedTextOptions): Promise<EmbedTextResponse> {
     const modelName = options.model || "text-embedding-004"
+    const timeoutMs = options.timeoutMs ?? DEFAULT_GEMINI_TIMEOUT_MS
 
     if (!this.genAI) {
       const dummyEmbedding = Array.from({ length: 768 }, (_, i) => Math.sin(i + options.text.length))
@@ -427,13 +506,16 @@ export class Gemini {
     }
 
     try {
-      const model = this.genAI.getGenerativeModel({ model: modelName })
+      const model = this.genAI.getGenerativeModel(
+        { model: modelName },
+        { timeout: timeoutMs }
+      )
       const result = await model.embedContent(options.text)
       const embedding = result.embedding.values
 
       return { embedding }
     } catch (error: any) {
-      console.error(`[Gemini Embedding API Error] (${modelName}):`, error?.message || error)
+      console.error(`[Gemini Embedding API Error] (${modelName}):`, sanitizeLogMessage(error?.message || error))
       throw error
     }
   }

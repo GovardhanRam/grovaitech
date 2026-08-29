@@ -164,6 +164,14 @@ Your goal is to warmly assist prospective property buyers, answer questions inte
         })
 
         if (geminiRes.functionCalls && geminiRes.functionCalls.length > 0) {
+          // 1. Group all function calls in a single model turn
+          contents.push({
+            role: 'model',
+            parts: geminiRes.functionCalls.map((fnCall) => ({ functionCall: fnCall })),
+          })
+
+          const turnFunctionResponses: Array<{ name: string; response: any }> = []
+
           for (const fnCall of geminiRes.functionCalls) {
             // Inject verified customer contact info if omitted by the model
             const callArgs = { ...fnCall.args }
@@ -193,22 +201,19 @@ Your goal is to warmly assist prospective property buyers, answer questions inte
               capturedLeadResult = toolResult.result.lead || null
             }
 
-            contents.push({
-              role: 'model',
-              parts: [{ functionCall: fnCall }],
-            })
-            contents.push({
-              role: 'function',
-              parts: [
-                {
-                  functionResponse: {
-                    name: fnCall.name,
-                    response: toolResult.success ? toolResult.result : { error: toolResult.error },
-                  },
-                },
-              ],
+            turnFunctionResponses.push({
+              name: fnCall.name,
+              response: toolResult.success ? toolResult.result : { error: toolResult.error },
             })
           }
+
+          // 2. Group all function responses in a single function turn
+          contents.push({
+            role: 'function',
+            parts: turnFunctionResponses.map((item) => ({
+              functionResponse: item,
+            })),
+          })
         } else {
           aiResponse = geminiRes.text || ''
           break

@@ -163,6 +163,14 @@ Your goal is to assist patients, answer inquiries regarding clinic hours/doctors
       if (geminiRes.functionCalls && geminiRes.functionCalls.length > 0) {
         console.log(`[Chat Runtime] Turn ${iteration}: Gemini requested ${geminiRes.functionCalls.length} tool call(s):`, geminiRes.functionCalls.map(f => f.name))
 
+        // 1. Group all function calls in a single model turn
+        contents.push({
+          role: 'model',
+          parts: geminiRes.functionCalls.map((fnCall) => ({ functionCall: fnCall })),
+        })
+
+        const turnFunctionResponses: Array<{ name: string; response: any }> = []
+
         for (const fnCall of geminiRes.functionCalls) {
           // Route every tool call through the safe dispatcher
           const toolResult = await dispatchToolCall(fnCall.name, fnCall.args)
@@ -182,24 +190,19 @@ Your goal is to assist patients, answer inquiries regarding clinic hours/doctors
             capturedLeadResult = toolResult.result.lead || null
           }
 
-          // Append model function call and function response into conversation turns
-          contents.push({
-            role: 'model',
-            parts: [{ functionCall: fnCall }],
-          })
-
-          contents.push({
-            role: 'function',
-            parts: [
-              {
-                functionResponse: {
-                  name: fnCall.name,
-                  response: toolResult.success ? toolResult.result : { error: toolResult.error },
-                },
-              },
-            ],
+          turnFunctionResponses.push({
+            name: fnCall.name,
+            response: toolResult.success ? toolResult.result : { error: toolResult.error },
           })
         }
+
+        // 2. Group all function responses in a single function turn
+        contents.push({
+          role: 'function',
+          parts: turnFunctionResponses.map((item) => ({
+            functionResponse: item,
+          })),
+        })
       } else {
         // Model provided conversational text response
         aiFinalText = geminiRes.text || ''

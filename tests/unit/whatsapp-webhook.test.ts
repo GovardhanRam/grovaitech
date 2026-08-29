@@ -533,6 +533,88 @@ describe('WhatsApp Webhook Route - app/api/webhooks/whatsapp/route.ts', () => {
         })
       )
     })
+
+    it('groups multiple parallel function calls and responses into single model and function turns', async () => {
+      vi.mocked(verifyMetaSignature).mockReturnValueOnce({ isValid: true })
+
+      // Turn 1: Model requests 2 tool calls in a single turn
+      mockGenerateContentWithTools.mockResolvedValueOnce({
+        text: null,
+        functionCalls: [
+          {
+            name: 'create_lead',
+            args: { name: 'Deepa', location: 'Tirupati', budget: '2 Cr' },
+          },
+          {
+            name: 'schedule_site_visit',
+            args: { customer_name: 'Deepa', preferred_date: '2026-09-10' },
+          },
+        ],
+      })
+
+      // Turn 2: Model finishes with conversational confirmation
+      mockGenerateContentWithTools.mockResolvedValueOnce({
+        text: 'I have registered your lead and scheduled your site visit for Sep 10!',
+        functionCalls: undefined,
+      })
+
+      vi.mocked(dispatchToolCall)
+        .mockResolvedValueOnce({
+          toolName: 'create_lead',
+          success: true,
+          result: { leadId: 'lead_deepa_001', message: 'Lead created' },
+          durationMs: 25,
+        })
+        .mockResolvedValueOnce({
+          toolName: 'schedule_site_visit',
+          success: true,
+          result: {
+            workflowId: 'wf_deepa_001',
+            workflowStatus: 'success',
+            steps: [],
+            message: 'Site visit scheduled',
+          },
+          durationMs: 30,
+        })
+
+      const payload = createInboundMessagePayload(
+        'msg_parallel_tools',
+        '919876543210',
+        'Register my lead and book visit for Sep 10',
+        'Deepa'
+      )
+
+      const request = new NextRequest('http://localhost:3000/api/webhooks/whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      const response = await POST(request)
+      expect(response.status).toBe(200)
+
+      // Verify both tools dispatched
+      expect(dispatchToolCall).toHaveBeenCalledTimes(2)
+
+      // Verify Turn 2 received contents with correctly grouped model and function turns
+      expect(mockGenerateContentWithTools).toHaveBeenCalledTimes(2)
+      const turn2Call = mockGenerateContentWithTools.mock.calls[1][0]
+      const contents = turn2Call.contents
+
+      // Model turn grouping check
+      const modelTurn = contents.find((c: any) => c.role === 'model')
+      expect(modelTurn).toBeDefined()
+      expect(modelTurn.parts).toHaveLength(2)
+      expect(modelTurn.parts[0].functionCall.name).toBe('create_lead')
+      expect(modelTurn.parts[1].functionCall.name).toBe('schedule_site_visit')
+
+      // Function turn grouping check
+      const functionTurn = contents.find((c: any) => c.role === 'function')
+      expect(functionTurn).toBeDefined()
+      expect(functionTurn.parts).toHaveLength(2)
+      expect(functionTurn.parts[0].functionResponse.name).toBe('create_lead')
+      expect(functionTurn.parts[1].functionResponse.name).toBe('schedule_site_visit')
+    })
   })
 
   // ─── 7. Narrow Passive Extractor Fallback ───────────────────────────────────
