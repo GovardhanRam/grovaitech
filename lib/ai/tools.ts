@@ -111,7 +111,7 @@ export const CREATE_LEAD_TOOL: FunctionDeclaration = {
 
 export const SCHEDULE_SITE_VISIT_TOOL: FunctionDeclaration = {
   name: 'schedule_site_visit',
-  description: 'Schedules an in-person property site visit tour for a customer, reserving the calendar slot and notifying the real estate sales agent.',
+  description: 'Records a customer request for an in-person property site visit and asks the workflow to attempt the necessary coordination. This request is not a confirmed booking unless the returned result explicitly reports verified completion.',
   parameters: {
     type: SchemaType.OBJECT,
     properties: {
@@ -154,7 +154,7 @@ export const SCHEDULE_SITE_VISIT_TOOL: FunctionDeclaration = {
 
 export const BOOK_CLINIC_APPOINTMENT_TOOL: FunctionDeclaration = {
   name: 'book_clinic_appointment',
-  description: 'Books a patient medical or dental appointment at the clinic with appointment date, time, doctor preference, and reason for visit.',
+  description: 'Requests a patient medical or dental appointment with date, time, doctor preference, and reason for visit. Do not describe it as booked or confirmed unless the returned result explicitly verifies that outcome.',
   parameters: {
     type: SchemaType.OBJECT,
     properties: {

@@ -10,7 +10,7 @@ import {
 } from '@/lib/ai/tools'
 import { dispatchToolCall, type ToolExecutionResult } from '@/lib/ai/dispatcher'
 import { extractRealEstateLead } from '@/lib/leads/extractor'
-import { executeRealEstateWorkflow } from '@/lib/workflows/executor'
+import { executeRealEstateWorkflow, getSiteVisitCustomerMessage } from '@/lib/workflows/executor'
 import { createLead } from '@/app/actions/leads'
 
 const MAX_TOOL_ITERATIONS = 3
@@ -147,6 +147,7 @@ Your goal is to assist patients, answer inquiries regarding clinic hours/doctors
     const executedToolResults: ToolExecutionResult[] = []
     let capturedWorkflowResult: any = null
     let capturedLeadResult: any = null
+    let safeWorkflowMessage: string | null = null
 
     console.log(`[Chat Runtime] Initiating agent execution loop (Active Tools: ${activeTools.map(t => t.name).join(', ')})`)
 
@@ -183,9 +184,13 @@ Your goal is to assist patients, answer inquiries regarding clinic hours/doctors
               workflowId: 'wf-001',
               workflowName: 'Real Estate Lead ➔ WhatsApp & Site Visit Sync',
               overallStatus: toolResult.result.workflowStatus || 'success',
+              customerConfirmationAllowed: !!toolResult.result.customerConfirmationAllowed,
               steps: toolResult.result.steps || [],
             } : null
             capturedLeadResult = toolResult.result.lead || null
+            if (capturedWorkflowResult && !capturedWorkflowResult.customerConfirmationAllowed) {
+              safeWorkflowMessage = getSiteVisitCustomerMessage(capturedWorkflowResult)
+            }
           } else if (toolResult.toolName === 'create_lead' && toolResult.result) {
             capturedLeadResult = toolResult.result.lead || null
           }
@@ -260,11 +265,20 @@ Your goal is to assist patients, answer inquiries regarding clinic hours/doctors
               conversationId: currentChatId,
               lead: extractedLead,
             })
+            if (!capturedWorkflowResult.customerConfirmationAllowed) {
+              safeWorkflowMessage = getSiteVisitCustomerMessage(capturedWorkflowResult)
+            }
           }
         }
       } catch (fallbackErr) {
         console.warn('[Chat Runtime] Passive extraction notice:', fallbackErr)
       }
+    }
+
+    // The workflow result, not generated prose, determines whether completion
+    // can be claimed to a customer.
+    if (safeWorkflowMessage) {
+      aiFinalText = safeWorkflowMessage
     }
 
     // 8. Persist assistant message to database

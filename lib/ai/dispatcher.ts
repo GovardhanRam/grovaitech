@@ -11,7 +11,7 @@
 
 import { createLead, type LeadData } from '@/app/actions/leads'
 import { createBooking } from '@/app/actions/bookings'
-import { executeRealEstateWorkflow } from '@/lib/workflows/executor'
+import { executeRealEstateWorkflow, getSiteVisitCustomerMessage } from '@/lib/workflows/executor'
 import { generateResponse } from '@/lib/ai/gemini'
 import { createServerClient } from '@/lib/supabase/server'
 import {
@@ -186,8 +186,13 @@ async function handleScheduleSiteVisit(rawArgs: Record<string, any>): Promise<an
     preferredTime,
     workflowId: workflowResult.workflowId,
     workflowStatus: workflowResult.overallStatus,
+    customerConfirmationAllowed: workflowResult.customerConfirmationAllowed,
     steps: workflowResult.steps,
-    message: `Site visit confirmed for ${customerName} on ${preferredDate} (${preferredTime}). Real estate agent and calendar synced.`,
+    message: getSiteVisitCustomerMessage(workflowResult, {
+      customerName,
+      preferredDate,
+      preferredTime,
+    }),
   }
 }
 

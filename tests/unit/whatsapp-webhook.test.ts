@@ -43,6 +43,9 @@ vi.mock('@/lib/leads/extractor', () => ({
 
 vi.mock('@/lib/workflows/executor', () => ({
   executeRealEstateWorkflow: vi.fn(),
+  getSiteVisitCustomerMessage: (workflow: any) => workflow.overallStatus === 'failed'
+    ? "I've recorded your request, but I couldn't complete the booking automatically. Our team will follow up to confirm it."
+    : 'Your site visit request has been recorded. Our team will confirm the exact slot shortly.',
 }))
 
 vi.mock('@/app/actions/leads', () => ({
@@ -433,6 +436,7 @@ describe('WhatsApp Webhook Route - app/api/webhooks/whatsapp/route.ts', () => {
           preferredTime: '11:00 AM',
           workflowId: 'wf_exec_wa_999',
           workflowStatus: 'success',
+          customerConfirmationAllowed: true,
           steps: [],
           message: 'Site visit confirmed.',
         },
@@ -475,6 +479,48 @@ describe('WhatsApp Webhook Route - app/api/webhooks/whatsapp/route.ts', () => {
         text: 'Your site visit for Sunday at 11:00 AM is confirmed!',
         replyToMessageId: 'msg_tool_001',
       })
+    })
+
+    it('overrides Gemini confirmation prose when the workflow is partial', async () => {
+      vi.mocked(verifyMetaSignature).mockReturnValueOnce({ isValid: true })
+      mockGenerateContentWithTools
+        .mockResolvedValueOnce({ text: null, functionCalls: [{ name: 'schedule_site_visit', args: { customer_name: 'Vikram Sharma', preferred_date: '2026-09-06' } }] })
+        .mockResolvedValueOnce({ text: 'Your site visit is confirmed and reserved!', functionCalls: undefined })
+      vi.mocked(dispatchToolCall).mockResolvedValueOnce({
+        toolName: 'schedule_site_visit', success: true,
+        result: { workflowId: 'wf_partial', workflowStatus: 'partial', customerConfirmationAllowed: false, steps: [] }, durationMs: 20,
+      })
+
+      const request = new NextRequest('http://localhost:3000/api/webhooks/whatsapp', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(createInboundMessagePayload('msg_partial', '919876543210', 'Book a visit Sunday', 'Vikram Sharma')),
+      })
+      await POST(request)
+
+      expect(sendWhatsAppTextMessage).toHaveBeenCalledWith(expect.objectContaining({
+        text: 'Your site visit request has been recorded. Our team will confirm the exact slot shortly.',
+      }))
+    })
+
+    it('overrides Gemini confirmation prose when the workflow failed', async () => {
+      vi.mocked(verifyMetaSignature).mockReturnValueOnce({ isValid: true })
+      mockGenerateContentWithTools
+        .mockResolvedValueOnce({ text: null, functionCalls: [{ name: 'schedule_site_visit', args: { customer_name: 'Vikram Sharma', preferred_date: '2026-09-06' } }] })
+        .mockResolvedValueOnce({ text: 'Your site visit is booked!', functionCalls: undefined })
+      vi.mocked(dispatchToolCall).mockResolvedValueOnce({
+        toolName: 'schedule_site_visit', success: true,
+        result: { workflowId: 'wf_failed', workflowStatus: 'failed', customerConfirmationAllowed: false, steps: [] }, durationMs: 20,
+      })
+
+      const request = new NextRequest('http://localhost:3000/api/webhooks/whatsapp', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(createInboundMessagePayload('msg_failed', '919876543210', 'Book a visit Sunday', 'Vikram Sharma')),
+      })
+      await POST(request)
+
+      expect(sendWhatsAppTextMessage).toHaveBeenCalledWith(expect.objectContaining({
+        text: "I've recorded your request, but I couldn't complete the booking automatically. Our team will follow up to confirm it.",
+      }))
     })
 
     it('generates a wrap-up confirmation message via gemini.generateText when tool loop finishes without raw text', async () => {

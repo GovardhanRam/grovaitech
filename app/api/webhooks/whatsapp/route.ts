@@ -5,7 +5,7 @@ import { REAL_ESTATE_TOOLS } from '@/lib/ai/tools'
 import { dispatchToolCall, type ToolExecutionResult } from '@/lib/ai/dispatcher'
 import { getEmployeeBySlug } from '@/lib/employees'
 import { extractRealEstateLead } from '@/lib/leads/extractor'
-import { executeRealEstateWorkflow } from '@/lib/workflows/executor'
+import { executeRealEstateWorkflow, getSiteVisitCustomerMessage } from '@/lib/workflows/executor'
 import { createLead } from '@/app/actions/leads'
 import { verifyMetaSignature, parseWhatsAppWebhookPayload } from '@/lib/whatsapp/security'
 import { sendWhatsAppTextMessage } from '@/lib/whatsapp/client'
@@ -154,6 +154,7 @@ Your goal is to warmly assist prospective property buyers, answer questions inte
       const executedToolResults: ToolExecutionResult[] = []
       let capturedLeadResult: any = null
       let capturedWorkflowResult: any = null
+      let safeWorkflowMessage: string | null = null
 
       while (iteration < MAX_TOOL_ITERATIONS) {
         iteration++
@@ -194,9 +195,13 @@ Your goal is to warmly assist prospective property buyers, answer questions inte
                 workflowId: 'wf-001',
                 workflowName: 'Real Estate Lead ➔ WhatsApp & Site Visit Sync',
                 overallStatus: toolResult.result.workflowStatus || 'success',
+                customerConfirmationAllowed: !!toolResult.result.customerConfirmationAllowed,
                 steps: toolResult.result.steps || [],
               } : null
               capturedLeadResult = toolResult.result.lead || null
+              if (capturedWorkflowResult && !capturedWorkflowResult.customerConfirmationAllowed) {
+                safeWorkflowMessage = getSiteVisitCustomerMessage(capturedWorkflowResult)
+              }
             } else if (toolResult.toolName === 'create_lead' && toolResult.result) {
               capturedLeadResult = toolResult.result.lead || null
             }
@@ -266,11 +271,20 @@ Your goal is to warmly assist prospective property buyers, answer questions inte
                 conversationId: chatId,
                 lead: extractedLead,
               })
+              if (!capturedWorkflowResult.customerConfirmationAllowed) {
+                safeWorkflowMessage = getSiteVisitCustomerMessage(capturedWorkflowResult)
+              }
             }
           }
         } catch (fallbackErr) {
           console.warn('[WhatsApp Webhook] Passive extraction fallback notice:', fallbackErr)
         }
+      }
+
+      // A model may phrase a request as a completed booking. The executor is
+      // authoritative: partial or failed workflows always use deterministic safe copy.
+      if (safeWorkflowMessage) {
+        aiResponse = safeWorkflowMessage
       }
 
       // G. Log assistant response to database

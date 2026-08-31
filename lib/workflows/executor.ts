@@ -27,6 +27,15 @@ export interface WorkflowExecutionResult {
   conversationId: string
   triggerEvent: string
   overallStatus: 'success' | 'partial' | 'failed'
+  /** True when one or more required steps did not execute against a live integration. */
+  hasSimulatedSteps: boolean
+  /** Required steps that failed during execution. */
+  failedStepIds: string[]
+  /**
+   * Whether it is safe to tell the customer that the site visit is confirmed.
+   * This is intentionally stricter than an internally successful request.
+   */
+  customerConfirmationAllowed: boolean
   startedAt: string
   completedAt: string
   durationMs: number
@@ -39,14 +48,42 @@ export interface WorkflowExecutionResult {
   }
 }
 
+export interface WorkflowExecutionAdapters {
+  /**
+   * Optional seams for verified integrations. The current product does not
+   * provide WhatsApp or Calendar adapters, so omitting these produces an
+   * explicit simulation result rather than a false success.
+   */
+  dispatchWhatsAppTemplate?: (payload: any) => Promise<Omit<WorkflowStepResult, 'stepId' | 'stepName' | 'type' | 'target' | 'durationMs'>>
+  createCalendarEvent?: (payload: any) => Promise<Omit<WorkflowStepResult, 'stepId' | 'stepName' | 'type' | 'target' | 'durationMs'>>
+}
+
+export function getSiteVisitCustomerMessage(
+  workflow: Pick<WorkflowExecutionResult, 'overallStatus' | 'customerConfirmationAllowed'>,
+  details?: { customerName?: string; preferredDate?: string; preferredTime?: string }
+): string {
+  if (workflow.overallStatus === 'failed') {
+    return "I've recorded your request, but I couldn't complete the booking automatically. Our team will follow up to confirm it."
+  }
+
+  if (!workflow.customerConfirmationAllowed) {
+    return 'Your site visit request has been recorded. Our team will confirm the exact slot shortly.'
+  }
+
+  const when = [details?.preferredDate, details?.preferredTime].filter(Boolean).join(' at ')
+  return `Your site visit${when ? ` for ${when}` : ''} has been confirmed${details?.customerName ? `, ${details.customerName}` : ''}.`
+}
+
 export async function executeRealEstateWorkflow({
   leadId,
   conversationId,
   lead,
+  adapters = {},
 }: {
   leadId: string
   conversationId: string
   lead: ExtractedRealEstateLead
+  adapters?: WorkflowExecutionAdapters
 }): Promise<WorkflowExecutionResult> {
   const startTime = Date.now()
   const executionId = `exec-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
@@ -81,32 +118,15 @@ export async function executeRealEstateWorkflow({
     },
   }
 
-  // Check if real Meta API configured
-  const hasMetaCredentials = !!process.env.META_WHATSAPP_TOKEN && !process.env.META_WHATSAPP_TOKEN.includes('placeholder')
-  if (hasMetaCredentials) {
-    // Live WhatsApp execution boundary
-    steps.push({
-      stepId: 's2',
-      stepName: 'Dispatch WhatsApp Template',
-      type: 'whatsapp',
-      status: 'success',
-      target: customerPhone,
-      durationMs: Date.now() - s2Start + 40,
-      detail: `Official WhatsApp template delivered to ${customerPhone} via Meta Cloud API.`,
-      payload: waPayload,
-    })
+  if (adapters.dispatchWhatsAppTemplate) {
+    try {
+      const outcome = await adapters.dispatchWhatsAppTemplate(waPayload)
+      steps.push({ stepId: 's2', stepName: 'Dispatch WhatsApp Template', type: 'whatsapp', target: customerPhone, durationMs: Date.now() - s2Start, payload: waPayload, ...outcome })
+    } catch (err: any) {
+      steps.push({ stepId: 's2', stepName: 'Dispatch WhatsApp Template', type: 'whatsapp', status: 'failed', target: customerPhone, durationMs: Date.now() - s2Start, detail: `WhatsApp dispatch failed: ${err.message || 'unknown error'}.`, payload: waPayload })
+    }
   } else {
-    // Explicit sandboxed simulation
-    steps.push({
-      stepId: 's2',
-      stepName: 'Dispatch WhatsApp Template',
-      type: 'whatsapp',
-      status: 'simulated',
-      target: customerPhone,
-      durationMs: Date.now() - s2Start + 35,
-      detail: `[SIMULATED] Outbound template queued for ${customerPhone}. (Meta WhatsApp API key is in demo simulation mode).`,
-      payload: waPayload,
-    })
+    steps.push({ stepId: 's2', stepName: 'Dispatch WhatsApp Template', type: 'whatsapp', status: 'simulated', target: customerPhone, durationMs: Date.now() - s2Start, detail: `[SIMULATED] Outbound template prepared for ${customerPhone}. No verified Meta WhatsApp adapter is configured.`, payload: waPayload })
   }
 
   // ── Step 3: Google Calendar Site Visit Block (SANDBOXED / SIMULATED) ─────
@@ -118,29 +138,15 @@ export async function executeRealEstateWorkflow({
     status: 'tentative',
   }
 
-  const hasCalendarCredentials = !!process.env.GOOGLE_CALENDAR_CLIENT_EMAIL && !process.env.GOOGLE_CALENDAR_CLIENT_EMAIL.includes('placeholder')
-  if (hasCalendarCredentials) {
-    steps.push({
-      stepId: 's3',
-      stepName: 'Create Calendar Event',
-      type: 'calendar',
-      status: 'success',
-      target: 'Primary Agent Google Calendar',
-      durationMs: Date.now() - s3Start + 50,
-      detail: `Site visit event scheduled for ${calPayload.date}.`,
-      payload: calPayload,
-    })
+  if (adapters.createCalendarEvent) {
+    try {
+      const outcome = await adapters.createCalendarEvent(calPayload)
+      steps.push({ stepId: 's3', stepName: 'Create Calendar Event', type: 'calendar', target: 'Primary Agent Google Calendar', durationMs: Date.now() - s3Start, payload: calPayload, ...outcome })
+    } catch (err: any) {
+      steps.push({ stepId: 's3', stepName: 'Create Calendar Event', type: 'calendar', status: 'failed', target: 'Primary Agent Google Calendar', durationMs: Date.now() - s3Start, detail: `Calendar event creation failed: ${err.message || 'unknown error'}.`, payload: calPayload })
+    }
   } else {
-    steps.push({
-      stepId: 's3',
-      stepName: 'Create Calendar Event',
-      type: 'calendar',
-      status: 'simulated',
-      target: 'Agent Google Calendar',
-      durationMs: Date.now() - s3Start + 25,
-      detail: `[SIMULATED] Site visit slot reserved for ${calPayload.date}. (Google Calendar API in demo mode).`,
-      payload: calPayload,
-    })
+    steps.push({ stepId: 's3', stepName: 'Create Calendar Event', type: 'calendar', status: 'simulated', target: 'Agent Google Calendar', durationMs: Date.now() - s3Start, detail: `[SIMULATED] Site visit request prepared for ${calPayload.date}. No verified Google Calendar adapter is configured.`, payload: calPayload })
   }
 
   // ── Step 4: n8n Webhook Pipeline Dispatch ────────────────────────────────
@@ -214,10 +220,10 @@ export async function executeRealEstateWorkflow({
         stepId: 's4',
         stepName: 'Sync n8n Pipeline',
         type: 'n8n_webhook',
-        status: 'simulated',
+        status: 'failed',
         target: n8nWebhookUrl,
         durationMs: Date.now() - s4Start,
-        detail: `[SIMULATED] Webhook payload prepared. Downstream host returned: ${err.message || 'connection timeout'}.`,
+        detail: `n8n webhook dispatch failed: ${err.message || 'connection timeout'}.`,
         payload: webhookPayload,
       })
     }
@@ -241,6 +247,17 @@ export async function executeRealEstateWorkflow({
   const completedAt = new Date().toISOString()
   const durationMs = Date.now() - startTime
 
+  const failedStepIds = steps.filter((step) => step.status === 'failed').map((step) => step.stepId)
+  const hasSimulatedSteps = steps.some((step) => step.status === 'simulated' || step.status === 'skipped') || n8nResult.status === 'not_configured'
+  const overallStatus: WorkflowExecutionResult['overallStatus'] = failedStepIds.length > 0
+    ? 'failed'
+    : hasSimulatedSteps
+      ? 'partial'
+      : 'success'
+  const customerConfirmationAllowed = overallStatus === 'success' &&
+    steps.some((step) => step.stepId === 's2' && step.status === 'success') &&
+    steps.some((step) => step.stepId === 's3' && step.status === 'success')
+
   const result: WorkflowExecutionResult = {
     executionId,
     workflowId: 'wf-001',
@@ -248,7 +265,10 @@ export async function executeRealEstateWorkflow({
     leadId,
     conversationId,
     triggerEvent: lead.site_visit_requested ? 'Site Visit Booked' : 'Lead Qualified',
-    overallStatus: 'success',
+    overallStatus,
+    hasSimulatedSteps,
+    failedStepIds,
+    customerConfirmationAllowed,
     startedAt,
     completedAt,
     durationMs,

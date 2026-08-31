@@ -98,6 +98,8 @@ describe('lib/ai/gemini - Gemini Client & Runtime Hardening', () => {
       expect(response.text).toContain('Suresh')
       expect(response.text).toContain('3 BHK')
       expect(response.text).toContain('Tirupati')
+      expect(response.text?.toLowerCase()).toContain('recorded')
+      expect(response.text?.toLowerCase()).not.toMatch(/reserved|confirmed|scheduled|booked/)
       expect(response.functionCalls).toEqual([])
     })
 
@@ -118,6 +120,7 @@ describe('lib/ai/gemini - Gemini Client & Runtime Hardening', () => {
       expect(response.text).toBeDefined()
       expect(response.text?.toLowerCase()).toContain('site visit')
       expect(response.text).toContain('Saturday')
+      expect(response.text?.toLowerCase()).not.toMatch(/reserved|confirmed|scheduled|booked/)
     })
   })
 
