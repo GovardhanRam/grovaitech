@@ -247,7 +247,7 @@ export const getSimulatedResponse = (prompt: string, systemInstruction?: string)
       const budgetText = state.budget ? ` (Budget: ₹${state.budget})` : ''
       const phoneText = state.phone ? ` on ${state.phone}` : ''
 
-      return `${greeting} I have reserved your site visit${dateText} for a ${propLabel}${locLabel}${budgetText}. Our real estate specialist will contact you${phoneText} to confirm the appointment and share the exact property location. Is there anything specific you would like us to prepare for your visit?`
+      return `${greeting} I have recorded your site visit request${dateText} for a ${propLabel}${locLabel}${budgetText}. Our real estate specialist will contact you${phoneText} to confirm the exact appointment details and share the property location. Is there anything specific you would like us to prepare for your visit?`
     }
 
     if (state.site_visit_date || query.includes('visit') || query.includes('tour') || query.includes('saturday') || query.includes('sunday')) {

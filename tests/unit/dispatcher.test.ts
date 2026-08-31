@@ -18,6 +18,15 @@ vi.mock('@/app/actions/bookings', () => ({
 
 vi.mock('@/lib/workflows/executor', () => ({
   executeRealEstateWorkflow: vi.fn(),
+  getSiteVisitCustomerMessage: (workflow: any, details?: any) => {
+    if (workflow.overallStatus === 'failed') {
+      return "I've recorded your request, but I couldn't complete the booking automatically. Our team will follow up to confirm it."
+    }
+    if (!workflow.customerConfirmationAllowed) {
+      return 'Your site visit request has been recorded. Our team will confirm the exact slot shortly.'
+    }
+    return `Your site visit for ${details.preferredDate} at ${details.preferredTime} has been confirmed, ${details.customerName}.`
+  },
 }))
 
 vi.mock('@/lib/ai/gemini', () => ({
@@ -163,6 +172,7 @@ describe('lib/ai/dispatcher - dispatchToolCall()', () => {
         workflowId: 'wf_exec_999',
         leadId: 'lead_visit_001',
         overallStatus: 'success',
+        customerConfirmationAllowed: true,
         steps: [
           { stepId: 'step-1', name: 'Register Lead', status: 'completed', durationMs: 12 },
           { stepId: 'step-2', name: 'Schedule Site Visit', status: 'completed', durationMs: 45 },
@@ -181,9 +191,38 @@ describe('lib/ai/dispatcher - dispatchToolCall()', () => {
       expect(result.success).toBe(true)
       expect(result.result.workflowId).toBe('wf_exec_999')
       expect(result.result.workflowStatus).toBe('success')
-      expect(result.result.message).toContain('Site visit confirmed for Priya Patel')
+      expect(result.result.message).toContain('has been confirmed, Priya Patel')
       expect(createLead).toHaveBeenCalledTimes(1)
       expect(executeRealEstateWorkflow).toHaveBeenCalledTimes(1)
+    })
+
+    it('uses request-recorded wording for a partial site-visit workflow', async () => {
+      vi.mocked(createLead).mockResolvedValueOnce({ success: true, data: { id: 'lead_partial' } as any })
+      vi.mocked(executeRealEstateWorkflow).mockResolvedValueOnce({
+        workflowId: 'wf_partial', overallStatus: 'partial', customerConfirmationAllowed: false, steps: [],
+      } as any)
+
+      const result = await dispatchToolCall('schedule_site_visit', {
+        customer_name: 'Priya Patel', phone: '+919988776655', preferred_date: '2026-09-05',
+      })
+
+      expect(result.success).toBe(true)
+      expect(result.result.message).toBe('Your site visit request has been recorded. Our team will confirm the exact slot shortly.')
+      expect(result.result.message.toLowerCase()).not.toContain('confirmed')
+    })
+
+    it('uses follow-up wording for a failed site-visit workflow', async () => {
+      vi.mocked(createLead).mockResolvedValueOnce({ success: true, data: { id: 'lead_failed' } as any })
+      vi.mocked(executeRealEstateWorkflow).mockResolvedValueOnce({
+        workflowId: 'wf_failed', overallStatus: 'failed', customerConfirmationAllowed: false, steps: [],
+      } as any)
+
+      const result = await dispatchToolCall('schedule_site_visit', {
+        customer_name: 'Priya Patel', phone: '+919988776655', preferred_date: '2026-09-05',
+      })
+
+      expect(result.success).toBe(true)
+      expect(result.result.message).toBe("I've recorded your request, but I couldn't complete the booking automatically. Our team will follow up to confirm it.")
     })
 
     it('book_clinic_appointment calls the mocked booking action', async () => {
