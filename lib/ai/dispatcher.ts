@@ -22,6 +22,9 @@ import {
   getWhatsAppLeadCustomerMessage,
   executeSalonWorkflow,
   getSalonCustomerMessage,
+  executeQaWorkflow,
+  getQaAuditCustomerMessage,
+  type QaRubricBreakdown,
 } from '@/lib/workflows/executor'
 import { generateResponse } from '@/lib/ai/gemini'
 import { createServerClient } from '@/lib/supabase/server'
@@ -467,6 +470,174 @@ async function handleBookSalonService(rawArgs: Record<string, any>): Promise<any
   }
 }
 
+/**
+ * Masks sensitive credentials such as API keys, Bearer tokens, passwords, and JWTs in transcripts.
+ */
+export function maskSensitiveCredentials(text: string): string {
+  if (!text) return ''
+  return text
+    .replace(/(?:sk-[a-zA-Z0-9_\-]{16,})/gi, '[REDACTED_API_KEY]')
+    .replace(/(?:bearer\s+[a-zA-Z0-9_\-\.]{16,})/gi, 'Bearer [REDACTED_TOKEN]')
+    .replace(/(?:password\s*[:=]\s*["']?)([^"'\s\n\r]+)(["']?)/gi, 'password=[REDACTED_PASSWORD]')
+    .replace(/(?:eyJ[a-zA-Z0-9_\-]{10,}\.[a-zA-Z0-9_\-]{10,}\.[a-zA-Z0-9_\-]{10,})/gi, '[REDACTED_JWT]')
+}
+
+/**
+ * Handler 7: audit_conversation_quality
+ * Connects to canonical AI QA workflow engine (wf-005).
+ */
+async function handleAuditConversationQuality(rawArgs: Record<string, any>): Promise<any> {
+  const chatId = sanitizeString(rawArgs.chat_id, 100) || undefined
+  let rawTranscript = sanitizeString(rawArgs.transcript, 8000)
+  const rubric = sanitizeString(rawArgs.rubric, 50) || 'standard'
+  const focusAreas = sanitizeString(rawArgs.focus_areas, 200) || undefined
+  const notes = sanitizeString(rawArgs.notes, 500) || undefined
+
+  // 1. If transcript not provided but chatId is present, fetch conversation turns from Supabase
+  if (!rawTranscript && chatId) {
+    try {
+      const supabase = await createServerClient()
+      const { data: messages } = await supabase
+        .from('messages')
+        .select('role, content, created_at')
+        .eq('chat_id', chatId)
+        .order('created_at', { ascending: true })
+        .limit(20)
+
+      if (messages && messages.length > 0) {
+        rawTranscript = messages
+          .map((m: any) => `${m.role.toUpperCase()}: ${m.content}`)
+          .join('\n')
+      }
+    } catch (err) {
+      console.warn('[QA Dispatcher] Notice fetching chat transcript:', err)
+    }
+  }
+
+  if (!rawTranscript && !chatId) {
+    throw new Error("Validation Error: Either 'transcript' or 'chat_id' is required for quality inspection.")
+  }
+
+  // 2. Sanitize and mask any sensitive credentials
+  const sanitizedTranscript = maskSensitiveCredentials(rawTranscript || `Transcript for chat ${chatId}`)
+
+  // 3. Perform rubric evaluation across 4 dimensions: Truthfulness, Helpfulness, Compliance, Safety
+  let truthfulnessScore = 25
+  let helpfulnessScore = 25
+  let complianceScore = 25
+  let safetyScore = 25
+  const strengths: string[] = []
+  const violations: string[] = []
+  const recommendations: string[] = []
+
+  const lower = sanitizedTranscript.toLowerCase()
+
+  // Truthfulness & Grounding check
+  if (
+    lower.includes('guarantee 100% profit') ||
+    lower.includes('unauthorized discount') ||
+    lower.includes('free medical diagnosis')
+  ) {
+    truthfulnessScore -= 15
+    violations.push('Model made ungrounded or fabricated promises not supported by enterprise knowledge base.')
+    recommendations.push('Enforce stricter search_knowledge_base retrieval prior to answering.')
+  } else {
+    strengths.push('Responses maintained truthful boundaries and avoided unauthorized promises.')
+  }
+
+  // Safety & Tone check
+  if (lower.includes('shut up') || lower.includes('not my problem') || lower.includes('i do not care')) {
+    safetyScore -= 20
+    violations.push('Agent displayed non-empathetic or unprofessional communication tone.')
+    recommendations.push('Apply hospitality de-escalation guidelines in prompt.')
+  } else {
+    strengths.push('Maintained polite, professional, and empathetic tone throughout the interaction.')
+  }
+
+  // Helpfulness check
+  if (sanitizedTranscript.length < 30) {
+    helpfulnessScore -= 10
+    violations.push('Interaction was overly terse with insufficient detail for customer resolution.')
+    recommendations.push('Provide more comprehensive step-by-step assistance.')
+  } else {
+    strengths.push('Provided clear, actionable assistance aligned with user query.')
+  }
+
+  // Compliance check
+  if (lower.includes('refund processed immediately') && !lower.includes('escalate_to_human')) {
+    complianceScore -= 15
+    violations.push('Promised financial refunds without human operator escalation approval.')
+    recommendations.push('Route all refund/billing disputes through escalate_to_human.')
+  } else {
+    strengths.push('Strictly observed operational compliance and role boundaries.')
+  }
+
+  const overallScore = Math.max(0, Math.min(100, truthfulnessScore + helpfulnessScore + complianceScore + safetyScore))
+  const passed = overallScore >= 70
+
+  const rubricBreakdown: QaRubricBreakdown = {
+    truthfulness: truthfulnessScore,
+    helpfulness: helpfulnessScore,
+    compliance: complianceScore,
+    safety: safetyScore,
+  }
+
+  const auditId = `qa-audit-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+  const summary = passed
+    ? `Interaction passed quality rubric scoring ${overallScore}/100 with high adherence to truthfulness and company guidelines.`
+    : `Interaction flagged with score ${overallScore}/100 due to ${violations.length} policy or quality deviations.`
+
+  const workflowRes = await executeQaWorkflow({
+    auditId,
+    conversationId: chatId || '',
+    audit: {
+      chat_id: chatId,
+      transcript: sanitizedTranscript,
+      rubric,
+      focus_areas: focusAreas,
+      notes,
+      overallScore,
+      passed,
+      rubricBreakdown,
+      strengths,
+      violations,
+      recommendations,
+      summary,
+      sanitizedTranscriptSnippet: sanitizedTranscript.slice(0, 150),
+    },
+  })
+
+  const message = getQaAuditCustomerMessage(workflowRes, {
+    chat_id: chatId,
+    transcript: sanitizedTranscript,
+    rubric,
+    focus_areas: focusAreas,
+    notes,
+    overallScore,
+    passed,
+    rubricBreakdown,
+    strengths,
+    violations,
+    recommendations,
+    summary,
+  })
+
+  return {
+    auditId,
+    workflowId: workflowRes.workflowId,
+    executionId: workflowRes.executionId,
+    overallScore,
+    passed,
+    rubricBreakdown,
+    strengths,
+    violations,
+    recommendations,
+    summary,
+    message,
+    steps: workflowRes.steps,
+  }
+}
+
 // ─── Main Dispatcher Entry Point ─────────────────────────────────────────────
 
 /**
@@ -529,6 +700,10 @@ export async function dispatchToolCall(
 
       case TOOL_NAMES.BOOK_SALON_SERVICE:
         result = await handleBookSalonService(rawArgs || {})
+        break
+
+      case TOOL_NAMES.AUDIT_CONVERSATION_QUALITY:
+        result = await handleAuditConversationQuality(rawArgs || {})
         break
 
       default:

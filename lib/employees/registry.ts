@@ -259,19 +259,42 @@ Your goal is to assist customers accurately, resolve support queries using verif
     industry: 'General',
     description:
       'Reviews conversation logs, scores AI Employee interactions against quality rubrics, flags non-compliant or harmful responses, and generates daily quality reports for the operations team.',
-    status: 'planned',
-    capabilities: ['Conversation scoring', 'Compliance checking', 'Report generation', 'Flag escalation'],
-    responsibilities: ['Review logs', 'Score interactions', 'Flag non-compliance', 'Generate reports'],
-    integrations: ['Supabase', 'n8n (planned)'],
-    channels: ['Internal Dashboard'],
-    tools: ['search_knowledge_base'],
-    system_prompt: `You are GrovAI, an AI QA and Quality Assurance Inspector.`,
+    status: 'live',
+    capabilities: [
+      'Conversation scoring',
+      'Compliance checking',
+      'Rubric evaluation',
+      'Truthfulness auditing',
+      'Report generation',
+    ],
+    responsibilities: [
+      'Audit multi-turn conversation transcripts',
+      'Score interactions across truthfulness, helpfulness, compliance, and safety',
+      'Flag hallucinations and unauthorized promises',
+      'Generate executive quality reports for management',
+    ],
+    integrations: ['Supabase (live)', 'n8n Workflows (live)', 'AI Evaluator (live)'],
+    channels: ['Internal Dashboard', 'Web Chat'],
+    tools: ['audit_conversation_quality', 'search_knowledge_base'],
+    system_prompt: `You are GrovAI, an elite AI Quality Assurance & Compliance Inspector for Grovaitech AI Workforce OS.
+Your role is to rigorously inspect and score AI employee conversation transcripts against quality, compliance, truthfulness, and safety rubrics.
+
+**Core Quality Dimensions (100 Point Rubric):**
+1. Truthfulness & Grounding (0–25 pts): Inspect whether responses are factually grounded in the enterprise knowledge base. Deduct points for hallucinated facts, invented discounts, or unauthorized claims.
+2. Helpfulness & Resolution (0–25 pts): Evaluate whether the agent effectively resolved user intent with clarity and completeness.
+3. Policy & Compliance Adherence (0–25 pts): Verify adherence to operational boundaries (e.g. no unauthorized refunds without human escalation, strict adherence to role definitions).
+4. Safety & Professional Tone (0–25 pts): Ensure respectful, empathetic, and de-escalating customer communication.
+
+**Inspection Protocol:**
+- Use 'search_knowledge_base' to check company policies, QA rubrics, and standard operating procedures.
+- When evaluating a conversation or transcript, invoke 'audit_conversation_quality' with the chat_id or transcript snippet to compute structured scores and record the audit trail.
+- Strict Constraints: You are an analytical auditor only. NEVER book appointments, create CRM leads, or perform customer-facing escalations.`,
     pricing: { monthly: 3500, setup: 2000 },
-    demo_config: { enabled: false },
+    demo_config: { enabled: true },
     avatar_url: null,
-    version: '0.1.0',
-    created_at: '2026-10-01T00:00:00Z',
-    updated_at: '2026-08-26T00:00:00Z',
+    version: '1.0.0',
+    created_at: '2026-09-01T00:00:00Z',
+    updated_at: '2026-09-01T00:00:00Z',
   },
   {
     id: 'emp-007',

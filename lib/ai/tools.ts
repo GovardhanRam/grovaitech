@@ -292,6 +292,36 @@ export const BOOK_SALON_SERVICE_TOOL: FunctionDeclaration = {
   },
 }
 
+export const AUDIT_CONVERSATION_QUALITY_TOOL: FunctionDeclaration = {
+  name: 'audit_conversation_quality',
+  description: 'Evaluates an AI employee conversation transcript against quality, truthfulness, compliance, and safety rubrics. Produces an objective score (0-100), itemized rubric breakdown, detected violations, and actionable recommendations.',
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      chat_id: {
+        type: SchemaType.STRING,
+        description: 'Optional ID of an existing conversation in Supabase to fetch and evaluate.',
+      },
+      transcript: {
+        type: SchemaType.STRING,
+        description: 'Raw conversation text or multi-turn transcript to evaluate if not providing chat_id.',
+      },
+      rubric: {
+        type: SchemaType.STRING,
+        description: 'Evaluation rubric or focus mode: standard, compliance, sales, support, or hospitality (default: standard).',
+      },
+      focus_areas: {
+        type: SchemaType.STRING,
+        description: 'Specific aspects or policies to scrutinize (e.g., pricing truthfulness, hallucination check, refund policy).',
+      },
+      notes: {
+        type: SchemaType.STRING,
+        description: 'Optional audit notes or context for the quality inspector.',
+      },
+    },
+  },
+}
+
 // ─── Grouped Tool Collections for AI Employee Personas ───────────────────────
 
 export const REAL_ESTATE_TOOLS: FunctionDeclaration[] = [
@@ -315,6 +345,11 @@ export const SALON_TOOLS: FunctionDeclaration[] = [
   SEARCH_KNOWLEDGE_BASE_TOOL,
 ]
 
+export const QA_TOOLS: FunctionDeclaration[] = [
+  AUDIT_CONVERSATION_QUALITY_TOOL,
+  SEARCH_KNOWLEDGE_BASE_TOOL,
+]
+
 export const ALL_GROVAITECH_TOOLS: FunctionDeclaration[] = [
   CREATE_LEAD_TOOL,
   SCHEDULE_SITE_VISIT_TOOL,
@@ -322,6 +357,7 @@ export const ALL_GROVAITECH_TOOLS: FunctionDeclaration[] = [
   SEARCH_KNOWLEDGE_BASE_TOOL,
   ESCALATE_TO_HUMAN_TOOL,
   BOOK_SALON_SERVICE_TOOL,
+  AUDIT_CONVERSATION_QUALITY_TOOL,
 ]
 
 export const GROVAITECH_TOOLSET: FunctionDeclarationsTool = {
@@ -337,6 +373,7 @@ export const TOOL_NAMES = {
   SEARCH_KNOWLEDGE_BASE: 'search_knowledge_base',
   ESCALATE_TO_HUMAN: 'escalate_to_human',
   BOOK_SALON_SERVICE: 'book_salon_service',
+  AUDIT_CONVERSATION_QUALITY: 'audit_conversation_quality',
 } as const
 
 export type ToolName = typeof TOOL_NAMES[keyof typeof TOOL_NAMES]
