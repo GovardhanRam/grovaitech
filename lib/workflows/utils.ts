@@ -231,4 +231,27 @@ export const CANONICAL_DEMO_WORKFLOWS: Workflow[] = [
       },
     ],
   },
+  {
+    id: 'wf-008',
+    name: 'E-Commerce Order Tracking & Returns Resolution Pipeline',
+    description:
+      'Autonomous e-commerce support flow: verifies customer order parameters, syncs real-time shipment/carrier logistics, evaluates return/exchange policy eligibility, and dispatches store webhook updates.',
+    status: 'active',
+    trigger_event: 'Customer Order Query / Return Request',
+    trigger_source: 'E-Commerce Support Agent',
+    assigned_employee: 'E-Commerce Support Agent',
+    assigned_employee_slug: 'ecommerce-support-agent',
+    steps: [
+      { id: 's1', name: 'Order Lookup & Verification', type: 'database', target: 'Store Order Database' },
+      { id: 's2', name: 'Logistics & Tracking Status Sync', type: 'crm_sync', target: 'Carrier Logistics API' },
+      { id: 's3', name: 'Policy & Return Eligibility Validation', type: 'ai_action', target: 'Store Policy Engine' },
+      { id: 's4', name: 'n8n Store Webhook Hub Sync', type: 'n8n_webhook', target: 'https://n8n.grovaitech.ai/webhook/v1/ecommerce-hub' },
+    ],
+    n8n_webhook_url: 'https://n8n.grovaitech.ai/webhook/v1/ecommerce-hub',
+    total_executions: 0,
+    success_rate: 100,
+    last_executed_at: 'Not executed yet',
+    created_at: '2026-09-01T00:00:00Z',
+    executions: [],
+  },
 ]

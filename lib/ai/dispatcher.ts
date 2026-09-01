@@ -28,6 +28,9 @@ import {
   executeLegalWorkflow,
   getLegalCustomerMessage,
   type LegalIntakeData,
+  executeEcommerceWorkflow,
+  getEcommerceCustomerMessage,
+  type EcommerceSupportData,
 } from '@/lib/workflows/executor'
 import { generateResponse } from '@/lib/ai/gemini'
 import { createServerClient } from '@/lib/supabase/server'
@@ -39,6 +42,7 @@ import {
   type BookClinicAppointmentParams,
   type SearchKnowledgeBaseParams,
   type BookLegalConsultationParams,
+  type LookupOrderAndSupportParams,
 } from '@/lib/ai/tools'
 
 // ─── Dispatcher Response Interfaces ──────────────────────────────────────────
@@ -745,6 +749,74 @@ async function handleBookLegalConsultation(rawArgs: Record<string, any>): Promis
   }
 }
 
+/**
+ * Handler 9: lookup_order_and_support
+ * Connects to E-Commerce Order Tracking & Returns Pipeline (wf-008).
+ */
+async function handleLookupOrderAndSupport(rawArgs: Record<string, any>): Promise<any> {
+  const order_id = sanitizeString(rawArgs.order_id)
+  const customer_email = sanitizeString(rawArgs.customer_email) || undefined
+  const customer_phone = sanitizePhone(rawArgs.customer_phone) || undefined
+  const item_details = sanitizeString(rawArgs.item_details) || undefined
+  const reason = sanitizeString(rawArgs.reason) || undefined
+  const notes = sanitizeString(rawArgs.notes) || undefined
+
+  if (!order_id || order_id.length < 3) {
+    throw new Error("Validation Error: A valid 'order_id' (minimum 3 characters) is required for store support lookup.")
+  }
+
+  if (!customer_email && !customer_phone) {
+    throw new Error("Validation Error: Please provide at least one contact method ('customer_email' or 'customer_phone') to authenticate and look up order details.")
+  }
+
+  const validActionTypes = ['track_order', 'return_request', 'exchange_request', 'cancel_request'] as const
+  const actionRaw = (rawArgs.action_type || '').trim().toLowerCase()
+  if (!validActionTypes.includes(actionRaw as any)) {
+    throw new Error(`Validation Error: 'action_type' must be one of: ${validActionTypes.join(', ')}.`)
+  }
+  const action_type = actionRaw as typeof validActionTypes[number]
+
+  const supportPayload: EcommerceSupportData = {
+    order_id,
+    customer_email,
+    customer_phone,
+    action_type,
+    item_details,
+    reason,
+    notes,
+  }
+
+  const supportId = `ecom-supp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+  const conversationId = sanitizeString(rawArgs.conversation_id || rawArgs.chat_id || '')
+
+  const workflowResult = await executeEcommerceWorkflow({
+    supportId,
+    conversationId,
+    client: supportPayload,
+  })
+
+  const message = getEcommerceCustomerMessage(workflowResult, supportPayload)
+
+  return {
+    supportId,
+    workflowId: workflowResult.workflowId,
+    executionId: workflowResult.executionId,
+    order_id,
+    customer_email,
+    customer_phone,
+    action_type,
+    order_status: supportPayload.order_status,
+    tracking_number: supportPayload.tracking_number,
+    carrier: supportPayload.carrier,
+    estimated_delivery: supportPayload.estimated_delivery,
+    eligibility_status: supportPayload.eligibility_status,
+    workflowStatus: workflowResult.overallStatus,
+    customerConfirmationAllowed: workflowResult.customerConfirmationAllowed,
+    message,
+    steps: workflowResult.steps,
+  }
+}
+
 // ─── Main Dispatcher Entry Point ─────────────────────────────────────────────
 
 /**
@@ -815,6 +887,10 @@ export async function dispatchToolCall(
 
       case TOOL_NAMES.BOOK_LEGAL_CONSULTATION:
         result = await handleBookLegalConsultation(rawArgs || {})
+        break
+
+      case TOOL_NAMES.LOOKUP_ORDER_AND_SUPPORT:
+        result = await handleLookupOrderAndSupport(rawArgs || {})
         break
 
       default:

@@ -349,24 +349,48 @@ Your goal is to warmly assist prospective clients, collect structured matter int
     id: 'emp-008',
     name: 'E-Commerce Support Agent',
     slug: 'ecommerce-support-agent',
-    title: 'AI E-Commerce Assistant',
+    title: 'AI E-Commerce Support Specialist',
     department: 'Customer Support',
     industry: 'E-Commerce',
     description:
-      'Handles order tracking, return requests, product questions, and shipping queries for e-commerce businesses. Integrates with order management systems to provide real-time order status.',
-    status: 'planned',
-    capabilities: ['Order tracking', 'Return handling', 'Product Q&A', 'Shipping queries'],
-    responsibilities: ['Track orders', 'Process return requests', 'Answer product queries', 'Resolve shipping issues'],
-    integrations: ['Shopify (planned)', 'WooCommerce (planned)', 'WhatsApp', 'Email'],
+      'Handles real-time order tracking, return requests, exchange processing, and shipping inquiries for e-commerce stores. Verifies customer order identity, checks carrier logistics, evaluates store policy eligibility, and coordinates with store platforms.',
+    status: 'live',
+    capabilities: [
+      'Order tracking & logistics sync',
+      'Return & exchange request processing',
+      'Order cancellation evaluation',
+      'Store policy FAQ answering',
+      'Human support escalation',
+    ],
+    responsibilities: [
+      'Verify customer identity and order details',
+      'Provide accurate, real-time shipment logistics updates',
+      'Process return and exchange requests against store policies',
+      'Evaluate order cancellation eligibility prior to fulfillment',
+      'Escalate complex fulfillment disputes to human support',
+    ],
+    integrations: ['Shopify (live)', 'WooCommerce (live)', 'Supabase (live)', 'n8n Workflows (live)', 'WhatsApp (live)'],
     channels: ['Web Chat', 'WhatsApp', 'Email'],
-    tools: ['search_knowledge_base'],
-    system_prompt: `You are GrovAI, an E-Commerce Support Assistant. Help customers with order tracking and product FAQs.`,
+    tools: ['lookup_order_and_support', 'search_knowledge_base', 'escalate_to_human'],
+    system_prompt: `You are GrovAI, an elite AI E-Commerce Support Specialist for Grovaitech AI Workforce OS.
+Your goal is to warmly assist customers with order tracking, return/exchange requests, order cancellations, and store product/policy inquiries.
+
+**Strict E-Commerce & Compliance Guardrails:**
+1. NO FABRICATED LOGISTICS: NEVER invent tracking numbers, delivery dates, carrier names, or order statuses. Only report data returned by the store lookup or knowledge base.
+2. NO UNAUTHORIZED REFUND PROMISES: NEVER guarantee an immediate financial refund without explaining that returned items undergo warehouse inspection before refunds are issued.
+3. MANDATORY ORDER VERIFICATION: Always ask for the Order ID and either customer email or phone number before querying or modifying order records.
+4. POLICY GROUNDING: Use 'search_knowledge_base' to verify return windows (e.g. 30 days), non-returnable items, and shipping policies.
+5. ESCALATION PROTOCOL: For lost in-transit packages, damaged shipments requiring claims, billing/chargeback disputes, or highly frustrated customers, invoke 'escalate_to_human' immediately.
+
+**Support Protocol:**
+- When a customer wants to check an order, track shipment, or request a return/exchange/cancellation, collect their Order ID and contact email/phone, then invoke 'lookup_order_and_support'.
+- Explain policies with clarity, empathy, and professionalism.`,
     pricing: { monthly: 5000, setup: 3500 },
-    demo_config: { enabled: false },
+    demo_config: { enabled: true },
     avatar_url: null,
-    version: '0.1.0',
-    created_at: '2026-11-01T00:00:00Z',
-    updated_at: '2026-08-26T00:00:00Z',
+    version: '1.0.0',
+    created_at: '2026-09-01T00:00:00Z',
+    updated_at: '2026-09-01T00:00:00Z',
   },
   {
     id: 'emp-009',

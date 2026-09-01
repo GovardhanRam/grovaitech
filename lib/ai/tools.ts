@@ -57,6 +57,16 @@ export interface BookLegalConsultationParams {
   notes?: string
 }
 
+export interface LookupOrderAndSupportParams {
+  order_id: string
+  customer_email?: string
+  customer_phone?: string
+  action_type: 'track_order' | 'return_request' | 'exchange_request' | 'cancel_request'
+  item_details?: string
+  reason?: string
+  notes?: string
+}
+
 export interface SearchKnowledgeBaseParams {
   query: string
   category?: string
@@ -400,6 +410,47 @@ export const BOOK_LEGAL_CONSULTATION_TOOL: FunctionDeclaration = {
   },
 }
 
+export const LOOKUP_ORDER_AND_SUPPORT_TOOL: FunctionDeclaration = {
+  name: 'lookup_order_and_support',
+  description: 'Looks up e-commerce order details, tracks shipment logistics, and initiates return, exchange, or cancellation requests. Do not fabricate order existence or guarantee refunds without verified eligibility.',
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      order_id: {
+        type: SchemaType.STRING,
+        description: 'Store Order ID (e.g., #ORD-10492, GROV-88231).',
+      },
+      customer_email: {
+        type: SchemaType.STRING,
+        description: 'Customer email address associated with the order.',
+      },
+      customer_phone: {
+        type: SchemaType.STRING,
+        description: 'Customer contact phone number associated with the order.',
+      },
+      action_type: {
+        type: SchemaType.STRING,
+        format: 'enum',
+        enum: ['track_order', 'return_request', 'exchange_request', 'cancel_request'],
+        description: 'Action to perform: track shipment, request return, request exchange, or cancel unfulfilled order.',
+      },
+      item_details: {
+        type: SchemaType.STRING,
+        description: 'Name, SKU, or description of the specific item being returned or queried.',
+      },
+      reason: {
+        type: SchemaType.STRING,
+        description: 'Customer-provided reason for return, exchange, or cancellation (e.g. Defective, Wrong Size, Changed Mind).',
+      },
+      notes: {
+        type: SchemaType.STRING,
+        description: 'Optional additional support notes or customer comments.',
+      },
+    },
+    required: ['order_id', 'action_type'],
+  },
+}
+
 // ─── Grouped Tool Collections for AI Employee Personas ───────────────────────
 
 export const REAL_ESTATE_TOOLS: FunctionDeclaration[] = [
@@ -434,6 +485,12 @@ export const LEGAL_TOOLS: FunctionDeclaration[] = [
   ESCALATE_TO_HUMAN_TOOL,
 ]
 
+export const ECOMMERCE_TOOLS: FunctionDeclaration[] = [
+  LOOKUP_ORDER_AND_SUPPORT_TOOL,
+  SEARCH_KNOWLEDGE_BASE_TOOL,
+  ESCALATE_TO_HUMAN_TOOL,
+]
+
 export const ALL_GROVAITECH_TOOLS: FunctionDeclaration[] = [
   CREATE_LEAD_TOOL,
   SCHEDULE_SITE_VISIT_TOOL,
@@ -443,6 +500,7 @@ export const ALL_GROVAITECH_TOOLS: FunctionDeclaration[] = [
   BOOK_SALON_SERVICE_TOOL,
   AUDIT_CONVERSATION_QUALITY_TOOL,
   BOOK_LEGAL_CONSULTATION_TOOL,
+  LOOKUP_ORDER_AND_SUPPORT_TOOL,
 ]
 
 export const GROVAITECH_TOOLSET: FunctionDeclarationsTool = {
@@ -460,6 +518,7 @@ export const TOOL_NAMES = {
   BOOK_SALON_SERVICE: 'book_salon_service',
   AUDIT_CONVERSATION_QUALITY: 'audit_conversation_quality',
   BOOK_LEGAL_CONSULTATION: 'book_legal_consultation',
+  LOOKUP_ORDER_AND_SUPPORT: 'lookup_order_and_support',
 } as const
 
 export type ToolName = typeof TOOL_NAMES[keyof typeof TOOL_NAMES]

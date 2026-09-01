@@ -20,6 +20,7 @@ import {
   getSiteVisitCustomerMessage,
   getClinicCustomerMessage,
   getLegalCustomerMessage,
+  getEcommerceCustomerMessage,
   type WorkflowExecutionResult,
   type PatientAppointmentData,
 } from '@/lib/workflows/executor'
@@ -136,6 +137,28 @@ Your goal is to warmly assist prospective clients, collect structured matter int
 - Collect all required intake parameters: Client Name, Phone Number, Email, Practice Area, Matter Summary, Opposing Party, Urgency, Preferred Date, and Preferred Time.
 - Once details are collected, invoke 'book_legal_consultation' immediately.
 - If a client has an emergency deadline or explicitly requests an urgent attorney, invoke 'escalate_to_human' immediately.`
+  }
+
+  if (
+    normalized.includes('ecommerce') ||
+    normalized.includes('e-commerce') ||
+    normalized.includes('order') ||
+    normalized.includes('shipping') ||
+    normalized.includes('return')
+  ) {
+    return `You are GrovAI, an elite AI E-Commerce Support Specialist for Grovaitech AI Workforce OS.
+Your goal is to warmly assist customers with order tracking, return/exchange requests, order cancellations, and store product/policy inquiries.
+
+**Strict E-Commerce & Compliance Guardrails:**
+1. NO FABRICATED LOGISTICS: NEVER invent tracking numbers, delivery dates, carrier names, or order statuses. Only report data returned by the store lookup or knowledge base.
+2. NO UNAUTHORIZED REFUND PROMISES: NEVER guarantee an immediate financial refund without explaining that returned items undergo warehouse inspection before refunds are issued.
+3. MANDATORY ORDER VERIFICATION: Always ask for the Order ID and either customer email or phone number before querying or modifying order records.
+4. POLICY GROUNDING: Use 'search_knowledge_base' to verify return windows (e.g. 30 days), non-returnable items, and shipping policies.
+5. ESCALATION PROTOCOL: For lost in-transit packages, damaged shipments requiring claims, billing/chargeback disputes, or highly frustrated customers, invoke 'escalate_to_human' immediately.
+
+**Support Protocol:**
+- When a customer wants to check an order, track shipment, or request a return/exchange/cancellation, collect their Order ID and contact email/phone, then invoke 'lookup_order_and_support'.
+- Explain policies with clarity, empathy, and professionalism.`
   }
 
   return `You are GrovAI, an elite AI Lead Receptionist for Grovaitech.
@@ -360,6 +383,37 @@ export async function runAgentTurn(options: RunAgentTurnOptions): Promise<AgentT
                 conflict_status: toolResult.result.conflict_status,
               })
             }
+          }
+        } else if (toolResult.toolName === 'lookup_order_and_support' && toolResult.result) {
+          if (toolResult.result.workflowId) {
+            workflowResult = {
+              executionId: toolResult.result.executionId || toolResult.result.workflowId,
+              workflowId: 'wf-008',
+              workflowName: 'E-Commerce Order Tracking & Returns Resolution Pipeline',
+              leadId: toolResult.result.supportId || '',
+              conversationId: '',
+              triggerEvent: 'Customer Order Query / Return Request',
+              overallStatus: toolResult.result.workflowStatus || 'success',
+              hasSimulatedSteps: !toolResult.result.customerConfirmationAllowed,
+              failedStepIds: [],
+              customerConfirmationAllowed: !!toolResult.result.customerConfirmationAllowed,
+              startedAt: new Date().toISOString(),
+              completedAt: new Date().toISOString(),
+              durationMs: 0,
+              steps: toolResult.result.steps || [],
+              n8nResult: { status: 'dispatched' },
+            }
+            safeWorkflowMessage = getEcommerceCustomerMessage(workflowResult, {
+              order_id: toolResult.result.order_id,
+              customer_email: toolResult.result.customer_email,
+              customer_phone: toolResult.result.customer_phone,
+              action_type: toolResult.result.action_type,
+              order_status: toolResult.result.order_status,
+              tracking_number: toolResult.result.tracking_number,
+              carrier: toolResult.result.carrier,
+              estimated_delivery: toolResult.result.estimated_delivery,
+              eligibility_status: toolResult.result.eligibility_status,
+            })
           }
         }
 
