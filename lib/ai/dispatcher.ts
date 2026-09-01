@@ -37,6 +37,7 @@ import {
   executeFinancialWorkflow,
   getFinancialCustomerMessage,
   type FinancialConsultationData,
+  type WorkflowExecutionResult,
 } from '@/lib/workflows/executor'
 import { generateResponse } from '@/lib/ai/gemini'
 import { createServerClient } from '@/lib/supabase/server'
@@ -186,6 +187,32 @@ export function validateParams(
   return result
 }
 
+// ─── Declarative Workflow Dispatch Helper ────────────────────────────────────
+
+interface WorkflowDispatchConfig<TPayload, TResult> {
+  idPrefix?: string
+  generateId?: (rawArgs: Record<string, any>) => string
+  executor: (input: { id: string; conversationId: string; payload: TPayload; rawArgs: Record<string, any> }) => Promise<WorkflowExecutionResult>
+  formatter?: (wfResult: WorkflowExecutionResult, payload: TPayload) => string
+  buildResult: (ctx: { id: string; payload: TPayload; wfResult: WorkflowExecutionResult; message: string; rawArgs: Record<string, any> }) => TResult
+}
+
+async function dispatchWorkflowHandler<TPayload, TResult>(
+  rawArgs: Record<string, any>,
+  payload: TPayload,
+  config: WorkflowDispatchConfig<TPayload, TResult>
+): Promise<TResult> {
+  const conversationId = sanitizeString(rawArgs.conversation_id || rawArgs.chat_id || '')
+  const id = config.generateId
+    ? config.generateId(rawArgs)
+    : `${config.idPrefix || 'wf'}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+
+  const wfResult = await config.executor({ id, conversationId, payload, rawArgs })
+  const message = config.formatter ? config.formatter(wfResult, payload) : ''
+
+  return config.buildResult({ id, payload, wfResult, message, rawArgs })
+}
+
 // ─── Tool Handlers ───────────────────────────────────────────────────────────
 
 /**
@@ -296,44 +323,49 @@ async function handleScheduleSiteVisit(rawArgs: Record<string, any>): Promise<an
   const leadSaveResult = await createLead(leadPayload)
   const effectiveLeadId = leadSaveResult.data?.id || p.lead_id || `lead-visit-${Date.now()}`
 
-  // 2. Dispatch canonical workflow wf-001
-  const workflowResult = await executeRealEstateWorkflow({
-    leadId: effectiveLeadId,
-    conversationId: `tool-call-${Date.now()}`,
-    lead: {
-      name: p.customer_name,
-      phone: p.phone,
-      email: null,
-      property_type: (p.property_type.toLowerCase() as any) || 'villa',
-      bhk: null,
-      location: p.location,
-      budget: 'Standard',
-      timeline: p.preferred_date,
-      intent: 'Site Visit',
-      qualification_score: 95,
-      qualification_status: 'qualified',
-      site_visit_requested: true,
-      site_visit_date: p.preferred_date,
-      site_visit_time: p.preferred_time,
-    },
-  })
-
-  return {
-    leadId: effectiveLeadId,
-    customerName: p.customer_name,
-    phone: p.phone,
-    preferredDate: p.preferred_date,
-    preferredTime: p.preferred_time,
-    workflowId: workflowResult.workflowId,
-    workflowStatus: workflowResult.overallStatus,
-    customerConfirmationAllowed: workflowResult.customerConfirmationAllowed,
-    steps: workflowResult.steps,
-    message: getSiteVisitCustomerMessage(workflowResult, {
-      customerName: p.customer_name,
-      preferredDate: p.preferred_date,
-      preferredTime: p.preferred_time,
+  // 2. Dispatch canonical workflow wf-001 via dispatchWorkflowHandler
+  return dispatchWorkflowHandler(rawArgs, p, {
+    generateId: () => effectiveLeadId,
+    executor: ({ id, conversationId }) =>
+      executeRealEstateWorkflow({
+        leadId: id,
+        conversationId: conversationId || `tool-call-${Date.now()}`,
+        lead: {
+          name: p.customer_name,
+          phone: p.phone,
+          email: null,
+          property_type: (p.property_type.toLowerCase() as any) || 'villa',
+          bhk: null,
+          location: p.location,
+          budget: 'Standard',
+          timeline: p.preferred_date,
+          intent: 'Site Visit',
+          qualification_score: 95,
+          qualification_status: 'qualified',
+          site_visit_requested: true,
+          site_visit_date: p.preferred_date,
+          site_visit_time: p.preferred_time,
+        },
+      }),
+    formatter: (wfResult, payload) =>
+      getSiteVisitCustomerMessage(wfResult, {
+        customerName: payload.customer_name,
+        preferredDate: payload.preferred_date,
+        preferredTime: payload.preferred_time,
+      }),
+    buildResult: ({ id, payload, wfResult, message }) => ({
+      leadId: id,
+      customerName: payload.customer_name,
+      phone: payload.phone,
+      preferredDate: payload.preferred_date,
+      preferredTime: payload.preferred_time,
+      workflowId: wfResult.workflowId,
+      workflowStatus: wfResult.overallStatus,
+      customerConfirmationAllowed: wfResult.customerConfirmationAllowed,
+      steps: wfResult.steps,
+      message,
     }),
-  }
+  })
 }
 
 /**
@@ -351,38 +383,42 @@ async function handleBookClinicAppointment(rawArgs: Record<string, any>): Promis
     reason: { type: 'string', default: 'General Consultation' },
   })
 
-  const workflowResult = await executeClinicWorkflow({
-    patient: {
-      patient_name: p.patient_name,
-      patient_phone: p.patient_phone,
-      patient_email: p.patient_email,
-      appointment_date: p.appointment_date,
-      appointment_time: p.appointment_time,
-      doctor_name: p.doctor_name,
-      reason: p.reason,
-    },
-    conversationId: `tool-clinic-${Date.now()}`,
-  })
-
-  return {
-    bookingId: workflowResult.leadId,
-    patientName: p.patient_name,
-    patientPhone: p.patient_phone,
-    appointmentDate: p.appointment_date,
-    appointmentTime: p.appointment_time,
-    doctorName: p.doctor_name,
-    reason: p.reason,
-    workflowId: workflowResult.workflowId,
-    workflowStatus: workflowResult.overallStatus,
-    customerConfirmationAllowed: workflowResult.customerConfirmationAllowed,
-    steps: workflowResult.steps,
-    message: getClinicCustomerMessage(workflowResult, {
-      patientName: p.patient_name,
-      appointmentDate: p.appointment_date,
-      appointmentTime: p.appointment_time,
-      doctorName: p.doctor_name,
+  return dispatchWorkflowHandler(rawArgs, p, {
+    executor: ({ conversationId, payload }) =>
+      executeClinicWorkflow({
+        patient: {
+          patient_name: payload.patient_name,
+          patient_phone: payload.patient_phone,
+          patient_email: payload.patient_email,
+          appointment_date: payload.appointment_date,
+          appointment_time: payload.appointment_time,
+          doctor_name: payload.doctor_name,
+          reason: payload.reason,
+        },
+        conversationId: conversationId || `tool-clinic-${Date.now()}`,
+      }),
+    formatter: (wfResult, payload) =>
+      getClinicCustomerMessage(wfResult, {
+        patientName: payload.patient_name,
+        appointmentDate: payload.appointment_date,
+        appointmentTime: payload.appointment_time,
+        doctorName: payload.doctor_name,
+      }),
+    buildResult: ({ payload, wfResult, message }) => ({
+      bookingId: wfResult.leadId,
+      patientName: payload.patient_name,
+      patientPhone: payload.patient_phone,
+      appointmentDate: payload.appointment_date,
+      appointmentTime: payload.appointment_time,
+      doctorName: payload.doctor_name,
+      reason: payload.reason,
+      workflowId: wfResult.workflowId,
+      workflowStatus: wfResult.overallStatus,
+      customerConfirmationAllowed: wfResult.customerConfirmationAllowed,
+      steps: wfResult.steps,
+      message,
     }),
-  }
+  })
 }
 
 /**
@@ -445,35 +481,37 @@ async function handleEscalateToHuman(rawArgs: Record<string, any>) {
     conversation_id: { type: 'string', maxLength: 100, aliases: ['chat_id'] },
   })
 
-  const workflowRes = await executeSupportEscalationWorkflow({
-    conversationId: p.conversation_id || '',
-    escalation: {
-      customer_name: p.customer_name || undefined,
-      reason: p.reason,
-      urgency: p.urgency.toLowerCase(),
-      summary: p.summary,
-      phone: p.phone || undefined,
-      email: p.email || undefined,
-    },
+  return dispatchWorkflowHandler(rawArgs, p, {
+    executor: ({ conversationId, payload }) =>
+      executeSupportEscalationWorkflow({
+        conversationId,
+        escalation: {
+          customer_name: payload.customer_name || undefined,
+          reason: payload.reason,
+          urgency: payload.urgency.toLowerCase(),
+          summary: payload.summary,
+          phone: payload.phone || undefined,
+          email: payload.email || undefined,
+        },
+      }),
+    formatter: (wfResult, payload) =>
+      getEscalationCustomerMessage(wfResult, {
+        customerName: payload.customer_name || undefined,
+        reason: payload.reason,
+        urgency: payload.urgency.toLowerCase(),
+      }),
+    buildResult: ({ payload, wfResult, message }) => ({
+      escalated: true,
+      workflowId: wfResult.workflowId,
+      executionId: wfResult.executionId,
+      workflowStatus: wfResult.overallStatus,
+      reason: payload.reason,
+      urgency: payload.urgency.toLowerCase(),
+      customerName: payload.customer_name || undefined,
+      message,
+      steps: wfResult.steps,
+    }),
   })
-
-  const message = getEscalationCustomerMessage(workflowRes, {
-    customerName: p.customer_name || undefined,
-    reason: p.reason,
-    urgency: p.urgency.toLowerCase(),
-  })
-
-  return {
-    escalated: true,
-    workflowId: workflowRes.workflowId,
-    executionId: workflowRes.executionId,
-    workflowStatus: workflowRes.overallStatus,
-    reason: p.reason,
-    urgency: p.urgency.toLowerCase(),
-    customerName: p.customer_name || undefined,
-    message,
-    steps: workflowRes.steps,
-  }
 }
 
 /**
@@ -493,44 +531,45 @@ async function handleBookSalonService(rawArgs: Record<string, any>): Promise<any
     conversation_id: { type: 'string', maxLength: 100, aliases: ['chat_id'] },
   })
 
-  const bookingId = `salon-bk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-
-  const workflowRes = await executeSalonWorkflow({
-    bookingId,
-    conversationId: p.conversation_id || '',
-    client: {
-      client_name: p.client_name,
-      client_phone: p.client_phone,
-      client_email: p.client_email,
-      service_name: p.service_name,
-      appointment_date: p.appointment_date,
-      appointment_time: p.appointment_time,
-      stylist_preference: p.stylist_preference,
-      notes: p.notes,
-    },
+  return dispatchWorkflowHandler(rawArgs, p, {
+    idPrefix: 'salon-bk',
+    executor: ({ id, conversationId, payload }) =>
+      executeSalonWorkflow({
+        bookingId: id,
+        conversationId,
+        client: {
+          client_name: payload.client_name,
+          client_phone: payload.client_phone,
+          client_email: payload.client_email,
+          service_name: payload.service_name,
+          appointment_date: payload.appointment_date,
+          appointment_time: payload.appointment_time,
+          stylist_preference: payload.stylist_preference,
+          notes: payload.notes,
+        },
+      }),
+    formatter: (wfResult, payload) =>
+      getSalonCustomerMessage(wfResult, {
+        client_name: payload.client_name,
+        service_name: payload.service_name,
+        appointment_date: payload.appointment_date,
+        appointment_time: payload.appointment_time,
+        stylist_preference: payload.stylist_preference,
+      }),
+    buildResult: ({ id, payload, wfResult, message }) => ({
+      bookingId: id,
+      workflowId: wfResult.workflowId,
+      executionId: wfResult.executionId,
+      workflowStatus: wfResult.overallStatus,
+      clientName: payload.client_name,
+      serviceName: payload.service_name,
+      appointmentDate: payload.appointment_date,
+      appointmentTime: payload.appointment_time,
+      stylistPreference: payload.stylist_preference,
+      message,
+      steps: wfResult.steps,
+    }),
   })
-
-  const message = getSalonCustomerMessage(workflowRes, {
-    client_name: p.client_name,
-    service_name: p.service_name,
-    appointment_date: p.appointment_date,
-    appointment_time: p.appointment_time,
-    stylist_preference: p.stylist_preference,
-  })
-
-  return {
-    bookingId,
-    workflowId: workflowRes.workflowId,
-    executionId: workflowRes.executionId,
-    workflowStatus: workflowRes.overallStatus,
-    clientName: p.client_name,
-    serviceName: p.service_name,
-    appointmentDate: p.appointment_date,
-    appointmentTime: p.appointment_time,
-    stylistPreference: p.stylist_preference,
-    message,
-    steps: workflowRes.steps,
-  }
 }
 
 /**
@@ -645,32 +684,11 @@ async function handleAuditConversationQuality(rawArgs: Record<string, any>): Pro
     safety: safetyScore,
   }
 
-  const auditId = `qa-audit-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
   const summary = passed
     ? `Interaction passed quality rubric scoring ${overallScore}/100 with high adherence to truthfulness and company guidelines.`
     : `Interaction flagged with score ${overallScore}/100 due to ${violations.length} policy or quality deviations.`
 
-  const workflowRes = await executeQaWorkflow({
-    auditId,
-    conversationId: chatId || '',
-    audit: {
-      chat_id: chatId,
-      transcript: sanitizedTranscript,
-      rubric,
-      focus_areas: focusAreas,
-      notes,
-      overallScore,
-      passed,
-      rubricBreakdown,
-      strengths,
-      violations,
-      recommendations,
-      summary,
-      sanitizedTranscriptSnippet: sanitizedTranscript.slice(0, 150),
-    },
-  })
-
-  const message = getQaAuditCustomerMessage(workflowRes, {
+  const auditPayload = {
     chat_id: chatId,
     transcript: sanitizedTranscript,
     rubric,
@@ -683,22 +701,47 @@ async function handleAuditConversationQuality(rawArgs: Record<string, any>): Pro
     violations,
     recommendations,
     summary,
-  })
-
-  return {
-    auditId,
-    workflowId: workflowRes.workflowId,
-    executionId: workflowRes.executionId,
-    overallScore,
-    passed,
-    rubricBreakdown,
-    strengths,
-    violations,
-    recommendations,
-    summary,
-    message,
-    steps: workflowRes.steps,
+    sanitizedTranscriptSnippet: sanitizedTranscript.slice(0, 150),
   }
+
+  return dispatchWorkflowHandler(rawArgs, auditPayload, {
+    idPrefix: 'qa-audit',
+    executor: ({ id, conversationId, payload }) =>
+      executeQaWorkflow({
+        auditId: id,
+        conversationId: chatId || conversationId,
+        audit: payload,
+      }),
+    formatter: (wfResult, payload) =>
+      getQaAuditCustomerMessage(wfResult, {
+        chat_id: payload.chat_id,
+        transcript: payload.transcript,
+        rubric: payload.rubric,
+        focus_areas: payload.focus_areas,
+        notes: payload.notes,
+        overallScore: payload.overallScore,
+        passed: payload.passed,
+        rubricBreakdown: payload.rubricBreakdown,
+        strengths: payload.strengths,
+        violations: payload.violations,
+        recommendations: payload.recommendations,
+        summary: payload.summary,
+      }),
+    buildResult: ({ id, payload, wfResult, message }) => ({
+      auditId: id,
+      workflowId: wfResult.workflowId,
+      executionId: wfResult.executionId,
+      overallScore: payload.overallScore,
+      passed: payload.passed,
+      rubricBreakdown: payload.rubricBreakdown,
+      strengths: payload.strengths,
+      violations: payload.violations,
+      recommendations: payload.recommendations,
+      summary: payload.summary,
+      message,
+      steps: wfResult.steps,
+    }),
+  })
 }
 
 /**
@@ -744,36 +787,35 @@ async function handleBookLegalConsultation(rawArgs: Record<string, any>): Promis
     notes: p.notes,
   }
 
-  const intakeId = `legal-intake-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-  const conversationId = sanitizeString(rawArgs.conversation_id || rawArgs.chat_id || '')
-
-  const workflowResult = await executeLegalWorkflow({
-    intakeId,
-    conversationId,
-    client: intakePayload,
+  return dispatchWorkflowHandler(rawArgs, intakePayload, {
+    idPrefix: 'legal-intake',
+    executor: ({ id, conversationId, payload }) =>
+      executeLegalWorkflow({
+        intakeId: id,
+        conversationId,
+        client: payload,
+      }),
+    formatter: (wfResult, payload) => getLegalCustomerMessage(wfResult, payload),
+    buildResult: ({ id, payload, wfResult, message }) => ({
+      intakeId: id,
+      workflowId: wfResult.workflowId,
+      executionId: wfResult.executionId,
+      client_name: payload.client_name,
+      client_phone: payload.client_phone,
+      client_email: payload.client_email,
+      practice_area: payload.practice_area,
+      matter_summary: payload.matter_summary,
+      opposing_party: payload.opposing_party,
+      urgency: payload.urgency,
+      preferred_date: payload.preferred_date,
+      preferred_time: payload.preferred_time,
+      conflict_status: payload.conflict_status || 'clear',
+      workflowStatus: wfResult.overallStatus,
+      customerConfirmationAllowed: wfResult.customerConfirmationAllowed,
+      message,
+      steps: wfResult.steps,
+    }),
   })
-
-  const message = getLegalCustomerMessage(workflowResult, intakePayload)
-
-  return {
-    intakeId,
-    workflowId: workflowResult.workflowId,
-    executionId: workflowResult.executionId,
-    client_name: p.client_name,
-    client_phone: p.client_phone,
-    client_email: p.client_email,
-    practice_area: p.practice_area,
-    matter_summary: p.matter_summary,
-    opposing_party: p.opposing_party,
-    urgency: p.urgency,
-    preferred_date: p.preferred_date,
-    preferred_time: p.preferred_time,
-    conflict_status: intakePayload.conflict_status || 'clear',
-    workflowStatus: workflowResult.overallStatus,
-    customerConfirmationAllowed: workflowResult.customerConfirmationAllowed,
-    message,
-    steps: workflowResult.steps,
-  }
 }
 
 /**
@@ -817,35 +859,34 @@ async function handleLookupOrderAndSupport(rawArgs: Record<string, any>): Promis
     notes: p.notes,
   }
 
-  const supportId = `ecom-supp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-  const conversationId = sanitizeString(rawArgs.conversation_id || rawArgs.chat_id || '')
-
-  const workflowResult = await executeEcommerceWorkflow({
-    supportId,
-    conversationId,
-    client: supportPayload,
+  return dispatchWorkflowHandler(rawArgs, supportPayload, {
+    idPrefix: 'ecom-supp',
+    executor: ({ id, conversationId, payload }) =>
+      executeEcommerceWorkflow({
+        supportId: id,
+        conversationId,
+        client: payload,
+      }),
+    formatter: (wfResult, payload) => getEcommerceCustomerMessage(wfResult, payload),
+    buildResult: ({ id, payload, wfResult, message }) => ({
+      supportId: id,
+      workflowId: wfResult.workflowId,
+      executionId: wfResult.executionId,
+      order_id: payload.order_id,
+      customer_email: payload.customer_email,
+      customer_phone: payload.customer_phone,
+      action_type: payload.action_type,
+      order_status: payload.order_status,
+      tracking_number: payload.tracking_number,
+      carrier: payload.carrier,
+      estimated_delivery: payload.estimated_delivery,
+      eligibility_status: payload.eligibility_status,
+      workflowStatus: wfResult.overallStatus,
+      customerConfirmationAllowed: wfResult.customerConfirmationAllowed,
+      message,
+      steps: wfResult.steps,
+    }),
   })
-
-  const message = getEcommerceCustomerMessage(workflowResult, supportPayload)
-
-  return {
-    supportId,
-    workflowId: workflowResult.workflowId,
-    executionId: workflowResult.executionId,
-    order_id: p.order_id,
-    customer_email: p.customer_email,
-    customer_phone: p.customer_phone,
-    action_type: p.action_type,
-    order_status: supportPayload.order_status,
-    tracking_number: supportPayload.tracking_number,
-    carrier: supportPayload.carrier,
-    estimated_delivery: supportPayload.estimated_delivery,
-    eligibility_status: supportPayload.eligibility_status,
-    workflowStatus: workflowResult.overallStatus,
-    customerConfirmationAllowed: workflowResult.customerConfirmationAllowed,
-    message,
-    steps: workflowResult.steps,
-  }
 }
 
 /**
@@ -915,36 +956,35 @@ async function handleScheduleOnboardingInduction(rawArgs: Record<string, any>): 
     notes: p.notes,
   }
 
-  const intakeId = `hr-intake-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-  const conversationId = sanitizeString(rawArgs.conversation_id || rawArgs.chat_id || '')
-
-  const workflowResult = await executeOnboardingWorkflow({
-    intakeId,
-    conversationId,
-    client: onboardingPayload,
+  return dispatchWorkflowHandler(rawArgs, onboardingPayload, {
+    idPrefix: 'hr-intake',
+    executor: ({ id, conversationId, payload }) =>
+      executeOnboardingWorkflow({
+        intakeId: id,
+        conversationId,
+        client: payload,
+      }),
+    formatter: (wfResult, payload) => getOnboardingCustomerMessage(wfResult, payload),
+    buildResult: ({ id, payload, wfResult, message }) => ({
+      intakeId: id,
+      workflowId: wfResult.workflowId,
+      executionId: wfResult.executionId,
+      candidate_name: payload.candidate_name,
+      candidate_email: payload.candidate_email,
+      candidate_phone: payload.candidate_phone,
+      role_title: payload.role_title,
+      department: payload.department,
+      joining_date: payload.joining_date,
+      preferred_induction_slot: payload.preferred_induction_slot,
+      document_status: payload.document_status,
+      induction_status: payload.induction_status || 'scheduled',
+      orientation_room: payload.orientation_room,
+      workflowStatus: wfResult.overallStatus,
+      customerConfirmationAllowed: wfResult.customerConfirmationAllowed,
+      message,
+      steps: wfResult.steps,
+    }),
   })
-
-  const message = getOnboardingCustomerMessage(workflowResult, onboardingPayload)
-
-  return {
-    intakeId,
-    workflowId: workflowResult.workflowId,
-    executionId: workflowResult.executionId,
-    candidate_name: p.candidate_name,
-    candidate_email: p.candidate_email,
-    candidate_phone: p.candidate_phone,
-    role_title: p.role_title,
-    department: p.department,
-    joining_date: p.joining_date,
-    preferred_induction_slot: p.preferred_induction_slot,
-    document_status: p.document_status,
-    induction_status: onboardingPayload.induction_status || 'scheduled',
-    orientation_room: onboardingPayload.orientation_room,
-    workflowStatus: workflowResult.overallStatus,
-    customerConfirmationAllowed: workflowResult.customerConfirmationAllowed,
-    message,
-    steps: workflowResult.steps,
-  }
 }
 
 /**
@@ -1022,38 +1062,37 @@ async function handleBookFinancialConsultation(rawArgs: Record<string, any>): Pr
     notes: p.notes,
   }
 
-  const consultationId = `fin-consult-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-  const conversationId = sanitizeString(rawArgs.conversation_id || rawArgs.chat_id || '')
-
-  const workflowResult = await executeFinancialWorkflow({
-    consultationId,
-    conversationId,
-    client: financialPayload,
+  return dispatchWorkflowHandler(rawArgs, financialPayload, {
+    idPrefix: 'fin-consult',
+    executor: ({ id, conversationId, payload }) =>
+      executeFinancialWorkflow({
+        consultationId: id,
+        conversationId,
+        client: payload,
+      }),
+    formatter: (wfResult, payload) => getFinancialCustomerMessage(wfResult, payload),
+    buildResult: ({ id, payload, wfResult, message }) => ({
+      consultationId: id,
+      workflowId: wfResult.workflowId,
+      executionId: wfResult.executionId,
+      client_name: payload.client_name,
+      client_phone: payload.client_phone,
+      client_email: payload.client_email,
+      product_category: payload.product_category,
+      amount_range: payload.amount_range,
+      employment_type: payload.employment_type,
+      annual_income: payload.annual_income,
+      kyc_status: payload.kyc_status,
+      preferred_date: payload.preferred_date,
+      preferred_time: payload.preferred_time,
+      assigned_advisor: payload.assigned_advisor,
+      meeting_mode: payload.meeting_mode,
+      workflowStatus: wfResult.overallStatus,
+      customerConfirmationAllowed: wfResult.customerConfirmationAllowed,
+      message,
+      steps: wfResult.steps,
+    }),
   })
-
-  const message = getFinancialCustomerMessage(workflowResult, financialPayload)
-
-  return {
-    consultationId,
-    workflowId: workflowResult.workflowId,
-    executionId: workflowResult.executionId,
-    client_name: p.client_name,
-    client_phone: p.client_phone,
-    client_email: p.client_email,
-    product_category: p.product_category,
-    amount_range: p.amount_range,
-    employment_type: p.employment_type,
-    annual_income: p.annual_income,
-    kyc_status: p.kyc_status,
-    preferred_date: p.preferred_date,
-    preferred_time: p.preferred_time,
-    assigned_advisor: financialPayload.assigned_advisor,
-    meeting_mode: financialPayload.meeting_mode,
-    workflowStatus: workflowResult.overallStatus,
-    customerConfirmationAllowed: workflowResult.customerConfirmationAllowed,
-    message,
-    steps: workflowResult.steps,
-  }
 }
 
 // ─── Main Dispatcher Entry Point ─────────────────────────────────────────────
