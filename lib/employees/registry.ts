@@ -490,12 +490,26 @@ Your goal is to assist clients with financial product inquiries (Insurance, Home
   },
 ]
 
+// ─── Pre-Indexed Canonical Workforce Lookups ─────────────────────────────────
+
+const CANONICAL_EMPLOYEES_BY_SLUG = new Map<string, AIEmployee>(
+  CANONICAL_EMPLOYEES.map((emp) => [emp.slug.toLowerCase(), emp])
+)
+
+const CANONICAL_EMPLOYEES_BY_ID = new Map<string, AIEmployee>(
+  CANONICAL_EMPLOYEES.map((emp) => [emp.id.toLowerCase(), emp])
+)
+
 export function getCanonicalEmployees(): AIEmployee[] {
   return [...CANONICAL_EMPLOYEES]
 }
 
 export function getCanonicalEmployeeBySlug(slug: string): AIEmployee | undefined {
   if (!slug) return undefined
-  const normalized = slug.trim().toLowerCase()
-  return CANONICAL_EMPLOYEES.find((emp) => emp.slug.toLowerCase() === normalized)
+  return CANONICAL_EMPLOYEES_BY_SLUG.get(slug.trim().toLowerCase())
+}
+
+export function getCanonicalEmployeeById(id: string): AIEmployee | undefined {
+  if (!id) return undefined
+  return CANONICAL_EMPLOYEES_BY_ID.get(id.trim().toLowerCase())
 }

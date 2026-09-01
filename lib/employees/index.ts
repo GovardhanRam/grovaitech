@@ -7,11 +7,10 @@
  */
 
 import { createServerClient } from '@/lib/supabase/server'
-import { createClient } from '@supabase/supabase-js'
-import { createMockServerClient } from '@/lib/supabase/mockServer'
 import {
   CANONICAL_EMPLOYEES,
   getCanonicalEmployeeBySlug,
+  getCanonicalEmployeeById,
   getCanonicalEmployees,
   type AIEmployee,
   type AIEmployeePricing,
@@ -21,27 +20,11 @@ import {
 export {
   CANONICAL_EMPLOYEES,
   getCanonicalEmployeeBySlug,
+  getCanonicalEmployeeById,
   getCanonicalEmployees,
   type AIEmployee,
   type AIEmployeePricing,
   type AIEmployeeDemoConfig,
-}
-
-const getPublicClient = () => {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (!url || !key || url.includes('placeholder') || url === '') {
-    return createMockServerClient() as any
-  }
-
-  return createClient(url, key, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-  })
 }
 
 /**
@@ -50,7 +33,7 @@ const getPublicClient = () => {
  */
 export async function getAllEmployees(): Promise<AIEmployee[]> {
   try {
-    const supabase = getPublicClient()
+    const supabase = await createServerClient()
 
     const { data, error } = await supabase
       .from('ai_employees')
@@ -76,7 +59,7 @@ export async function getEmployeeBySlug(slug: string): Promise<AIEmployee | null
   if (!slug) return null
 
   try {
-    const supabase = getPublicClient()
+    const supabase = await createServerClient()
 
     const { data, error } = await supabase
       .from('ai_employees')
@@ -117,5 +100,5 @@ export async function getEmployeeById(id: string): Promise<AIEmployee | null> {
     console.warn('[Employee Registry] getEmployeeById notice:', err)
   }
 
-  return CANONICAL_EMPLOYEES.find((emp) => emp.id === id) || null
+  return getCanonicalEmployeeById(id) || null
 }
