@@ -34,6 +34,9 @@ import {
   executeOnboardingWorkflow,
   getOnboardingCustomerMessage,
   type OnboardingIntakeData,
+  executeFinancialWorkflow,
+  getFinancialCustomerMessage,
+  type FinancialConsultationData,
 } from '@/lib/workflows/executor'
 import { generateResponse } from '@/lib/ai/gemini'
 import { createServerClient } from '@/lib/supabase/server'
@@ -47,6 +50,7 @@ import {
   type BookLegalConsultationParams,
   type LookupOrderAndSupportParams,
   type ScheduleOnboardingInductionParams,
+  type BookFinancialConsultationParams,
 } from '@/lib/ai/tools'
 
 // ─── Dispatcher Response Interfaces ──────────────────────────────────────────
@@ -910,6 +914,117 @@ async function handleScheduleOnboardingInduction(rawArgs: Record<string, any>): 
   }
 }
 
+/**
+ * Handler 11: book_financial_consultation
+ * Connects to Financial Advisory Consultation & KYC Intake Pipeline (wf-010).
+ */
+async function handleBookFinancialConsultation(rawArgs: Record<string, any>): Promise<any> {
+  const client_name = sanitizeString(rawArgs.client_name)
+  const client_phone = sanitizePhone(rawArgs.client_phone)
+  const client_email = sanitizeString(rawArgs.client_email)
+  const amount_range = sanitizeString(rawArgs.amount_range)
+  const annual_income = sanitizeString(rawArgs.annual_income) || undefined
+  const preferred_date = sanitizeString(rawArgs.preferred_date)
+  const preferred_time = sanitizeString(rawArgs.preferred_time)
+  const notes = sanitizeString(rawArgs.notes) || undefined
+
+  if (!client_name || client_name.length < 2) {
+    throw new Error("Validation Error: 'client_name' must be at least 2 characters.")
+  }
+
+  if (!client_email || !client_email.includes('@')) {
+    throw new Error("Validation Error: A valid 'client_email' is required for advisory booking.")
+  }
+
+  if (!client_phone || client_phone.length < 8) {
+    throw new Error("Validation Error: A valid 'client_phone' (minimum 8 digits) is required.")
+  }
+
+  const validCategories = [
+    'insurance',
+    'home_loan',
+    'personal_loan',
+    'mutual_funds',
+    'wealth_management',
+    'retirement_planning',
+    'tax_planning',
+    'other',
+  ] as const
+  const categoryRaw = (rawArgs.product_category || 'other').trim().toLowerCase()
+  const product_category = validCategories.includes(categoryRaw as any)
+    ? (categoryRaw as typeof validCategories[number])
+    : 'other'
+
+  if (!amount_range || amount_range.length < 2) {
+    throw new Error("Validation Error: 'amount_range' is required to qualify financial consultation scope.")
+  }
+
+  const validEmployment = ['salaried', 'self_employed', 'business_owner', 'retired', 'other'] as const
+  const empRaw = (rawArgs.employment_type || 'other').trim().toLowerCase()
+  const employment_type = validEmployment.includes(empRaw as any)
+    ? (empRaw as typeof validEmployment[number])
+    : 'other'
+
+  if (!preferred_date) {
+    throw new Error("Validation Error: 'preferred_date' is required for advisor consultation scheduling.")
+  }
+
+  if (!preferred_time) {
+    throw new Error("Validation Error: 'preferred_time' is required for advisor consultation scheduling.")
+  }
+
+  const validKyc = ['verified', 'documents_pending', 'exempt'] as const
+  const kycRaw = (rawArgs.kyc_status || 'verified').trim().toLowerCase()
+  const kyc_status = validKyc.includes(kycRaw as any) ? (kycRaw as typeof validKyc[number]) : 'verified'
+
+  const financialPayload: FinancialConsultationData = {
+    client_name,
+    client_phone,
+    client_email,
+    product_category,
+    amount_range,
+    employment_type,
+    annual_income,
+    kyc_status,
+    preferred_date,
+    preferred_time,
+    notes,
+  }
+
+  const consultationId = `fin-consult-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+  const conversationId = sanitizeString(rawArgs.conversation_id || rawArgs.chat_id || '')
+
+  const workflowResult = await executeFinancialWorkflow({
+    consultationId,
+    conversationId,
+    client: financialPayload,
+  })
+
+  const message = getFinancialCustomerMessage(workflowResult, financialPayload)
+
+  return {
+    consultationId,
+    workflowId: workflowResult.workflowId,
+    executionId: workflowResult.executionId,
+    client_name,
+    client_phone,
+    client_email,
+    product_category,
+    amount_range,
+    employment_type,
+    annual_income,
+    kyc_status,
+    preferred_date,
+    preferred_time,
+    assigned_advisor: financialPayload.assigned_advisor,
+    meeting_mode: financialPayload.meeting_mode,
+    workflowStatus: workflowResult.overallStatus,
+    customerConfirmationAllowed: workflowResult.customerConfirmationAllowed,
+    message,
+    steps: workflowResult.steps,
+  }
+}
+
 // ─── Main Dispatcher Entry Point ─────────────────────────────────────────────
 
 /**
@@ -988,6 +1103,10 @@ export async function dispatchToolCall(
 
       case TOOL_NAMES.SCHEDULE_ONBOARDING_INDUCTION:
         result = await handleScheduleOnboardingInduction(rawArgs || {})
+        break
+
+      case TOOL_NAMES.BOOK_FINANCIAL_CONSULTATION:
+        result = await handleBookFinancialConsultation(rawArgs || {})
         break
 
       default:

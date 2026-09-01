@@ -277,4 +277,27 @@ export const CANONICAL_DEMO_WORKFLOWS: Workflow[] = [
     created_at: '2026-09-01T00:00:00Z',
     executions: [],
   },
+  {
+    id: 'wf-010',
+    name: 'Financial Advisory Consultation & KYC Intake Pipeline',
+    description:
+      'Autonomous financial advisory workflow: qualifies client product inquiries, evaluates preliminary KYC documentation readiness, reserves certified financial advisor consultation slots, and dispatches intake payloads via n8n financial hub.',
+    status: 'active',
+    trigger_event: 'New Financial Inquiry Submitted',
+    trigger_source: 'Financial Advisory Agent',
+    assigned_employee: 'Financial Advisory Agent',
+    assigned_employee_slug: 'financial-advisory-agent',
+    steps: [
+      { id: 's1', name: 'Financial Inquiry & Qualification', type: 'database', target: 'Financial Inquiries Database' },
+      { id: 's2', name: 'KYC & Compliance Eligibility Check', type: 'ai_action', target: 'KYC Compliance Engine' },
+      { id: 's3', name: 'Financial Advisor Calendar Block', type: 'calendar', target: 'Certified Advisor Calendar' },
+      { id: 's4', name: 'n8n Financial Webhook Hub Sync', type: 'n8n_webhook', target: 'https://n8n.grovaitech.ai/webhook/v1/financial-advisory-hub' },
+    ],
+    n8n_webhook_url: 'https://n8n.grovaitech.ai/webhook/v1/financial-advisory-hub',
+    total_executions: 0,
+    success_rate: 100,
+    last_executed_at: 'Not executed yet',
+    created_at: '2026-09-01T00:00:00Z',
+    executions: [],
+  },
 ]

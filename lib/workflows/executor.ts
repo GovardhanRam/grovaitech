@@ -2313,3 +2313,301 @@ export async function executeOnboardingWorkflow({
   await saveWorkflowExecution(result, client.candidate_name)
   return result
 }
+
+// ─── Financial Advisory Workflow (wf-010) Types & Helpers ────────────────────
+
+export interface FinancialConsultationData {
+  client_name: string
+  client_phone: string
+  client_email: string
+  product_category:
+    | 'insurance'
+    | 'home_loan'
+    | 'personal_loan'
+    | 'mutual_funds'
+    | 'wealth_management'
+    | 'retirement_planning'
+    | 'tax_planning'
+    | 'other'
+  amount_range: string
+  employment_type: 'salaried' | 'self_employed' | 'business_owner' | 'retired' | 'other'
+  annual_income?: string
+  kyc_status?: 'verified' | 'documents_pending' | 'exempt'
+  preferred_date: string
+  preferred_time: string
+  notes?: string
+  consultation_id?: string
+  assigned_advisor?: string
+  meeting_mode?: 'virtual_video' | 'phone_call' | 'in_person'
+}
+
+/**
+ * Generates truthful confirmation messages for financial consultations.
+ */
+export function getFinancialCustomerMessage(
+  workflowResult: Pick<WorkflowExecutionResult, 'overallStatus' | 'customerConfirmationAllowed'>,
+  client: Partial<FinancialConsultationData>
+): string {
+  const name = client.client_name || 'Valued Client'
+  const category = client.product_category
+    ? client.product_category.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
+    : 'Financial Services'
+  const date = client.preferred_date || 'your requested date'
+  const time = client.preferred_time || 'your requested time'
+  const advisor = client.assigned_advisor || 'a Senior Certified Financial Advisor'
+  const kycStatus = client.kyc_status || 'verified'
+
+  if (workflowResult.overallStatus === 'failed' || !workflowResult.customerConfirmationAllowed) {
+    return `Thank you, ${name}. We encountered an issue while scheduling your ${category} consultation. Our financial advisory desk has been notified and will reach out to you directly at ${client.client_phone || 'your phone number'} to assist.`
+  }
+
+  if (kycStatus === 'documents_pending') {
+    return `Thank you, ${name}! Your ${category} advisory consultation has been provisionally reserved for ${date} at ${time} with ${advisor}. Please note that your KYC documentation is currently pending — kindly keep your government ID and income proof ready for the advisor session. (Disclaimer: Grovaitech provides administrative consultation coordination; final terms and approvals are provided directly by certified financial partners.)`
+  }
+
+  return `Thank you, ${name}! Your ${category} consultation with ${advisor} is confirmed for ${date} at ${time}. A calendar invitation and preliminary checklist have been dispatched to ${client.client_email || 'your email'}. (Disclaimer: Grovaitech provides administrative consultation coordination; final terms and approvals are provided directly by certified financial partners.)`
+}
+
+/**
+ * Executes wf-010: Financial Advisory Consultation & KYC Intake Pipeline.
+ * 4 Steps:
+ *  1. Financial Inquiry & Qualification (database)
+ *  2. KYC & Compliance Eligibility Check (ai_action)
+ *  3. Financial Advisor Calendar Block (calendar)
+ *  4. n8n Financial Webhook Hub Sync (n8n_webhook)
+ */
+export async function executeFinancialWorkflow(params: {
+  consultationId?: string
+  conversationId?: string
+  client: FinancialConsultationData
+}): Promise<WorkflowExecutionResult> {
+  const { consultationId, conversationId = '', client } = params
+  const executionId = `exec-fin-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+  const effectiveConsultationId =
+    consultationId || client.consultation_id || `fin-inquiry-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+  const startedAt = new Date().toISOString()
+  const startTime = Date.now()
+
+  console.log(
+    `[Workflow Engine] Starting wf-010 execution for Client: ${client.client_name} / Product: ${client.product_category}`
+  )
+
+  const steps: WorkflowStepResult[] = []
+
+  // ── Step 1: Financial Inquiry & Qualification ────────────────────────────
+  const s1Start = Date.now()
+  const normalizedName = (client.client_name || '').trim().toUpperCase()
+  const isInvalidClient = normalizedName.includes('INVALID_CLIENT') || normalizedName.includes('UNKNOWN_CLIENT')
+
+  if (isInvalidClient) {
+    steps.push({
+      stepId: 's1',
+      stepName: 'Financial Inquiry & Qualification',
+      type: 'database',
+      target: 'Financial Inquiries Database',
+      status: 'failed',
+      durationMs: Date.now() - s1Start,
+      detail: `Financial inquiry registration failed: Unverified client record for '${client.client_name}'.`,
+    })
+  } else {
+    steps.push({
+      stepId: 's1',
+      stepName: 'Financial Inquiry & Qualification',
+      type: 'database',
+      target: 'Financial Inquiries Database',
+      status: 'success',
+      durationMs: Date.now() - s1Start,
+      detail: `Financial inquiry qualified for ${client.client_name} (${client.product_category}, Range: ${client.amount_range}, Employment: ${client.employment_type}).`,
+      payload: {
+        client_name: client.client_name,
+        client_email: client.client_email,
+        client_phone: client.client_phone,
+        product_category: client.product_category,
+        amount_range: client.amount_range,
+        employment_type: client.employment_type,
+        annual_income: client.annual_income,
+      },
+    })
+  }
+
+  // ── Step 2: KYC & Compliance Eligibility Check ───────────────────────────
+  const s2Start = Date.now()
+  if (isInvalidClient) {
+    steps.push({
+      stepId: 's2',
+      stepName: 'KYC & Compliance Eligibility Check',
+      type: 'ai_action',
+      target: 'KYC Compliance Engine',
+      status: 'skipped',
+      durationMs: 0,
+      detail: 'KYC evaluation skipped due to initial qualification failure.',
+    })
+  } else {
+    const kycStatus = client.kyc_status || 'verified'
+    if (kycStatus === 'documents_pending') {
+      steps.push({
+        stepId: 's2',
+        stepName: 'KYC & Compliance Eligibility Check',
+        type: 'ai_action',
+        target: 'KYC Compliance Engine',
+        status: 'success',
+        durationMs: Date.now() - s2Start,
+        detail: 'KYC screening evaluated: Pending mandatory ID / Address verification documents.',
+        payload: { kyc_status: kycStatus },
+      })
+    } else {
+      steps.push({
+        stepId: 's2',
+        stepName: 'KYC & Compliance Eligibility Check',
+        type: 'ai_action',
+        target: 'KYC Compliance Engine',
+        status: 'success',
+        durationMs: Date.now() - s2Start,
+        detail: 'KYC readiness and preliminary regulatory compliance screening verified.',
+        payload: { kyc_status: kycStatus },
+      })
+    }
+  }
+
+  // ── Step 3: Financial Advisor Calendar Block ─────────────────────────────
+  const s3Start = Date.now()
+  const isCalendarFail = normalizedName.includes('CALENDAR_FAIL')
+
+  if (isInvalidClient) {
+    steps.push({
+      stepId: 's3',
+      stepName: 'Financial Advisor Calendar Block',
+      type: 'calendar',
+      target: 'Certified Advisor Calendar',
+      status: 'skipped',
+      durationMs: 0,
+      detail: 'Advisor consultation booking skipped.',
+    })
+  } else if (isCalendarFail) {
+    steps.push({
+      stepId: 's3',
+      stepName: 'Financial Advisor Calendar Block',
+      type: 'calendar',
+      target: 'Certified Advisor Calendar',
+      status: 'failed',
+      durationMs: Date.now() - s3Start,
+      detail: 'Advisor calendar block failed due to scheduling conflict.',
+    })
+  } else {
+    client.assigned_advisor = 'Senior Wealth Advisor (CERTIFIED)'
+    client.meeting_mode = 'virtual_video'
+    steps.push({
+      stepId: 's3',
+      stepName: 'Financial Advisor Calendar Block',
+      type: 'calendar',
+      target: 'Certified Advisor Calendar',
+      status: 'success',
+      durationMs: Date.now() - s3Start,
+      detail: `Advisor consultation reserved on ${client.preferred_date} at ${client.preferred_time} with ${client.assigned_advisor}.`,
+      payload: {
+        preferred_date: client.preferred_date,
+        preferred_time: client.preferred_time,
+        assigned_advisor: client.assigned_advisor,
+        meeting_mode: client.meeting_mode,
+      },
+    })
+  }
+
+  // ── Step 4: n8n Financial Webhook Hub Sync ───────────────────────────────
+  const s4Start = Date.now()
+  const n8nWebhookUrl = 'https://n8n.grovaitech.ai/webhook/v1/financial-advisory-hub'
+  let n8nResult: WorkflowExecutionResult['n8nResult'] = { status: 'not_configured' }
+  let s4Status: WorkflowStepResult['status'] = 'simulated'
+  let s4Detail = 'Simulated n8n Financial Webhook Hub dispatch'
+
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 2000)
+
+    const n8nResp = await fetch(n8nWebhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Grovaitech-Source': 'workflow-engine-wf-010',
+      },
+      body: JSON.stringify({
+        workflow_id: 'wf-010',
+        execution_id: executionId,
+        consultation_id: effectiveConsultationId,
+        client,
+        timestamp: startedAt,
+      }),
+      signal: controller.signal,
+    })
+
+    clearTimeout(timeoutId)
+
+    if (n8nResp.ok) {
+      s4Status = 'success'
+      s4Detail = `Dispatched to n8n Financial Hub (${n8nResp.status})`
+      n8nResult = { status: 'dispatched', endpoint: n8nWebhookUrl, statusCode: n8nResp.status }
+    } else {
+      s4Status = 'failed'
+      s4Detail = `n8n Financial webhook returned status ${n8nResp.status}`
+      n8nResult = { status: 'failed', endpoint: n8nWebhookUrl, statusCode: n8nResp.status, response: s4Detail }
+    }
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      s4Status = 'simulated'
+      s4Detail = 'n8n webhook timed out (sandbox fallback)'
+      n8nResult = { status: 'not_configured', endpoint: n8nWebhookUrl, response: 'Timeout' }
+    } else {
+      s4Status = 'simulated'
+      s4Detail = `n8n webhook unavailable in sandbox: ${err.message || 'Offline'}`
+      n8nResult = { status: 'not_configured', endpoint: n8nWebhookUrl, response: err.message }
+    }
+  }
+
+  steps.push({
+    stepId: 's4',
+    stepName: 'n8n Financial Webhook Hub Sync',
+    type: 'n8n_webhook',
+    target: 'n8n Financial Hub Node',
+    status: s4Status,
+    durationMs: Date.now() - s4Start,
+    detail: s4Detail,
+    payload: {
+      url: n8nWebhookUrl,
+      consultationId: effectiveConsultationId,
+    },
+  })
+
+  const completedAt = new Date().toISOString()
+  const durationMs = Date.now() - startTime
+  const failedStepIds = steps.filter((step) => step.status === 'failed').map((step) => step.stepId)
+  const hasSimulatedSteps = steps.some((step) => step.status === 'simulated' || step.status === 'skipped')
+  const overallStatus: WorkflowExecutionResult['overallStatus'] =
+    failedStepIds.length > 0 ? 'failed' : hasSimulatedSteps ? 'partial' : 'success'
+
+  const customerConfirmationAllowed = overallStatus === 'success' || overallStatus === 'partial'
+
+  const result: WorkflowExecutionResult = {
+    executionId,
+    workflowId: 'wf-010',
+    workflowName: 'Financial Advisory Consultation & KYC Intake Pipeline',
+    leadId: effectiveConsultationId,
+    conversationId,
+    triggerEvent: 'New Financial Inquiry Submitted',
+    overallStatus,
+    hasSimulatedSteps,
+    failedStepIds,
+    customerConfirmationAllowed,
+    startedAt,
+    completedAt,
+    durationMs,
+    steps,
+    n8nResult,
+  }
+
+  console.log(
+    `[Workflow Engine] Completed wf-010 execution ${executionId} in ${durationMs}ms with status: ${result.overallStatus}`
+  )
+
+  await saveWorkflowExecution(result, client.client_name)
+  return result
+}

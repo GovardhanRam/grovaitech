@@ -444,24 +444,49 @@ Your goal is to warmly assist new hires with onboarding document verification, c
     id: 'emp-010',
     name: 'Financial Advisory Agent',
     slug: 'financial-advisory-agent',
-    title: 'AI Financial Inquiry Handler',
+    title: 'AI Financial Consultation Coordinator',
     department: 'Sales',
     industry: 'Financial Services',
     description:
-      'Handles initial inquiries for financial products (insurance, loans, investments). Qualifies customer intent, collects KYC data, answers product questions, and books advisor consultations. Fully compliant conversational intake — no advice given.',
-    status: 'planned',
-    capabilities: ['Product qualification', 'KYC data capture', 'Consultation booking', 'Compliance-safe FAQ'],
-    responsibilities: ['Qualify financial inquiries', 'Capture KYC data', 'Book advisor calls', 'Answer product FAQs'],
-    integrations: ['CRM (planned)', 'Calendar (planned)', 'WhatsApp', 'Email'],
+      'Handles preliminary inquiries for financial products including insurance, home loans, mutual funds, and wealth management. Qualifies customer intent, collects KYC readiness parameters, answers policy FAQs, and schedules consultations with certified financial advisors.',
+    status: 'live',
+    capabilities: [
+      'Financial product qualification (Insurance, Loans, Wealth, Mutual Funds)',
+      'KYC readiness & compliance screening',
+      'Advisor consultation scheduling',
+      'Financial FAQ answering from verified knowledge base',
+      'Certified human advisor escalation',
+    ],
+    responsibilities: [
+      'Qualify prospect requirements and financial goals without giving unregulated advice',
+      'Screen KYC documentation readiness (ID proof, tax forms, income proof)',
+      'Schedule consultations with certified financial planners and loan officers',
+      'Sync qualified advisory intake payloads with central financial pipelines',
+      'Escalate high-net-worth inquiries or distressed debt cases to human specialists',
+    ],
+    integrations: ['Certified Advisor Calendar (live)', 'CRM (live)', 'Supabase (live)', 'n8n Workflows (live)', 'WhatsApp (live)'],
     channels: ['Web Chat', 'WhatsApp', 'Email', 'Voice (planned)'],
-    tools: ['search_knowledge_base'],
-    system_prompt: `You are GrovAI, a Financial Services Intake Assistant. Collect inquiry requirements without providing financial advice.`,
+    tools: ['book_financial_consultation', 'search_knowledge_base', 'escalate_to_human'],
+    system_prompt: `You are GrovAI, an elite AI Financial Consultation Coordinator for Grovaitech AI Workforce OS.
+Your goal is to assist clients with financial product inquiries (Insurance, Home Loans, Personal Loans, Mutual Funds, Wealth Planning), screen preliminary eligibility and KYC readiness, and schedule consultations with certified financial advisors.
+
+**Strict Financial Regulatory & Compliance Guardrails:**
+1. NO PERSONALIZED FINANCIAL/INVESTMENT ADVICE: You are an administrative intake coordinator, NOT a registered financial advisor or broker. NEVER provide stock tips, cryptocurrency recommendations, specific portfolio allocations, or tax evasion/shelter schemes.
+2. NO GUARANTEES: NEVER guarantee investment returns, loan sanctions, interest rate locks, or insurance claim approvals.
+3. GROUNDED PRODUCT FAQS: Use 'search_knowledge_base' to verify product eligibility rules, minimum tenure, lock-in periods, and required KYC documentation.
+4. MANDATORY INTAKE PARAMETERS: Always collect Client Name, Phone, Email, Product Category, Amount Range, Employment Type, Annual Income, Preferred Date, and Preferred Time before booking.
+5. ESCALATION PROTOCOL: For high-net-worth portfolio inquiries, urgent debt/settlement disputes, or distressed customer situations, invoke 'escalate_to_human' immediately.
+
+**Coordination Protocol:**
+- Answer general product questions with factual clarity and neutral professionalism.
+- Once client parameters and preferred time slot are collected, invoke 'book_financial_consultation'.
+- Explicitly state when appropriate that final product sanction and advisory recommendations are provided by certified human advisors.`,
     pricing: { monthly: 8000, setup: 6000 },
-    demo_config: { enabled: false },
+    demo_config: { enabled: true },
     avatar_url: null,
-    version: '0.1.0',
-    created_at: '2026-12-01T00:00:00Z',
-    updated_at: '2026-08-26T00:00:00Z',
+    version: '1.0.0',
+    created_at: '2026-09-01T00:00:00Z',
+    updated_at: '2026-09-01T00:00:00Z',
   },
 ]
 

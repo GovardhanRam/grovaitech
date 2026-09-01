@@ -22,6 +22,7 @@ import {
   getLegalCustomerMessage,
   getEcommerceCustomerMessage,
   getOnboardingCustomerMessage,
+  getFinancialCustomerMessage,
   type WorkflowExecutionResult,
   type PatientAppointmentData,
 } from '@/lib/workflows/executor'
@@ -181,6 +182,28 @@ Your goal is to warmly assist new hires with onboarding document verification, c
 - Assist candidates in clarifying document requirements (e.g. Government ID, Tax Forms, Bank Details, Degree Certificates).
 - Once intake parameters and preferred slot are collected, invoke 'schedule_onboarding_induction'.
 - Maintain a warm, encouraging, and highly professional tone throughout the orientation journey.`
+  }
+
+  if (
+    normalized.includes('financial') ||
+    normalized.includes('advisory') ||
+    normalized.includes('wealth') ||
+    normalized.includes('investment')
+  ) {
+    return `You are GrovAI, an elite AI Financial Consultation Coordinator for Grovaitech AI Workforce OS.
+Your goal is to assist clients with financial product inquiries (Insurance, Home Loans, Personal Loans, Mutual Funds, Wealth Planning), screen preliminary eligibility and KYC readiness, and schedule consultations with certified financial advisors.
+
+**Strict Financial Regulatory & Compliance Guardrails:**
+1. NO PERSONALIZED FINANCIAL/INVESTMENT ADVICE: You are an administrative intake coordinator, NOT a registered financial advisor or broker. NEVER provide stock tips, cryptocurrency recommendations, specific portfolio allocations, or tax evasion/shelter schemes.
+2. NO GUARANTEES: NEVER guarantee investment returns, loan sanctions, interest rate locks, or insurance claim approvals.
+3. GROUNDED PRODUCT FAQS: Use 'search_knowledge_base' to verify product eligibility rules, minimum tenure, lock-in periods, and required KYC documentation.
+4. MANDATORY INTAKE PARAMETERS: Always collect Client Name, Phone, Email, Product Category, Amount Range, Employment Type, Annual Income, Preferred Date, and Preferred Time before booking.
+5. ESCALATION PROTOCOL: For high-net-worth portfolio inquiries, urgent debt/settlement disputes, or distressed customer situations, invoke 'escalate_to_human' immediately.
+
+**Coordination Protocol:**
+- Answer general product questions with factual clarity and neutral professionalism.
+- Once client parameters and preferred time slot are collected, invoke 'book_financial_consultation'.
+- Explicitly state when appropriate that final product sanction and advisory recommendations are provided by certified human advisors.`
   }
 
   return `You are GrovAI, an elite AI Lead Receptionist for Grovaitech.
@@ -467,6 +490,40 @@ export async function runAgentTurn(options: RunAgentTurnOptions): Promise<AgentT
               document_status: toolResult.result.document_status,
               induction_status: toolResult.result.induction_status,
               orientation_room: toolResult.result.orientation_room,
+            })
+          }
+        } else if (toolResult.toolName === 'book_financial_consultation' && toolResult.result) {
+          if (toolResult.result.workflowId) {
+            workflowResult = {
+              executionId: toolResult.result.executionId || toolResult.result.workflowId,
+              workflowId: 'wf-010',
+              workflowName: 'Financial Advisory Consultation & KYC Intake Pipeline',
+              leadId: toolResult.result.consultationId || '',
+              conversationId: '',
+              triggerEvent: 'New Financial Inquiry Submitted',
+              overallStatus: toolResult.result.workflowStatus || 'success',
+              hasSimulatedSteps: !toolResult.result.customerConfirmationAllowed,
+              failedStepIds: [],
+              customerConfirmationAllowed: !!toolResult.result.customerConfirmationAllowed,
+              startedAt: new Date().toISOString(),
+              completedAt: new Date().toISOString(),
+              durationMs: 0,
+              steps: toolResult.result.steps || [],
+              n8nResult: { status: 'dispatched' },
+            }
+            safeWorkflowMessage = getFinancialCustomerMessage(workflowResult, {
+              client_name: toolResult.result.client_name,
+              client_phone: toolResult.result.client_phone,
+              client_email: toolResult.result.client_email,
+              product_category: toolResult.result.product_category,
+              amount_range: toolResult.result.amount_range,
+              employment_type: toolResult.result.employment_type,
+              annual_income: toolResult.result.annual_income,
+              kyc_status: toolResult.result.kyc_status,
+              preferred_date: toolResult.result.preferred_date,
+              preferred_time: toolResult.result.preferred_time,
+              assigned_advisor: toolResult.result.assigned_advisor,
+              meeting_mode: toolResult.result.meeting_mode,
             })
           }
         }

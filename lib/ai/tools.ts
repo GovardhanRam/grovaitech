@@ -79,6 +79,28 @@ export interface ScheduleOnboardingInductionParams {
   notes?: string
 }
 
+export interface BookFinancialConsultationParams {
+  client_name: string
+  client_phone: string
+  client_email: string
+  product_category:
+    | 'insurance'
+    | 'home_loan'
+    | 'personal_loan'
+    | 'mutual_funds'
+    | 'wealth_management'
+    | 'retirement_planning'
+    | 'tax_planning'
+    | 'other'
+  amount_range: string
+  employment_type: 'salaried' | 'self_employed' | 'business_owner' | 'retired' | 'other'
+  annual_income?: string
+  kyc_status?: 'verified' | 'documents_pending' | 'exempt'
+  preferred_date: string
+  preferred_time: string
+  notes?: string
+}
+
 export interface SearchKnowledgeBaseParams {
   query: string
   category?: string
@@ -523,6 +545,86 @@ export const SCHEDULE_ONBOARDING_INDUCTION_TOOL: FunctionDeclaration = {
   },
 }
 
+export const BOOK_FINANCIAL_CONSULTATION_TOOL: FunctionDeclaration = {
+  name: 'book_financial_consultation',
+  description:
+    'Schedules a consultation with a certified financial advisor for insurance, loans, mutual funds, or wealth management. Validates customer KYC readiness without providing unregulated investment advice.',
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      client_name: {
+        type: SchemaType.STRING,
+        description: 'Full legal name of the prospective client.',
+      },
+      client_phone: {
+        type: SchemaType.STRING,
+        description: 'Primary contact phone number for consultation reminders.',
+      },
+      client_email: {
+        type: SchemaType.STRING,
+        description: 'Primary email address for meeting invitation and summary.',
+      },
+      product_category: {
+        type: SchemaType.STRING,
+        format: 'enum',
+        enum: [
+          'insurance',
+          'home_loan',
+          'personal_loan',
+          'mutual_funds',
+          'wealth_management',
+          'retirement_planning',
+          'tax_planning',
+          'other',
+        ],
+        description: 'Financial product category for the consultation.',
+      },
+      amount_range: {
+        type: SchemaType.STRING,
+        description: 'Estimated investment, coverage, or loan amount range (e.g. ₹50 Lakhs, ₹1 Crore, ₹5-10k/month).',
+      },
+      employment_type: {
+        type: SchemaType.STRING,
+        format: 'enum',
+        enum: ['salaried', 'self_employed', 'business_owner', 'retired', 'other'],
+        description: 'Primary employment / income status of the client.',
+      },
+      annual_income: {
+        type: SchemaType.STRING,
+        description: 'Approximate annual income range (e.g. ₹15-25 LPA, ₹50L+).',
+      },
+      kyc_status: {
+        type: SchemaType.STRING,
+        format: 'enum',
+        enum: ['verified', 'documents_pending', 'exempt'],
+        description: 'Client KYC documentation readiness status (PAN, ID proof, Address proof).',
+      },
+      preferred_date: {
+        type: SchemaType.STRING,
+        description: 'Requested date for advisor consultation (e.g. 2026-09-18, Friday, Tomorrow).',
+      },
+      preferred_time: {
+        type: SchemaType.STRING,
+        description: 'Requested time slot (e.g. 11:00 AM, 3:30 PM, Evening).',
+      },
+      notes: {
+        type: SchemaType.STRING,
+        description: 'Optional additional financial goals or special consultation requests.',
+      },
+    },
+    required: [
+      'client_name',
+      'client_phone',
+      'client_email',
+      'product_category',
+      'amount_range',
+      'employment_type',
+      'preferred_date',
+      'preferred_time',
+    ],
+  },
+}
+
 // ─── Grouped Tool Collections for AI Employee Personas ───────────────────────
 
 export const REAL_ESTATE_TOOLS: FunctionDeclaration[] = [
@@ -569,6 +671,12 @@ export const HR_TOOLS: FunctionDeclaration[] = [
   ESCALATE_TO_HUMAN_TOOL,
 ]
 
+export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
+  BOOK_FINANCIAL_CONSULTATION_TOOL,
+  SEARCH_KNOWLEDGE_BASE_TOOL,
+  ESCALATE_TO_HUMAN_TOOL,
+]
+
 export const ALL_GROVAITECH_TOOLS: FunctionDeclaration[] = [
   CREATE_LEAD_TOOL,
   SCHEDULE_SITE_VISIT_TOOL,
@@ -580,6 +688,7 @@ export const ALL_GROVAITECH_TOOLS: FunctionDeclaration[] = [
   BOOK_LEGAL_CONSULTATION_TOOL,
   LOOKUP_ORDER_AND_SUPPORT_TOOL,
   SCHEDULE_ONBOARDING_INDUCTION_TOOL,
+  BOOK_FINANCIAL_CONSULTATION_TOOL,
 ]
 
 export const GROVAITECH_TOOLSET: FunctionDeclarationsTool = {
@@ -599,6 +708,7 @@ export const TOOL_NAMES = {
   BOOK_LEGAL_CONSULTATION: 'book_legal_consultation',
   LOOKUP_ORDER_AND_SUPPORT: 'lookup_order_and_support',
   SCHEDULE_ONBOARDING_INDUCTION: 'schedule_onboarding_induction',
+  BOOK_FINANCIAL_CONSULTATION: 'book_financial_consultation',
 } as const
 
 export type ToolName = typeof TOOL_NAMES[keyof typeof TOOL_NAMES]
