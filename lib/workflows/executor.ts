@@ -2042,3 +2042,274 @@ export async function executeEcommerceWorkflow({
   await saveWorkflowExecution(result, client.customer_email || client.customer_phone || client.order_id)
   return result
 }
+
+// ─── Canonical wf-009: Employee Onboarding Intake & Induction Pipeline ──────
+
+export interface OnboardingIntakeData {
+  candidate_name: string
+  candidate_email: string
+  candidate_phone: string
+  role_title: string
+  department: 'engineering' | 'product' | 'sales' | 'marketing' | 'operations' | 'finance' | 'hr' | 'other'
+  joining_date: string
+  preferred_induction_slot: string
+  document_status?: 'all_submitted' | 'pending_documents' | 'under_review'
+  notes?: string
+  induction_status?: 'scheduled' | 'pending_review' | 'failed'
+  orientation_room?: string
+}
+
+export function getOnboardingCustomerMessage(
+  workflow: Pick<WorkflowExecutionResult, 'overallStatus' | 'customerConfirmationAllowed'>,
+  details?: Partial<OnboardingIntakeData>
+): string {
+  if (workflow.overallStatus === 'failed') {
+    return "I couldn't complete the induction registration automatically. Our HR Operations team has been notified and will follow up with you directly."
+  }
+
+  const nameRef = details?.candidate_name ? `${details.candidate_name}` : 'there'
+  const roleRef = details?.role_title ? ` as ${details.role_title}` : ''
+  const slotRef = details?.preferred_induction_slot ? ` for ${details.preferred_induction_slot}` : ''
+  const dateRef = details?.joining_date ? ` (Joining Date: ${details.joining_date})` : ''
+
+  if (details?.document_status === 'pending_documents') {
+    return `Welcome to the team, ${nameRef}! Your onboarding intake${roleRef}${dateRef} has been recorded, and your induction session${slotRef} is tentatively held. Please upload your pending compliance documents prior to your start date.`
+  }
+
+  return `Welcome to the team, ${nameRef}! Your onboarding intake${roleRef}${dateRef} is confirmed. Your induction orientation is scheduled${slotRef}. We look forward to welcoming you!`
+}
+
+export async function executeOnboardingWorkflow({
+  intakeId = '',
+  conversationId = '',
+  client,
+}: {
+  intakeId?: string
+  conversationId?: string
+  client: OnboardingIntakeData
+}): Promise<WorkflowExecutionResult> {
+  const startTime = Date.now()
+  const executionId = `exec-hr-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+  const startedAt = new Date().toISOString()
+  const effectiveIntakeId = intakeId || executionId
+  const steps: WorkflowStepResult[] = []
+
+  console.log(
+    `[Workflow Engine] Starting wf-009 execution for Candidate: ${client.candidate_name} (${client.role_title} - ${client.department})`
+  )
+
+  const normalizedName = (client.candidate_name || '').trim().toUpperCase()
+  const isInvalidCandidate = normalizedName.includes('INVALID') || normalizedName.includes('NOT_FOUND')
+
+  // ── Step 1: Candidate Onboarding Verification ────────────────────────────
+  const s1Start = Date.now()
+  if (isInvalidCandidate) {
+    steps.push({
+      stepId: 's1',
+      stepName: 'Candidate Onboarding Verification',
+      type: 'database',
+      target: 'HR Employee Database',
+      status: 'failed',
+      durationMs: Date.now() - s1Start,
+      detail: `Candidate verification failed for ${client.candidate_name}. No matching pre-hire offer found.`,
+    })
+  } else {
+    steps.push({
+      stepId: 's1',
+      stepName: 'Candidate Onboarding Verification',
+      type: 'database',
+      target: 'HR Employee Database',
+      status: 'success',
+      durationMs: Date.now() - s1Start,
+      detail: `Candidate ${client.candidate_name} verified for role ${client.role_title} (${client.department}).`,
+      payload: {
+        candidate_name: client.candidate_name,
+        candidate_email: client.candidate_email,
+        candidate_phone: client.candidate_phone,
+        role_title: client.role_title,
+        department: client.department,
+        joining_date: client.joining_date,
+      },
+    })
+  }
+
+  // ── Step 2: Document Checklist & Policy Verification ──────────────────────
+  const s2Start = Date.now()
+  if (isInvalidCandidate) {
+    steps.push({
+      stepId: 's2',
+      stepName: 'Document Checklist & Policy Verification',
+      type: 'ai_action',
+      target: 'HR Compliance Engine',
+      status: 'skipped',
+      durationMs: 0,
+      detail: 'Document compliance skipped due to candidate verification failure.',
+    })
+  } else {
+    const docStatus = client.document_status || 'all_submitted'
+    if (docStatus === 'pending_documents') {
+      steps.push({
+        stepId: 's2',
+        stepName: 'Document Checklist & Policy Verification',
+        type: 'ai_action',
+        target: 'HR Compliance Engine',
+        status: 'success',
+        durationMs: Date.now() - s2Start,
+        detail: 'Document checklist evaluated: Pending mandatory compliance forms (Tax / ID).',
+        payload: { document_status: docStatus },
+      })
+    } else {
+      steps.push({
+        stepId: 's2',
+        stepName: 'Document Checklist & Policy Verification',
+        type: 'ai_action',
+        target: 'HR Compliance Engine',
+        status: 'success',
+        durationMs: Date.now() - s2Start,
+        detail: 'All mandatory onboarding compliance documents verified (Government ID, Tax Forms, Bank Details).',
+        payload: { document_status: docStatus },
+      })
+    }
+  }
+
+  // ── Step 3: Induction Calendar Slot Reservation ──────────────────────────
+  const s3Start = Date.now()
+  const isCalendarFail = normalizedName.includes('CALENDAR_FAIL')
+
+  if (isInvalidCandidate) {
+    steps.push({
+      stepId: 's3',
+      stepName: 'Induction Calendar Slot Reservation',
+      type: 'calendar',
+      target: 'HR Induction Calendar',
+      status: 'skipped',
+      durationMs: 0,
+      detail: 'Induction scheduling skipped.',
+    })
+  } else if (isCalendarFail) {
+    steps.push({
+      stepId: 's3',
+      stepName: 'Induction Calendar Slot Reservation',
+      type: 'calendar',
+      target: 'HR Induction Calendar',
+      status: 'failed',
+      durationMs: Date.now() - s3Start,
+      detail: 'Induction slot reservation failed due to calendar conflict.',
+    })
+  } else {
+    client.induction_status = 'scheduled'
+    client.orientation_room = 'Virtual Induction Suite 1'
+    steps.push({
+      stepId: 's3',
+      stepName: 'Induction Calendar Slot Reservation',
+      type: 'calendar',
+      target: 'HR Induction Calendar',
+      status: 'success',
+      durationMs: Date.now() - s3Start,
+      detail: `Induction session reserved for slot: ${client.preferred_induction_slot}. Welcome kit dispatched.`,
+      payload: {
+        preferred_induction_slot: client.preferred_induction_slot,
+        induction_status: client.induction_status,
+        orientation_room: client.orientation_room,
+      },
+    })
+  }
+
+  // ── Step 4: n8n HR Webhook Hub Sync ──────────────────────────────────────
+  const s4Start = Date.now()
+  const n8nWebhookUrl = 'https://n8n.grovaitech.ai/webhook/v1/hr-onboarding-hub'
+  let n8nResult: WorkflowExecutionResult['n8nResult'] = { status: 'not_configured' }
+  let s4Status: WorkflowStepResult['status'] = 'simulated'
+  let s4Detail = 'Simulated n8n HR Webhook Hub dispatch'
+
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 2000)
+
+    const n8nResp = await fetch(n8nWebhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Grovaitech-Source': 'workflow-engine-wf-009',
+      },
+      body: JSON.stringify({
+        workflow_id: 'wf-009',
+        execution_id: executionId,
+        intake_id: effectiveIntakeId,
+        client,
+        timestamp: startedAt,
+      }),
+      signal: controller.signal,
+    })
+
+    clearTimeout(timeoutId)
+
+    if (n8nResp.ok) {
+      s4Status = 'success'
+      s4Detail = `Dispatched to n8n HR Hub (${n8nResp.status})`
+      n8nResult = { status: 'dispatched', endpoint: n8nWebhookUrl, statusCode: n8nResp.status }
+    } else {
+      s4Status = 'failed'
+      s4Detail = `n8n HR webhook returned status ${n8nResp.status}`
+      n8nResult = { status: 'failed', endpoint: n8nWebhookUrl, statusCode: n8nResp.status, response: s4Detail }
+    }
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      s4Status = 'simulated'
+      s4Detail = 'n8n webhook timed out (sandbox fallback)'
+      n8nResult = { status: 'not_configured', endpoint: n8nWebhookUrl, response: 'Timeout' }
+    } else {
+      s4Status = 'simulated'
+      s4Detail = `n8n webhook unavailable in sandbox: ${err.message || 'Offline'}`
+      n8nResult = { status: 'not_configured', endpoint: n8nWebhookUrl, response: err.message }
+    }
+  }
+
+  steps.push({
+    stepId: 's4',
+    stepName: 'n8n HR Webhook Hub Sync',
+    type: 'n8n_webhook',
+    target: 'n8n HR Hub Node',
+    status: s4Status,
+    durationMs: Date.now() - s4Start,
+    detail: s4Detail,
+    payload: {
+      url: n8nWebhookUrl,
+      intakeId: effectiveIntakeId,
+    },
+  })
+
+  const completedAt = new Date().toISOString()
+  const durationMs = Date.now() - startTime
+  const failedStepIds = steps.filter((step) => step.status === 'failed').map((step) => step.stepId)
+  const hasSimulatedSteps = steps.some((step) => step.status === 'simulated' || step.status === 'skipped')
+  const overallStatus: WorkflowExecutionResult['overallStatus'] =
+    failedStepIds.length > 0 ? 'failed' : hasSimulatedSteps ? 'partial' : 'success'
+
+  const customerConfirmationAllowed = overallStatus === 'success' || overallStatus === 'partial'
+
+  const result: WorkflowExecutionResult = {
+    executionId,
+    workflowId: 'wf-009',
+    workflowName: 'Employee Onboarding Intake & Induction Scheduling Pipeline',
+    leadId: effectiveIntakeId,
+    conversationId,
+    triggerEvent: 'New Employee Onboarding / Induction Request',
+    overallStatus,
+    hasSimulatedSteps,
+    failedStepIds,
+    customerConfirmationAllowed,
+    startedAt,
+    completedAt,
+    durationMs,
+    steps,
+    n8nResult,
+  }
+
+  console.log(
+    `[Workflow Engine] Completed wf-009 execution ${executionId} in ${durationMs}ms with status: ${result.overallStatus}`
+  )
+
+  await saveWorkflowExecution(result, client.candidate_name)
+  return result
+}

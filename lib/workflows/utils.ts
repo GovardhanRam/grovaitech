@@ -254,4 +254,27 @@ export const CANONICAL_DEMO_WORKFLOWS: Workflow[] = [
     created_at: '2026-09-01T00:00:00Z',
     executions: [],
   },
+  {
+    id: 'wf-009',
+    name: 'Employee Onboarding Intake & Induction Scheduling Pipeline',
+    description:
+      'Autonomous HR onboarding workflow: verifies new hire parameters, evaluates document compliance checklists, reserves orientation induction calendar slots, and syncs onboarding pipelines via n8n HR hub.',
+    status: 'active',
+    trigger_event: 'New Employee Onboarding / Induction Request',
+    trigger_source: 'HR Onboarding Agent',
+    assigned_employee: 'HR Onboarding Agent',
+    assigned_employee_slug: 'hr-onboarding-agent',
+    steps: [
+      { id: 's1', name: 'Candidate Onboarding Verification', type: 'database', target: 'HR Employee Database' },
+      { id: 's2', name: 'Document Checklist & Policy Verification', type: 'ai_action', target: 'HR Compliance Engine' },
+      { id: 's3', name: 'Induction Calendar Slot Reservation', type: 'calendar', target: 'HR Induction Calendar' },
+      { id: 's4', name: 'n8n HR Webhook Hub Sync', type: 'n8n_webhook', target: 'https://n8n.grovaitech.ai/webhook/v1/hr-onboarding-hub' },
+    ],
+    n8n_webhook_url: 'https://n8n.grovaitech.ai/webhook/v1/hr-onboarding-hub',
+    total_executions: 0,
+    success_rate: 100,
+    last_executed_at: 'Not executed yet',
+    created_at: '2026-09-01T00:00:00Z',
+    executions: [],
+  },
 ]

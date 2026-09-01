@@ -400,20 +400,45 @@ Your goal is to warmly assist customers with order tracking, return/exchange req
     department: 'Operations',
     industry: 'General',
     description:
-      'Guides new employee onboarding by answering HR policy questions, collecting required documents, scheduling induction sessions, and tracking onboarding task completion — all through a conversational interface.',
-    status: 'planned',
-    capabilities: ['Policy Q&A', 'Document collection', 'Task tracking', 'Induction scheduling'],
-    responsibilities: ['Answer HR queries', 'Collect documents', 'Schedule inductions', 'Track onboarding tasks'],
-    integrations: ['Google Drive (planned)', 'Calendar (planned)', 'Slack (planned)'],
-    channels: ['Web Chat', 'Email', 'Internal'],
-    tools: ['search_knowledge_base'],
-    system_prompt: `You are GrovAI, an HR & Onboarding Assistant. Guide new team members through onboarding tasks and policies.`,
+      'Guides new employee onboarding by answering HR policy questions, collecting required compliance documents, scheduling induction sessions, and tracking onboarding task completion through a conversational interface.',
+    status: 'live',
+    capabilities: [
+      'HR policy & benefits FAQ answering',
+      'Onboarding document verification & checklist tracking',
+      'Induction & orientation calendar scheduling',
+      'HR operations & ticketing sync',
+      'Confidential human HR escalation',
+    ],
+    responsibilities: [
+      'Answer new hire queries regarding company policies, working hours, and benefits',
+      'Verify onboarding document submission status (ID, tax forms, education certs)',
+      'Schedule orientation and induction sessions with HR coordinators',
+      'Sync onboarding intake payloads with central HR webhook pipelines',
+      'Escalate compensation disputes or compliance exceptions to human HR officers',
+    ],
+    integrations: ['Google Calendar (live)', 'HR Database (live)', 'Supabase (live)', 'n8n Workflows (live)', 'WhatsApp (live)'],
+    channels: ['Web Chat', 'Email', 'Internal', 'WhatsApp'],
+    tools: ['schedule_onboarding_induction', 'search_knowledge_base', 'escalate_to_human'],
+    system_prompt: `You are GrovAI, an elite AI HR & Onboarding Specialist for Grovaitech AI Workforce OS.
+Your goal is to warmly assist new hires with onboarding document verification, company policy and benefits FAQs, and orientation induction scheduling.
+
+**Strict HR Confidentiality & Compliance Guardrails:**
+1. NO CONFIDENTIAL PII OR SALARY DISCLOSURE: NEVER disclose internal salary benchmarks, compensation packages of other employees, disciplinary records, or confidential personnel files.
+2. NO LEGAL ADVICE: Provide factual company policy information grounded in the knowledge base; do not provide statutory labor legal opinions.
+3. GROUNDED POLICY FAQS: Use 'search_knowledge_base' to verify leave entitlements, health insurance coverage, office timings, and required compliance documents.
+4. MANDATORY INTAKE PARAMETERS: Always collect Candidate Name, Email, Phone, Role Title, Department, Joining Date, and Preferred Induction Slot before scheduling.
+5. ESCALATION PROTOCOL: For compensation discrepancies, offer letter disputes, background verification issues, or confidential grievances, invoke 'escalate_to_human' immediately.
+
+**Onboarding Protocol:**
+- Assist candidates in clarifying document requirements (e.g. Government ID, Tax Forms, Bank Details, Degree Certificates).
+- Once intake parameters and preferred slot are collected, invoke 'schedule_onboarding_induction'.
+- Maintain a warm, encouraging, and highly professional tone throughout the orientation journey.`,
     pricing: { monthly: 4500, setup: 3000 },
-    demo_config: { enabled: false },
+    demo_config: { enabled: true },
     avatar_url: null,
-    version: '0.1.0',
-    created_at: '2026-11-01T00:00:00Z',
-    updated_at: '2026-08-26T00:00:00Z',
+    version: '1.0.0',
+    created_at: '2026-09-01T00:00:00Z',
+    updated_at: '2026-09-01T00:00:00Z',
   },
   {
     id: 'emp-010',

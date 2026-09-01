@@ -21,6 +21,7 @@ import {
   getClinicCustomerMessage,
   getLegalCustomerMessage,
   getEcommerceCustomerMessage,
+  getOnboardingCustomerMessage,
   type WorkflowExecutionResult,
   type PatientAppointmentData,
 } from '@/lib/workflows/executor'
@@ -159,6 +160,27 @@ Your goal is to warmly assist customers with order tracking, return/exchange req
 **Support Protocol:**
 - When a customer wants to check an order, track shipment, or request a return/exchange/cancellation, collect their Order ID and contact email/phone, then invoke 'lookup_order_and_support'.
 - Explain policies with clarity, empathy, and professionalism.`
+  }
+
+  if (
+    normalized.includes('hr') ||
+    normalized.includes('onboarding') ||
+    normalized.includes('induction')
+  ) {
+    return `You are GrovAI, an elite AI HR & Onboarding Specialist for Grovaitech AI Workforce OS.
+Your goal is to warmly assist new hires with onboarding document verification, company policy and benefits FAQs, and orientation induction scheduling.
+
+**Strict HR Confidentiality & Compliance Guardrails:**
+1. NO CONFIDENTIAL PII OR SALARY DISCLOSURE: NEVER disclose internal salary benchmarks, compensation packages of other employees, disciplinary records, or confidential personnel files.
+2. NO LEGAL ADVICE: Provide factual company policy information grounded in the knowledge base; do not provide statutory labor legal opinions.
+3. GROUNDED POLICY FAQS: Use 'search_knowledge_base' to verify leave entitlements, health insurance coverage, office timings, and required compliance documents.
+4. MANDATORY INTAKE PARAMETERS: Always collect Candidate Name, Email, Phone, Role Title, Department, Joining Date, and Preferred Induction Slot before scheduling.
+5. ESCALATION PROTOCOL: For compensation discrepancies, offer letter disputes, background verification issues, or confidential grievances, invoke 'escalate_to_human' immediately.
+
+**Onboarding Protocol:**
+- Assist candidates in clarifying document requirements (e.g. Government ID, Tax Forms, Bank Details, Degree Certificates).
+- Once intake parameters and preferred slot are collected, invoke 'schedule_onboarding_induction'.
+- Maintain a warm, encouraging, and highly professional tone throughout the orientation journey.`
   }
 
   return `You are GrovAI, an elite AI Lead Receptionist for Grovaitech.
@@ -413,6 +435,38 @@ export async function runAgentTurn(options: RunAgentTurnOptions): Promise<AgentT
               carrier: toolResult.result.carrier,
               estimated_delivery: toolResult.result.estimated_delivery,
               eligibility_status: toolResult.result.eligibility_status,
+            })
+          }
+        } else if (toolResult.toolName === 'schedule_onboarding_induction' && toolResult.result) {
+          if (toolResult.result.workflowId) {
+            workflowResult = {
+              executionId: toolResult.result.executionId || toolResult.result.workflowId,
+              workflowId: 'wf-009',
+              workflowName: 'Employee Onboarding Intake & Induction Scheduling Pipeline',
+              leadId: toolResult.result.intakeId || '',
+              conversationId: '',
+              triggerEvent: 'New Employee Onboarding / Induction Request',
+              overallStatus: toolResult.result.workflowStatus || 'success',
+              hasSimulatedSteps: !toolResult.result.customerConfirmationAllowed,
+              failedStepIds: [],
+              customerConfirmationAllowed: !!toolResult.result.customerConfirmationAllowed,
+              startedAt: new Date().toISOString(),
+              completedAt: new Date().toISOString(),
+              durationMs: 0,
+              steps: toolResult.result.steps || [],
+              n8nResult: { status: 'dispatched' },
+            }
+            safeWorkflowMessage = getOnboardingCustomerMessage(workflowResult, {
+              candidate_name: toolResult.result.candidate_name,
+              candidate_email: toolResult.result.candidate_email,
+              candidate_phone: toolResult.result.candidate_phone,
+              role_title: toolResult.result.role_title,
+              department: toolResult.result.department,
+              joining_date: toolResult.result.joining_date,
+              preferred_induction_slot: toolResult.result.preferred_induction_slot,
+              document_status: toolResult.result.document_status,
+              induction_status: toolResult.result.induction_status,
+              orientation_room: toolResult.result.orientation_room,
             })
           }
         }

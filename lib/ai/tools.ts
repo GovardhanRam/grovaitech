@@ -67,6 +67,18 @@ export interface LookupOrderAndSupportParams {
   notes?: string
 }
 
+export interface ScheduleOnboardingInductionParams {
+  candidate_name: string
+  candidate_email: string
+  candidate_phone: string
+  role_title: string
+  department: 'engineering' | 'product' | 'sales' | 'marketing' | 'operations' | 'finance' | 'hr' | 'other'
+  joining_date: string
+  preferred_induction_slot: string
+  document_status?: 'all_submitted' | 'pending_documents' | 'under_review'
+  notes?: string
+}
+
 export interface SearchKnowledgeBaseParams {
   query: string
   category?: string
@@ -451,6 +463,66 @@ export const LOOKUP_ORDER_AND_SUPPORT_TOOL: FunctionDeclaration = {
   },
 }
 
+export const SCHEDULE_ONBOARDING_INDUCTION_TOOL: FunctionDeclaration = {
+  name: 'schedule_onboarding_induction',
+  description:
+    'Registers employee onboarding intake, validates document submission status, and reserves an induction orientation slot on the HR calendar. Do not fabricate orientation slots without candidate verification.',
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      candidate_name: {
+        type: SchemaType.STRING,
+        description: 'Full legal name of the new employee / candidate.',
+      },
+      candidate_email: {
+        type: SchemaType.STRING,
+        description: 'Candidate official or personal email address.',
+      },
+      candidate_phone: {
+        type: SchemaType.STRING,
+        description: 'Candidate primary contact phone number.',
+      },
+      role_title: {
+        type: SchemaType.STRING,
+        description: 'Job role or designation of the new hire (e.g., Software Engineer, Account Executive).',
+      },
+      department: {
+        type: SchemaType.STRING,
+        format: 'enum',
+        enum: ['engineering', 'product', 'sales', 'marketing', 'operations', 'finance', 'hr', 'other'],
+        description: 'Department to which the employee is assigned.',
+      },
+      joining_date: {
+        type: SchemaType.STRING,
+        description: 'Official joining date (e.g., 2026-09-15, Next Monday).',
+      },
+      preferred_induction_slot: {
+        type: SchemaType.STRING,
+        description: 'Requested date/time for orientation induction (e.g., Monday 10:00 AM, Morning Batch).',
+      },
+      document_status: {
+        type: SchemaType.STRING,
+        format: 'enum',
+        enum: ['all_submitted', 'pending_documents', 'under_review'],
+        description: 'Status of mandatory onboarding documents (ID, Tax Forms, Bank Details, Degree).',
+      },
+      notes: {
+        type: SchemaType.STRING,
+        description: 'Optional additional onboarding remarks or equipment requests.',
+      },
+    },
+    required: [
+      'candidate_name',
+      'candidate_email',
+      'candidate_phone',
+      'role_title',
+      'department',
+      'joining_date',
+      'preferred_induction_slot',
+    ],
+  },
+}
+
 // ─── Grouped Tool Collections for AI Employee Personas ───────────────────────
 
 export const REAL_ESTATE_TOOLS: FunctionDeclaration[] = [
@@ -491,6 +563,12 @@ export const ECOMMERCE_TOOLS: FunctionDeclaration[] = [
   ESCALATE_TO_HUMAN_TOOL,
 ]
 
+export const HR_TOOLS: FunctionDeclaration[] = [
+  SCHEDULE_ONBOARDING_INDUCTION_TOOL,
+  SEARCH_KNOWLEDGE_BASE_TOOL,
+  ESCALATE_TO_HUMAN_TOOL,
+]
+
 export const ALL_GROVAITECH_TOOLS: FunctionDeclaration[] = [
   CREATE_LEAD_TOOL,
   SCHEDULE_SITE_VISIT_TOOL,
@@ -501,6 +579,7 @@ export const ALL_GROVAITECH_TOOLS: FunctionDeclaration[] = [
   AUDIT_CONVERSATION_QUALITY_TOOL,
   BOOK_LEGAL_CONSULTATION_TOOL,
   LOOKUP_ORDER_AND_SUPPORT_TOOL,
+  SCHEDULE_ONBOARDING_INDUCTION_TOOL,
 ]
 
 export const GROVAITECH_TOOLSET: FunctionDeclarationsTool = {
@@ -519,6 +598,7 @@ export const TOOL_NAMES = {
   AUDIT_CONVERSATION_QUALITY: 'audit_conversation_quality',
   BOOK_LEGAL_CONSULTATION: 'book_legal_consultation',
   LOOKUP_ORDER_AND_SUPPORT: 'lookup_order_and_support',
+  SCHEDULE_ONBOARDING_INDUCTION: 'schedule_onboarding_induction',
 } as const
 
 export type ToolName = typeof TOOL_NAMES[keyof typeof TOOL_NAMES]

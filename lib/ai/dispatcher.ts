@@ -31,6 +31,9 @@ import {
   executeEcommerceWorkflow,
   getEcommerceCustomerMessage,
   type EcommerceSupportData,
+  executeOnboardingWorkflow,
+  getOnboardingCustomerMessage,
+  type OnboardingIntakeData,
 } from '@/lib/workflows/executor'
 import { generateResponse } from '@/lib/ai/gemini'
 import { createServerClient } from '@/lib/supabase/server'
@@ -43,6 +46,7 @@ import {
   type SearchKnowledgeBaseParams,
   type BookLegalConsultationParams,
   type LookupOrderAndSupportParams,
+  type ScheduleOnboardingInductionParams,
 } from '@/lib/ai/tools'
 
 // ─── Dispatcher Response Interfaces ──────────────────────────────────────────
@@ -817,6 +821,95 @@ async function handleLookupOrderAndSupport(rawArgs: Record<string, any>): Promis
   }
 }
 
+/**
+ * Handler 10: schedule_onboarding_induction
+ * Connects to Employee Onboarding Intake & Induction Pipeline (wf-009).
+ */
+async function handleScheduleOnboardingInduction(rawArgs: Record<string, any>): Promise<any> {
+  const candidate_name = sanitizeString(rawArgs.candidate_name)
+  const candidate_email = sanitizeString(rawArgs.candidate_email)
+  const candidate_phone = sanitizePhone(rawArgs.candidate_phone)
+  const role_title = sanitizeString(rawArgs.role_title)
+  const joining_date = sanitizeString(rawArgs.joining_date)
+  const preferred_induction_slot = sanitizeString(rawArgs.preferred_induction_slot)
+  const notes = sanitizeString(rawArgs.notes) || undefined
+
+  if (!candidate_name || candidate_name.length < 2) {
+    throw new Error("Validation Error: 'candidate_name' must be at least 2 characters.")
+  }
+
+  if (!candidate_email || !candidate_email.includes('@')) {
+    throw new Error("Validation Error: A valid 'candidate_email' is required for onboarding registration.")
+  }
+
+  if (!candidate_phone || candidate_phone.length < 8) {
+    throw new Error("Validation Error: A valid 'candidate_phone' (minimum 8 digits) is required.")
+  }
+
+  if (!role_title || role_title.length < 2) {
+    throw new Error("Validation Error: 'role_title' is required for employee onboarding.")
+  }
+
+  const validDepartments = ['engineering', 'product', 'sales', 'marketing', 'operations', 'finance', 'hr', 'other'] as const
+  const deptRaw = (rawArgs.department || 'other').trim().toLowerCase()
+  const department = validDepartments.includes(deptRaw as any) ? (deptRaw as typeof validDepartments[number]) : 'other'
+
+  if (!joining_date) {
+    throw new Error("Validation Error: 'joining_date' is required for onboarding coordination.")
+  }
+
+  if (!preferred_induction_slot) {
+    throw new Error("Validation Error: 'preferred_induction_slot' is required to reserve an orientation session.")
+  }
+
+  const validDocStatuses = ['all_submitted', 'pending_documents', 'under_review'] as const
+  const docStatusRaw = (rawArgs.document_status || 'all_submitted').trim().toLowerCase()
+  const document_status = validDocStatuses.includes(docStatusRaw as any) ? (docStatusRaw as typeof validDocStatuses[number]) : 'all_submitted'
+
+  const onboardingPayload: OnboardingIntakeData = {
+    candidate_name,
+    candidate_email,
+    candidate_phone,
+    role_title,
+    department,
+    joining_date,
+    preferred_induction_slot,
+    document_status,
+    notes,
+  }
+
+  const intakeId = `hr-intake-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+  const conversationId = sanitizeString(rawArgs.conversation_id || rawArgs.chat_id || '')
+
+  const workflowResult = await executeOnboardingWorkflow({
+    intakeId,
+    conversationId,
+    client: onboardingPayload,
+  })
+
+  const message = getOnboardingCustomerMessage(workflowResult, onboardingPayload)
+
+  return {
+    intakeId,
+    workflowId: workflowResult.workflowId,
+    executionId: workflowResult.executionId,
+    candidate_name,
+    candidate_email,
+    candidate_phone,
+    role_title,
+    department,
+    joining_date,
+    preferred_induction_slot,
+    document_status,
+    induction_status: onboardingPayload.induction_status || 'scheduled',
+    orientation_room: onboardingPayload.orientation_room,
+    workflowStatus: workflowResult.overallStatus,
+    customerConfirmationAllowed: workflowResult.customerConfirmationAllowed,
+    message,
+    steps: workflowResult.steps,
+  }
+}
+
 // ─── Main Dispatcher Entry Point ─────────────────────────────────────────────
 
 /**
@@ -891,6 +984,10 @@ export async function dispatchToolCall(
 
       case TOOL_NAMES.LOOKUP_ORDER_AND_SUPPORT:
         result = await handleLookupOrderAndSupport(rawArgs || {})
+        break
+
+      case TOOL_NAMES.SCHEDULE_ONBOARDING_INDUCTION:
+        result = await handleScheduleOnboardingInduction(rawArgs || {})
         break
 
       default:
