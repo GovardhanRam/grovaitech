@@ -20,6 +20,8 @@ import {
   getEscalationCustomerMessage,
   executeWhatsAppLeadWorkflow,
   getWhatsAppLeadCustomerMessage,
+  executeSalonWorkflow,
+  getSalonCustomerMessage,
 } from '@/lib/workflows/executor'
 import { generateResponse } from '@/lib/ai/gemini'
 import { createServerClient } from '@/lib/supabase/server'
@@ -394,6 +396,77 @@ async function handleEscalateToHuman(rawArgs: Record<string, any>) {
   }
 }
 
+/**
+ * Handler 6: book_salon_service
+ * Connects to canonical salon workflow engine (wf-007).
+ */
+async function handleBookSalonService(rawArgs: Record<string, any>): Promise<any> {
+  const clientName = sanitizeString(rawArgs.client_name || rawArgs.name, 100)
+  const clientPhone = sanitizePhone(rawArgs.client_phone || rawArgs.phone)
+  const clientEmail = sanitizeString(rawArgs.client_email || rawArgs.email, 100) || undefined
+  const serviceName = sanitizeString(rawArgs.service_name || rawArgs.service, 150)
+  const appointmentDate = sanitizeString(rawArgs.appointment_date || rawArgs.date, 50)
+  const appointmentTime = sanitizeString(rawArgs.appointment_time || rawArgs.time, 50)
+  const stylistPreference = sanitizeString(rawArgs.stylist_preference || rawArgs.stylist, 100) || undefined
+  const notes = sanitizeString(rawArgs.notes, 500) || undefined
+  const conversationId = sanitizeString(rawArgs.conversation_id || rawArgs.chat_id, 100)
+
+  if (!clientName) {
+    throw new Error("Validation Error: 'client_name' is required to book a salon appointment.")
+  }
+  if (!clientPhone || clientPhone.length < 7) {
+    throw new Error("Validation Error: A valid 'client_phone' is required to book a salon appointment.")
+  }
+  if (!serviceName) {
+    throw new Error("Validation Error: 'service_name' is required to book a salon appointment.")
+  }
+  if (!appointmentDate) {
+    throw new Error("Validation Error: 'appointment_date' is required to book a salon appointment.")
+  }
+  if (!appointmentTime) {
+    throw new Error("Validation Error: 'appointment_time' is required to book a salon appointment.")
+  }
+
+  const bookingId = `salon-bk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+
+  const workflowRes = await executeSalonWorkflow({
+    bookingId,
+    conversationId,
+    client: {
+      client_name: clientName,
+      client_phone: clientPhone,
+      client_email: clientEmail,
+      service_name: serviceName,
+      appointment_date: appointmentDate,
+      appointment_time: appointmentTime,
+      stylist_preference: stylistPreference,
+      notes,
+    },
+  })
+
+  const message = getSalonCustomerMessage(workflowRes, {
+    client_name: clientName,
+    service_name: serviceName,
+    appointment_date: appointmentDate,
+    appointment_time: appointmentTime,
+    stylist_preference: stylistPreference,
+  })
+
+  return {
+    bookingId,
+    workflowId: workflowRes.workflowId,
+    executionId: workflowRes.executionId,
+    workflowStatus: workflowRes.overallStatus,
+    clientName,
+    serviceName,
+    appointmentDate,
+    appointmentTime,
+    stylistPreference,
+    message,
+    steps: workflowRes.steps,
+  }
+}
+
 // ─── Main Dispatcher Entry Point ─────────────────────────────────────────────
 
 /**
@@ -452,6 +525,10 @@ export async function dispatchToolCall(
 
       case TOOL_NAMES.ESCALATE_TO_HUMAN:
         result = await handleEscalateToHuman(rawArgs || {})
+        break
+
+      case TOOL_NAMES.BOOK_SALON_SERVICE:
+        result = await handleBookSalonService(rawArgs || {})
         break
 
       default:

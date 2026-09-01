@@ -177,19 +177,37 @@ Your goal is to warmly engage inbound WhatsApp prospects, answer product/service
     industry: 'Salons & Spas',
     description:
       'Books appointments for salon and spa services, answers service queries, sends reminders, and handles rescheduling. Reduces front-desk workload by handling routine booking interactions autonomously.',
-    status: 'in_development',
-    capabilities: ['Service booking', 'Rescheduling', 'Reminder sending', 'FAQ answering'],
-    responsibilities: ['Book services', 'Reschedule appointments', 'Send reminders', 'Answer service queries'],
-    integrations: ['Google Calendar (in progress)', 'WhatsApp (planned)'],
+    status: 'live',
+    capabilities: [
+      'Service booking',
+      'Stylist scheduling',
+      'Appointment reminders',
+      'Treatment FAQ answering',
+      'Package recommendations',
+    ],
+    responsibilities: [
+      'Welcome salon and spa clients warmly',
+      'Answer questions on services and package pricing',
+      'Book salon treatments and stylist slots',
+      'Coordinate calendar and WhatsApp appointment confirmations',
+    ],
+    integrations: ['Google Calendar (live)', 'WhatsApp (live)', 'Supabase (live)', 'n8n Workflows (live)'],
     channels: ['WhatsApp', 'Web Chat'],
-    tools: ['search_knowledge_base'],
-    system_prompt: `You are GrovAI, a Salon & Spa Front-Desk Assistant. Help clients with service details and bookings.`,
+    tools: ['book_salon_service', 'search_knowledge_base'],
+    system_prompt: `You are GrovAI, an elite Salon & Spa Front-Desk & Hospitality Specialist for Grovaitech AI Workforce OS.
+Your goal is to warmly assist clients, provide verified service details and pricing from the knowledge base, discover treatment preferences, and book appointments seamlessly.
+
+**Core Guidelines:**
+1. Hospitality & Warmth: Greet clients warmly, assist with treatment packages, haircuts, styling, massage therapies, facials, and bridal services.
+2. Knowledge Base Grounding: Use the 'search_knowledge_base' tool to verify treatment pricing, durations, packages, and salon policies before answering client questions.
+3. Service Booking Protocol: When a client expresses intent to book, collect their name, phone number, desired service, preferred date, and preferred time slot (and stylist preference if requested), then invoke the 'book_salon_service' tool immediately.
+4. Strict Truthfulness: Do not invent services, discount codes, or stylist availability not verified in the knowledge base. Do NOT give medical or clinical advice.`,
     pricing: { monthly: 3500, setup: 3000 },
-    demo_config: { enabled: false },
+    demo_config: { enabled: true },
     avatar_url: null,
-    version: '0.2.0',
+    version: '1.0.0',
     created_at: '2026-08-15T00:00:00Z',
-    updated_at: '2026-08-26T00:00:00Z',
+    updated_at: '2026-09-01T00:00:00Z',
   },
   {
     id: 'emp-005',

@@ -249,6 +249,49 @@ export const ESCALATE_TO_HUMAN_TOOL: FunctionDeclaration = {
   },
 }
 
+export const BOOK_SALON_SERVICE_TOOL: FunctionDeclaration = {
+  name: 'book_salon_service',
+  description: 'Books a salon or spa appointment with service type, date, time, stylist preference, and customer contact information. Do not describe it as booked or confirmed unless the returned result explicitly verifies that outcome.',
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      client_name: {
+        type: SchemaType.STRING,
+        description: 'Full name of the client booking the salon or spa service.',
+      },
+      client_phone: {
+        type: SchemaType.STRING,
+        description: 'Contact phone number of the client.',
+      },
+      client_email: {
+        type: SchemaType.STRING,
+        description: 'Email address of the client if provided.',
+      },
+      service_name: {
+        type: SchemaType.STRING,
+        description: 'Name of the requested salon or spa service (e.g., Haircut & Styling, Aromatherapy Massage, Bridal Makeup, Facial).',
+      },
+      appointment_date: {
+        type: SchemaType.STRING,
+        description: 'Requested date or day for the appointment (e.g., 2026-09-06, Tomorrow, Saturday).',
+      },
+      appointment_time: {
+        type: SchemaType.STRING,
+        description: 'Preferred appointment time slot (e.g., 11:00 AM, 3:30 PM, Morning).',
+      },
+      stylist_preference: {
+        type: SchemaType.STRING,
+        description: 'Preferred stylist, therapist, or aesthetician name if requested.',
+      },
+      notes: {
+        type: SchemaType.STRING,
+        description: 'Special requests, skin/hair sensitivities, or additional notes.',
+      },
+    },
+    required: ['client_name', 'client_phone', 'service_name', 'appointment_date', 'appointment_time'],
+  },
+}
+
 // ─── Grouped Tool Collections for AI Employee Personas ───────────────────────
 
 export const REAL_ESTATE_TOOLS: FunctionDeclaration[] = [
@@ -267,12 +310,18 @@ export const SUPPORT_TOOLS: FunctionDeclaration[] = [
   ESCALATE_TO_HUMAN_TOOL,
 ]
 
+export const SALON_TOOLS: FunctionDeclaration[] = [
+  BOOK_SALON_SERVICE_TOOL,
+  SEARCH_KNOWLEDGE_BASE_TOOL,
+]
+
 export const ALL_GROVAITECH_TOOLS: FunctionDeclaration[] = [
   CREATE_LEAD_TOOL,
   SCHEDULE_SITE_VISIT_TOOL,
   BOOK_CLINIC_APPOINTMENT_TOOL,
   SEARCH_KNOWLEDGE_BASE_TOOL,
   ESCALATE_TO_HUMAN_TOOL,
+  BOOK_SALON_SERVICE_TOOL,
 ]
 
 export const GROVAITECH_TOOLSET: FunctionDeclarationsTool = {
@@ -287,6 +336,7 @@ export const TOOL_NAMES = {
   BOOK_CLINIC_APPOINTMENT: 'book_clinic_appointment',
   SEARCH_KNOWLEDGE_BASE: 'search_knowledge_base',
   ESCALATE_TO_HUMAN: 'escalate_to_human',
+  BOOK_SALON_SERVICE: 'book_salon_service',
 } as const
 
 export type ToolName = typeof TOOL_NAMES[keyof typeof TOOL_NAMES]

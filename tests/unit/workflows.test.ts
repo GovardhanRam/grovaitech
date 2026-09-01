@@ -41,7 +41,7 @@ describe('Workflows & Execution Persistence Layer', () => {
 
     expect(result.success).toBe(true)
     expect(result.isFallback).toBe(true)
-    expect(result.workflows.length).toBe(6)
+    expect(result.workflows.length).toBe(CANONICAL_DEMO_WORKFLOWS.length)
     expect(result.workflows[0].id).toBe('wf-001')
   })
 

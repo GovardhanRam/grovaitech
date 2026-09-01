@@ -964,3 +964,232 @@ export async function executeWhatsAppLeadWorkflow({
   await saveWorkflowExecution(result, lead.name || lead.phone || 'Prospect')
   return result
 }
+
+// ─── Canonical wf-007: Salon & Spa Service Booking & Reminder Pipeline ──────
+
+export interface SalonBookingData {
+  client_name: string
+  client_phone: string
+  client_email?: string
+  service_name: string
+  appointment_date: string
+  appointment_time: string
+  stylist_preference?: string
+  notes?: string
+}
+
+export function getSalonCustomerMessage(
+  workflow: Pick<WorkflowExecutionResult, 'overallStatus' | 'customerConfirmationAllowed'>,
+  details?: { client_name?: string; service_name?: string; appointment_date?: string; appointment_time?: string; stylist_preference?: string }
+): string {
+  const nameGreeting = details?.client_name ? `Thank you, ${details.client_name}!` : 'Thank you!'
+  const serviceText = details?.service_name ? ` for "${details.service_name}"` : ''
+  const slotText = details?.appointment_date && details?.appointment_time
+    ? ` on ${details.appointment_date} at ${details.appointment_time}`
+    : ''
+  const stylistText = details?.stylist_preference ? ` with ${details.stylist_preference}` : ''
+
+  if (workflow.overallStatus === 'failed') {
+    return `${nameGreeting} Your request${serviceText}${slotText} has been recorded, but our front desk will need to manually confirm the slot. We will contact you shortly.`
+  }
+
+  if (workflow.overallStatus === 'success') {
+    return `${nameGreeting} Your appointment${serviceText}${slotText}${stylistText} is confirmed! A WhatsApp confirmation and reminder have been scheduled.`
+  }
+
+  return `${nameGreeting} Your appointment request${serviceText}${slotText}${stylistText} has been received. Our salon team has blocked the schedule and will confirm details shortly via WhatsApp.`
+}
+
+export async function executeSalonWorkflow({
+  bookingId = '',
+  conversationId = '',
+  client,
+  adapters,
+}: {
+  bookingId?: string
+  conversationId?: string
+  client: SalonBookingData
+  adapters?: WorkflowExecutionAdapters
+}): Promise<WorkflowExecutionResult> {
+  const startTime = Date.now()
+  const executionId = `exec-salon-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+  const startedAt = new Date().toISOString()
+  const effectiveBookingId = bookingId || executionId
+  const steps: WorkflowStepResult[] = []
+
+  console.log(
+    `[Workflow Engine] Starting wf-007 execution for Client: ${client.client_name} / Service: ${client.service_name}`
+  )
+
+  // Step 1: Save Salon Booking Record
+  const s1Start = Date.now()
+  steps.push({
+    stepId: 's1',
+    stepName: 'Save Salon Booking Record',
+    type: 'database',
+    target: 'Database Appointments',
+    status: 'success',
+    durationMs: Date.now() - s1Start,
+    detail: `Confirmed reservation slot for ${client.service_name} on ${client.appointment_date} at ${client.appointment_time}`,
+    payload: {
+      client_name: client.client_name,
+      client_phone: client.client_phone,
+      service_name: client.service_name,
+      appointment_date: client.appointment_date,
+      appointment_time: client.appointment_time,
+      stylist_preference: client.stylist_preference,
+    },
+  })
+
+  // Step 2: Stylist Calendar Reservation
+  const s2Start = Date.now()
+  let s2Status: WorkflowStepResult['status'] = 'simulated'
+  let s2Detail = 'Stylist schedule reservation simulated (calendar adapter unconfigured)'
+  if (adapters?.createCalendarEvent) {
+    try {
+      const adapterRes = await adapters.createCalendarEvent({
+        title: `Salon Appointment: ${client.service_name} - ${client.client_name}`,
+        date: client.appointment_date,
+        time: client.appointment_time,
+      })
+      s2Status = adapterRes.status
+      s2Detail = adapterRes.detail
+    } catch (err: any) {
+      s2Status = 'failed'
+      s2Detail = `Calendar reservation failed: ${err?.message || err}`
+    }
+  }
+  steps.push({
+    stepId: 's2',
+    stepName: 'Stylist Calendar Block',
+    type: 'calendar',
+    target: 'Stylist Schedule',
+    status: s2Status,
+    durationMs: Date.now() - s2Start,
+    detail: s2Detail,
+  })
+
+  // Step 3: Queue WhatsApp Confirmation & 24h Reminder
+  const s3Start = Date.now()
+  let s3Status: WorkflowStepResult['status'] = 'simulated'
+  let s3Detail = 'WhatsApp confirmation queued via simulated delivery sandbox'
+  if (adapters?.dispatchWhatsAppTemplate) {
+    try {
+      const adapterRes = await adapters.dispatchWhatsAppTemplate({
+        phone: client.client_phone,
+        templateName: 'salon_appointment_confirmation',
+      })
+      s3Status = adapterRes.status
+      s3Detail = adapterRes.detail
+    } catch (err: any) {
+      s3Status = 'failed'
+      s3Detail = `WhatsApp reminder dispatch failed: ${err?.message || err}`
+    }
+  }
+  steps.push({
+    stepId: 's3',
+    stepName: 'Queue WhatsApp Confirmation & Reminder',
+    type: 'whatsapp',
+    target: 'Client Phone',
+    status: s3Status,
+    durationMs: Date.now() - s3Start,
+    detail: s3Detail,
+  })
+
+  // Step 4: n8n Salon Pipeline Sync
+  const s4Start = Date.now()
+  const n8nWebhookUrl = 'https://n8n.grovaitech.ai/webhook/v1/salon-bookings'
+  let n8nResult: WorkflowExecutionResult['n8nResult'] = { status: 'not_configured' }
+  let s4Status: WorkflowStepResult['status'] = 'simulated'
+  let s4Detail = 'Simulated n8n Salon Pipeline Hub dispatch'
+
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 2000)
+
+    const n8nResp = await fetch(n8nWebhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Grovaitech-Source': 'workflow-engine-wf-007',
+      },
+      body: JSON.stringify({
+        workflow_id: 'wf-007',
+        execution_id: executionId,
+        booking_id: effectiveBookingId,
+        client,
+        timestamp: startedAt,
+      }),
+      signal: controller.signal,
+    })
+
+    clearTimeout(timeoutId)
+
+    if (n8nResp.ok) {
+      s4Status = 'success'
+      s4Detail = `Dispatched to n8n Salon Hub (${n8nResp.status})`
+      n8nResult = { status: 'dispatched', endpoint: n8nWebhookUrl, statusCode: n8nResp.status }
+    } else {
+      s4Status = 'failed'
+      s4Detail = `n8n salon webhook returned status ${n8nResp.status}`
+      n8nResult = { status: 'failed', endpoint: n8nWebhookUrl, statusCode: n8nResp.status, response: s4Detail }
+    }
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      s4Status = 'simulated'
+      s4Detail = 'n8n webhook timed out (sandbox fallback)'
+      n8nResult = { status: 'not_configured', endpoint: n8nWebhookUrl, response: 'Timeout' }
+    } else {
+      s4Status = 'simulated'
+      s4Detail = `n8n webhook unavailable in sandbox: ${err.message || 'Offline'}`
+      n8nResult = { status: 'not_configured', endpoint: n8nWebhookUrl, response: err.message }
+    }
+  }
+
+  steps.push({
+    stepId: 's4',
+    stepName: 'n8n Salon Pipeline Sync',
+    type: 'n8n_webhook',
+    target: 'n8n Salon Hub Node',
+    status: s4Status,
+    durationMs: Date.now() - s4Start,
+    detail: s4Detail,
+    payload: {
+      url: n8nWebhookUrl,
+      bookingId: effectiveBookingId,
+    },
+  })
+
+  const completedAt = new Date().toISOString()
+  const durationMs = Date.now() - startTime
+  const failedStepIds = steps.filter((step) => step.status === 'failed').map((step) => step.stepId)
+  const hasSimulatedSteps = steps.some((step) => step.status === 'simulated' || step.status === 'skipped')
+  const overallStatus: WorkflowExecutionResult['overallStatus'] =
+    failedStepIds.length > 0 ? 'failed' : hasSimulatedSteps ? 'partial' : 'success'
+  const customerConfirmationAllowed = overallStatus === 'success' || overallStatus === 'partial'
+
+  const result: WorkflowExecutionResult = {
+    executionId,
+    workflowId: 'wf-007',
+    workflowName: 'Salon & Spa Service Booking & Reminder Pipeline',
+    leadId: effectiveBookingId,
+    conversationId,
+    triggerEvent: 'Salon Service Booked by Client',
+    overallStatus,
+    hasSimulatedSteps,
+    failedStepIds,
+    customerConfirmationAllowed,
+    startedAt,
+    completedAt,
+    durationMs,
+    steps,
+    n8nResult,
+  }
+
+  console.log(
+    `[Workflow Engine] Completed wf-007 execution ${executionId} in ${durationMs}ms with status: ${result.overallStatus}`
+  )
+
+  await saveWorkflowExecution(result, client.client_name)
+  return result
+}

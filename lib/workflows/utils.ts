@@ -196,4 +196,38 @@ export const CANONICAL_DEMO_WORKFLOWS: Workflow[] = [
     created_at: '2026-08-22T00:00:00Z',
     executions: [],
   },
+  {
+    id: 'wf-007',
+    name: 'Salon & Spa Service Booking & Reminder Pipeline',
+    description:
+      'Autonomous hospitality intake flow: confirms treatment/service slot, logs booking to database, reserves stylist calendar, and schedules a WhatsApp appointment confirmation.',
+    status: 'active',
+    trigger_event: 'Salon Service Booked by Client',
+    trigger_source: 'Salon & Spa Receptionist',
+    assigned_employee: 'Salon & Spa Receptionist',
+    assigned_employee_slug: 'salon-spa-receptionist',
+    steps: [
+      { id: 's1', name: 'Save Salon Booking', type: 'database', target: 'Database Appointments' },
+      { id: 's2', name: 'Stylist Calendar Block', type: 'calendar', target: 'Stylist Schedule' },
+      { id: 's3', name: 'Queue WhatsApp Confirmation & Reminder', type: 'whatsapp', target: 'Client Phone' },
+      { id: 's4', name: 'n8n Salon Pipeline Sync', type: 'n8n_webhook', target: 'https://n8n.grovaitech.ai/webhook/v1/salon-bookings' },
+    ],
+    n8n_webhook_url: 'https://n8n.grovaitech.ai/webhook/v1/salon-bookings',
+    total_executions: 24,
+    success_rate: 100,
+    last_executed_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+    created_at: '2026-08-25T00:00:00Z',
+    executions: [
+      {
+        id: 'ex-701',
+        workflow_id: 'wf-007',
+        trigger_event: 'Service Booked',
+        status: 'success',
+        started_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+        duration_ms: 380,
+        lead_name: 'Ananya Roy',
+        payload_summary: 'Aromatherapy Spa appointment confirmed for Saturday 3:00 PM. Stylist Maya assigned.',
+      },
+    ],
+  },
 ]
