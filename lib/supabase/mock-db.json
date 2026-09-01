@@ -138,6 +138,7 @@
     }
   ],
   "real_estate_leads": [],
+  "workflow_executions": [],
   "settings": {
     "theme": "dark",
     "notificationEmail": true,

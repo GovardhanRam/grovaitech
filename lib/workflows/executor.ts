@@ -7,6 +7,36 @@
  */
 
 import type { ExtractedRealEstateLead } from '@/lib/leads/extractor'
+import { createServerClient } from '@/lib/supabase/server'
+
+export async function saveWorkflowExecution(
+  result: WorkflowExecutionResult,
+  leadName?: string | null
+): Promise<void> {
+  try {
+    const supabase = await createServerClient()
+    const record = {
+      id: result.executionId,
+      workflow_id: result.workflowId,
+      trigger_event: result.triggerEvent,
+      status: result.overallStatus,
+      overall_status: result.overallStatus,
+      started_at: result.startedAt,
+      completed_at: result.completedAt,
+      duration_ms: result.durationMs,
+      lead_id: result.leadId || null,
+      lead_name: leadName || null,
+      payload_summary: `Site visit workflow executed (${result.overallStatus.toUpperCase()}) for ${leadName || 'Lead'}. Steps: ${result.steps.length}, Status: ${result.overallStatus}.`,
+      steps: result.steps,
+      n8n_result: result.n8nResult,
+      created_at: result.startedAt,
+    }
+
+    await supabase.from('workflow_executions').insert(record)
+  } catch (err: any) {
+    console.warn('[Workflow Engine] Execution log notice:', err?.message || err)
+  }
+}
 
 export interface WorkflowStepResult {
   stepId: string
@@ -277,5 +307,9 @@ export async function executeRealEstateWorkflow({
   }
 
   console.log(`[Workflow Engine] Completed wf-001 execution ${executionId} in ${durationMs}ms with status: ${result.overallStatus}`)
+
+  // Persist execution log to Supabase
+  await saveWorkflowExecution(result, lead.name)
+
   return result
 }

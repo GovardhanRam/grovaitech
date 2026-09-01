@@ -271,6 +271,8 @@ export default function WorkflowDrawer({
                       <div className="flex items-center gap-1.5">
                         {exec.status === 'success' ? (
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                        ) : exec.status === 'partial' ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-amber-500" />
                         ) : exec.status === 'running' ? (
                           <Activity className="w-3.5 h-3.5 text-blue-500 animate-pulse" />
                         ) : (
@@ -279,6 +281,11 @@ export default function WorkflowDrawer({
                         <span className="font-bold text-slate-800">
                           {exec.lead_name || exec.trigger_event}
                         </span>
+                        {exec.status === 'partial' && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-bold uppercase">
+                            Partial
+                          </span>
+                        )}
                       </div>
                       <span className="text-[10px] font-semibold text-slate-400">
                         {exec.duration_ms}ms · {new Date(exec.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -287,6 +294,26 @@ export default function WorkflowDrawer({
                     <p className="text-[11px] text-slate-600 font-mono bg-white p-2 rounded border border-slate-200/60 leading-tight">
                       {exec.payload_summary}
                     </p>
+                    {exec.steps && exec.steps.length > 0 && (
+                      <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                        {exec.steps.map((s: any) => (
+                          <span
+                            key={s.stepId || s.stepName}
+                            className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-medium border ${
+                              s.status === 'success'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : s.status === 'simulated'
+                                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : s.status === 'failed'
+                                ? 'bg-red-50 text-red-700 border-red-200'
+                                : 'bg-slate-50 text-slate-600 border-slate-200'
+                            }`}
+                          >
+                            {s.stepId}: {s.status}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

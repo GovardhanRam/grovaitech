@@ -1,5 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { executeRealEstateWorkflow, type WorkflowExecutionAdapters } from '@/lib/workflows/executor'
+import { createServerClient } from '@/lib/supabase/server'
+
+vi.mock('@/lib/supabase/server', () => ({
+  createServerClient: vi.fn().mockResolvedValue({
+    from: vi.fn(() => ({
+      insert: vi.fn().mockResolvedValue({ error: null }),
+    })),
+  }),
+}))
 
 const lead = {
   name: 'Priya Patel',

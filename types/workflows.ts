@@ -1,3 +1,10 @@
+/**
+ * Grovaitech AI Platform
+ * types/workflows.ts
+ *
+ * Domain types for autonomous workflows, execution steps, logs, and server action results.
+ */
+
 export type WorkflowStatus = 'active' | 'paused' | 'in_development' | 'draft'
 
 export type StepType = 
@@ -23,12 +30,18 @@ export interface WorkflowExecution {
   id: string
   workflow_id: string
   trigger_event: string
-  status: 'success' | 'failed' | 'running'
+  status: 'success' | 'failed' | 'running' | 'partial'
+  overall_status?: string
   started_at: string
+  completed_at?: string
   duration_ms: number
+  lead_id?: string
   lead_name?: string
   error_message?: string
   payload_summary: string
+  steps?: any[]
+  n8n_result?: Record<string, any>
+  created_at?: string
 }
 
 export interface Workflow {
@@ -47,4 +60,11 @@ export interface Workflow {
   last_executed_at: string
   created_at: string
   executions: WorkflowExecution[]
+}
+
+export interface GetWorkflowsResult {
+  success: boolean
+  workflows: Workflow[]
+  isFallback: boolean
+  error?: string
 }

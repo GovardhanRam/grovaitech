@@ -24,202 +24,13 @@ import {
   ChevronRight,
   Pause,
   Filter,
+  RefreshCw,
 } from 'lucide-react'
 import type { Workflow, WorkflowStatus, StepType } from '@/types/workflows'
+import { CANONICAL_DEMO_WORKFLOWS } from '@/lib/workflows/utils'
+import { getWorkflows, triggerTestWorkflow } from '@/app/actions/workflows'
 import WorkflowDrawer from './WorkflowDrawer'
 import CreateWorkflowModal from './CreateWorkflowModal'
-
-// ─── 6 Canonical Demo Workflows ──────────────────────────────────────────────
-
-export const CANONICAL_DEMO_WORKFLOWS: Workflow[] = [
-  {
-    id: 'wf-001',
-    name: 'Real Estate Lead ➔ WhatsApp & Site Visit Sync',
-    description:
-      'When an AI Receptionist qualifies a real estate lead and books a site visit, creates a lead record in Supabase, dispatches a WhatsApp confirmation template, and blocks the agent Google Calendar slot.',
-    status: 'active',
-    trigger_event: 'Lead Qualified & Site Visit Booked',
-    trigger_source: 'Real Estate Lead Receptionist',
-    assigned_employee: 'Real Estate Lead Receptionist',
-    assigned_employee_slug: 'real-estate-lead-receptionist',
-    steps: [
-      { id: 's1', name: 'Insert Lead in CRM', type: 'database', target: 'Supabase real_estate_leads' },
-      { id: 's2', name: 'Dispatch WhatsApp Template', type: 'whatsapp', target: '+91 Customer Phone' },
-      { id: 's3', name: 'Create Calendar Event', type: 'calendar', target: 'Agent Google Calendar' },
-      { id: 's4', name: 'Sync n8n Pipeline', type: 'n8n_webhook', target: 'https://n8n.grovaitech.ai/webhook/v1/real-estate' },
-    ],
-    n8n_webhook_url: 'https://n8n.grovaitech.ai/webhook/v1/real-estate',
-    total_executions: 48,
-    success_rate: 100,
-    last_executed_at: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
-    created_at: '2026-07-20T00:00:00Z',
-    executions: [
-      {
-        id: 'ex-101',
-        workflow_id: 'wf-001',
-        trigger_event: 'Site Visit Requested',
-        status: 'success',
-        started_at: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
-        duration_ms: 320,
-        lead_name: 'Suresh Kumar',
-        payload_summary: 'Qualified ₹1.2 Cr Villa lead in Tirupati. WhatsApp sent & calendar blocked.',
-      },
-      {
-        id: 'ex-102',
-        workflow_id: 'wf-001',
-        trigger_event: 'Site Visit Requested',
-        status: 'success',
-        started_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-        duration_ms: 285,
-        lead_name: 'Ram Charan',
-        payload_summary: 'Qualified ₹85 Lakh 2BHK flat lead in Nellore. Saturday site visit scheduled.',
-      },
-    ],
-  },
-  {
-    id: 'wf-002',
-    name: 'Clinic Appointment Booking & Reminder Pipeline',
-    description:
-      'Autonomous patient intake flow: confirms doctor appointment slot, writes booking record to Supabase, blocks clinic calendar, and queues a 24-hour WhatsApp reminder.',
-    status: 'active',
-    trigger_event: 'Appointment Booked by Patient',
-    trigger_source: 'Clinic Receptionist',
-    assigned_employee: 'Clinic Receptionist',
-    assigned_employee_slug: 'clinic-receptionist',
-    steps: [
-      { id: 's1', name: 'Save Clinic Booking', type: 'database', target: 'Supabase clinic_bookings' },
-      { id: 's2', name: 'Doctor Calendar Block', type: 'calendar', target: 'Dr. Verma Google Calendar' },
-      { id: 's3', name: 'Queue WhatsApp 24h Reminder', type: 'whatsapp', target: 'Patient Phone' },
-    ],
-    n8n_webhook_url: 'https://n8n.grovaitech.ai/webhook/v1/clinic-bookings',
-    total_executions: 62,
-    success_rate: 98.4,
-    last_executed_at: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-    created_at: '2026-08-01T00:00:00Z',
-    executions: [
-      {
-        id: 'ex-201',
-        workflow_id: 'wf-002',
-        trigger_event: 'Booking Confirmed',
-        status: 'success',
-        started_at: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-        duration_ms: 410,
-        lead_name: 'Priya Sharma',
-        payload_summary: 'Dental consultation confirmed for Monday 10:00 AM. Dr. Verma notified.',
-      },
-    ],
-  },
-  {
-    id: 'wf-003',
-    name: 'Urgent Escalation ➔ Human Agent Dispatch',
-    description:
-      'Detects customer sentiment spikes or explicit human agent requests. Instantly pauses AI response, notifies on-duty operators via Slack, and generates a conversation summary.',
-    status: 'active',
-    trigger_event: 'Human Agent Requested / Sentiment Spike',
-    trigger_source: 'Customer Support Agent',
-    assigned_employee: 'Customer Support Agent',
-    assigned_employee_slug: 'customer-support-agent',
-    steps: [
-      { id: 's1', name: 'Pause AI Worker Mode', type: 'ai_action', target: 'Conversation State' },
-      { id: 's2', name: 'Dispatch Slack Alert', type: 'slack', target: '#support-urgent' },
-      { id: 's3', name: 'SMS Duty Manager', type: 'whatsapp', target: '+91 Operations Team' },
-    ],
-    n8n_webhook_url: 'https://n8n.grovaitech.ai/webhook/v1/escalations',
-    total_executions: 14,
-    success_rate: 100,
-    last_executed_at: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(),
-    created_at: '2026-08-10T00:00:00Z',
-    executions: [
-      {
-        id: 'ex-301',
-        workflow_id: 'wf-003',
-        trigger_event: 'Human Escalation',
-        status: 'success',
-        started_at: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(),
-        duration_ms: 195,
-        lead_name: 'Lakshmi Devi',
-        payload_summary: 'Customer requested human agent urgently. Slack alert dispatched to #support-urgent.',
-      },
-    ],
-  },
-  {
-    id: 'wf-004',
-    name: 'Inbound WhatsApp Lead Qualification Pipeline (n8n)',
-    description:
-      'Routes 24/7 inbound WhatsApp messages to the WhatsApp Lead Agent, parses buyer intent, syncs contacts to external CRMs via n8n webhook, and triggers follow-up drips.',
-    status: 'in_development',
-    trigger_event: 'New WhatsApp Inbound Message',
-    trigger_source: 'WhatsApp Lead Agent',
-    assigned_employee: 'WhatsApp Lead Agent',
-    assigned_employee_slug: 'whatsapp-lead-agent',
-    steps: [
-      { id: 's1', name: 'Ingest Webhook Message', type: 'whatsapp', target: 'WhatsApp Business API' },
-      { id: 's2', name: 'AI Intent Qualification', type: 'ai_action', target: 'Gemini Intent Engine' },
-      { id: 's3', name: 'n8n Multi-CRM Sync Hub', type: 'n8n_webhook', target: 'n8n HubSpot/Zoho Node' },
-    ],
-    n8n_webhook_url: 'https://n8n.grovaitech.ai/webhook/v1/whatsapp-lead-hub',
-    total_executions: 18,
-    success_rate: 94.4,
-    last_executed_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-    created_at: '2026-08-15T00:00:00Z',
-    executions: [
-      {
-        id: 'ex-401',
-        workflow_id: 'wf-004',
-        trigger_event: 'WhatsApp Inbound',
-        status: 'success',
-        started_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-        duration_ms: 540,
-        lead_name: 'Anil Reddy',
-        payload_summary: 'WhatsApp inbound inquiry parsed. Intent: Real Estate Buy, Location: Tirupati.',
-      },
-    ],
-  },
-  {
-    id: 'wf-005',
-    name: 'AI QA Interaction Audit & Quality Scoring',
-    description:
-      'Nightly autonomous batch job: analyzes all completed conversation transcripts, calculates adherence scores, flags policy deviations, and compiles an executive QA report.',
-    status: 'in_development',
-    trigger_event: 'Conversation Completed (Batch Trigger)',
-    trigger_source: 'AI QA Inspector',
-    assigned_employee: 'AI QA Inspector',
-    assigned_employee_slug: 'ai-qa-inspector',
-    steps: [
-      { id: 's1', name: 'Extract Conversation Logs', type: 'database', target: 'Supabase messages' },
-      { id: 's2', name: 'Score Quality Rubric', type: 'ai_action', target: 'AI QA Evaluator' },
-      { id: 's3', name: 'Generate Executive Summary', type: 'email', target: 'Management Email' },
-    ],
-    n8n_webhook_url: 'https://n8n.grovaitech.ai/webhook/v1/qa-audit',
-    total_executions: 0,
-    success_rate: 100,
-    last_executed_at: 'Not executed yet',
-    created_at: '2026-08-20T00:00:00Z',
-    executions: [],
-  },
-  {
-    id: 'wf-006',
-    name: 'Legal Consultation Intake & Conflict Check',
-    description:
-      'Standardized intake pipeline for law firms: captures legal matter parameters, performs automated conflict-of-interest check, and schedules preliminary attorney consultation.',
-    status: 'draft',
-    trigger_event: 'New Legal Inquiry Submitted',
-    trigger_source: 'Legal Intake Agent',
-    assigned_employee: 'Legal Intake Agent',
-    assigned_employee_slug: 'legal-intake-agent',
-    steps: [
-      { id: 's1', name: 'Matter Intake Form', type: 'database', target: 'Supabase legal_matters' },
-      { id: 's2', name: 'Conflict of Interest Query', type: 'database', target: 'Law Firm Database' },
-      { id: 's3', name: 'Schedule Consultation', type: 'calendar', target: 'Attorney Calendar' },
-    ],
-    n8n_webhook_url: 'https://n8n.grovaitech.ai/webhook/v1/legal-intake',
-    total_executions: 0,
-    success_rate: 100,
-    last_executed_at: 'Not executed yet',
-    created_at: '2026-08-22T00:00:00Z',
-    executions: [],
-  },
-]
 
 // ─── Status Badge Metadata ───────────────────────────────────────────────────
 
@@ -241,8 +52,18 @@ const STEP_TYPE_BADGE: Record<StepType, { label: string; cls: string }> = {
   database: { label: 'Supabase', cls: 'bg-slate-100 text-slate-600 border-slate-200' },
 }
 
-export function WorkflowsWorkspace() {
-  const [workflows, setWorkflows] = useState<Workflow[]>(CANONICAL_DEMO_WORKFLOWS)
+interface WorkflowsWorkspaceProps {
+  initialWorkflows?: Workflow[]
+  isFallback?: boolean
+}
+
+export function WorkflowsWorkspace({
+  initialWorkflows,
+  isFallback = true,
+}: WorkflowsWorkspaceProps) {
+  const [workflows, setWorkflows] = useState<Workflow[]>(initialWorkflows || CANONICAL_DEMO_WORKFLOWS)
+  const [isLiveMode, setIsLiveMode] = useState<boolean>(!isFallback)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState<WorkflowStatus | 'all'>('all')
   const [triggerFilter, setTriggerFilter] = useState('all')
@@ -290,34 +111,37 @@ export function WorkflowsWorkspace() {
     )
   }
 
-  const handleRunTest = (id: string) => {
+  const handleRunTest = async (id: string) => {
     setRunningTestId(id)
-    setTimeout(() => {
-      setWorkflows((prev) =>
-        prev.map((w) => {
-          if (w.id === id) {
-            const newExec = {
-              id: `ex-${Date.now()}`,
-              workflow_id: w.id,
-              trigger_event: 'Simulated Dry Run',
-              status: 'success' as const,
-              started_at: new Date().toISOString(),
-              duration_ms: Math.floor(Math.random() * 250) + 180,
-              lead_name: 'Simulated Test Customer',
-              payload_summary: 'Test trigger executed successfully. All action steps validated with 200 OK.',
-            }
-            return {
-              ...w,
-              total_executions: w.total_executions + 1,
-              last_executed_at: new Date().toISOString(),
-              executions: [newExec, ...w.executions],
-            }
-          }
-          return w
-        })
-      )
+    try {
+      const res = await triggerTestWorkflow(id)
+      if (res.success) {
+        const fresh = await getWorkflows()
+        if (fresh.success) {
+          setWorkflows(fresh.workflows)
+          setIsLiveMode(!fresh.isFallback)
+        }
+      }
+    } catch (err) {
+      console.error('[handleRunTest Error]', err)
+    } finally {
       setRunningTestId(null)
-    }, 1200)
+    }
+  }
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    try {
+      const res = await getWorkflows()
+      if (res.success) {
+        setWorkflows(res.workflows)
+        setIsLiveMode(!res.isFallback)
+      }
+    } catch (err) {
+      console.error('[handleRefresh Error]', err)
+    } finally {
+      setIsRefreshing(false)
+    }
   }
 
   const handleCreateWorkflow = (newWf: Workflow) => {
@@ -334,9 +158,15 @@ export function WorkflowsWorkspace() {
           </span>
           <div className="flex items-center gap-2 mt-0.5">
             <h1 className="text-xl font-extrabold tracking-tight text-slate-900">Workflows</h1>
-            <span className="text-[8px] px-2 py-0.5 rounded-full font-black border bg-amber-50 text-amber-600 border-amber-200 uppercase tracking-wide">
-              Demo Registry
-            </span>
+            {isLiveMode ? (
+              <span className="text-[8px] px-2 py-0.5 rounded-full font-black border bg-emerald-50 text-emerald-700 border-emerald-200 uppercase tracking-wide flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live Executions
+              </span>
+            ) : (
+              <span className="text-[8px] px-2 py-0.5 rounded-full font-black border bg-slate-100 text-slate-600 border-slate-200 uppercase tracking-wide">
+                Demo Sandbox Mode
+              </span>
+            )}
           </div>
           <p className="text-xs text-slate-500 mt-0.5 max-w-xl">
             Design, orchestrate, and monitor autonomous business automations and n8n pipelines.
@@ -344,6 +174,15 @@ export function WorkflowsWorkspace() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-50 disabled:opacity-50 transition"
+            title="Refresh execution logs from database"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
+            Refresh
+          </button>
           <Link
             href="/dashboard/settings"
             className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-50 transition"
