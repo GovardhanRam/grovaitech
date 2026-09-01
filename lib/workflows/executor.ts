@@ -88,6 +88,223 @@ export interface WorkflowExecutionAdapters {
   createCalendarEvent?: (payload: any) => Promise<Omit<WorkflowStepResult, 'stepId' | 'stepName' | 'type' | 'target' | 'durationMs'>>
 }
 
+// ─── Shared Workflow Engine Helpers ─────────────────────────────────────────
+
+export interface ExecuteN8nWebhookOptions {
+  stepId?: string
+  stepName?: string
+  webhookUrl: string
+  payload: Record<string, any>
+  target?: string
+  mode?: 'strict_fail_on_network_error' | 'sandbox_fallback_on_network_error'
+  headers?: Record<string, string>
+  timeoutMs?: number
+  envVarName?: string
+  simulatedDetail?: string
+}
+
+export interface ExecuteN8nWebhookResult {
+  step: WorkflowStepResult
+  n8nResult: WorkflowExecutionResult['n8nResult']
+}
+
+/**
+ * Shared executor helper for n8n Webhook step dispatches across all workflows.
+ */
+export async function executeN8nWebhookStep(
+  options: ExecuteN8nWebhookOptions
+): Promise<ExecuteN8nWebhookResult> {
+  const {
+    stepId = 's4',
+    stepName = 'Sync n8n Pipeline',
+    webhookUrl,
+    payload,
+    target = webhookUrl,
+    mode = 'sandbox_fallback_on_network_error',
+    headers = {},
+    timeoutMs = 2000,
+    envVarName,
+    simulatedDetail,
+  } = options
+
+  const sStart = Date.now()
+
+  if (mode === 'strict_fail_on_network_error') {
+    const isExplicitEnv = envVarName ? !!process.env[envVarName] : !!process.env.N8N_WEBHOOK_URL
+    const isDemoN8n = !isExplicitEnv || webhookUrl.includes('placeholder') || webhookUrl.includes('grovaitech.ai')
+
+    if (!isDemoN8n && webhookUrl.startsWith('http')) {
+      try {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs || 3000)
+        const res = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...headers,
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        })
+        clearTimeout(timeoutId)
+
+        const n8nResult: WorkflowExecutionResult['n8nResult'] = {
+          status: 'dispatched',
+          endpoint: webhookUrl,
+          statusCode: res.status,
+        }
+
+        return {
+          step: {
+            stepId,
+            stepName,
+            type: 'n8n_webhook',
+            status: res.ok ? 'success' : 'failed',
+            target,
+            durationMs: Date.now() - sStart,
+            detail: `Dispatched HTTP POST to n8n webhook (HTTP ${res.status}).`,
+            payload,
+          },
+          n8nResult,
+        }
+      } catch (err: any) {
+        return {
+          step: {
+            stepId,
+            stepName,
+            type: 'n8n_webhook',
+            status: 'failed',
+            target,
+            durationMs: Date.now() - sStart,
+            detail: `n8n webhook dispatch failed: ${err.message || 'connection timeout'}.`,
+            payload,
+          },
+          n8nResult: {
+            status: 'failed',
+            endpoint: webhookUrl,
+            response: err.message,
+          },
+        }
+      }
+    }
+
+    return {
+      step: {
+        stepId,
+        stepName,
+        type: 'n8n_webhook',
+        status: 'simulated',
+        target,
+        durationMs: Date.now() - sStart + 20,
+        detail: simulatedDetail || '[SIMULATED] Webhook payload generated and validated for n8n ingestion.',
+        payload,
+      },
+      n8nResult: {
+        status: 'not_configured',
+        endpoint: webhookUrl,
+      },
+    }
+  }
+
+  // mode === 'sandbox_fallback_on_network_error'
+  let n8nResult: WorkflowExecutionResult['n8nResult'] = { status: 'not_configured', endpoint: webhookUrl }
+  let sStatus: WorkflowStepResult['status'] = 'simulated'
+  let sDetail = simulatedDetail || `Simulated n8n Webhook Hub dispatch`
+
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+    const n8nResp = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    })
+
+    clearTimeout(timeoutId)
+
+    if (n8nResp.ok) {
+      sStatus = 'success'
+      sDetail = `Dispatched to n8n Hub (${n8nResp.status})`
+      n8nResult = { status: 'dispatched', endpoint: webhookUrl, statusCode: n8nResp.status }
+    } else {
+      sStatus = 'failed'
+      sDetail = `n8n webhook returned status ${n8nResp.status}`
+      n8nResult = { status: 'failed', endpoint: webhookUrl, statusCode: n8nResp.status, response: sDetail }
+    }
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      sStatus = 'simulated'
+      sDetail = 'n8n webhook timed out (sandbox fallback)'
+      n8nResult = { status: 'not_configured', endpoint: webhookUrl, response: 'Timeout' }
+    } else {
+      sStatus = 'simulated'
+      sDetail = `n8n webhook unavailable in sandbox: ${err.message || 'Offline'}`
+      n8nResult = { status: 'not_configured', endpoint: webhookUrl, response: err.message }
+    }
+  }
+
+  return {
+    step: {
+      stepId,
+      stepName,
+      type: 'n8n_webhook',
+      target,
+      status: sStatus,
+      durationMs: Date.now() - sStart,
+      detail: sDetail,
+      payload,
+    },
+    n8nResult,
+  }
+}
+
+export interface ComputeWorkflowStatusOptions {
+  steps: WorkflowStepResult[]
+  n8nResult?: WorkflowExecutionResult['n8nResult']
+  confirmationPolicy?: 'strict_live_steps' | 'allow_partial'
+  requiredLiveStepIds?: string[]
+}
+
+/**
+ * Shared status and confirmation computation helper for all Grovaitech workflows.
+ */
+export function computeWorkflowExecutionStatus(options: ComputeWorkflowStatusOptions): {
+  overallStatus: 'success' | 'partial' | 'failed'
+  hasSimulatedSteps: boolean
+  failedStepIds: string[]
+  customerConfirmationAllowed: boolean
+} {
+  const { steps, n8nResult, confirmationPolicy = 'allow_partial', requiredLiveStepIds = [] } = options
+  const failedStepIds = steps.filter((step) => step.status === 'failed').map((step) => step.stepId)
+  const hasSimulatedSteps =
+    steps.some((step) => step.status === 'simulated' || step.status === 'skipped') ||
+    n8nResult?.status === 'not_configured'
+
+  const overallStatus: WorkflowExecutionResult['overallStatus'] =
+    failedStepIds.length > 0 ? 'failed' : hasSimulatedSteps ? 'partial' : 'success'
+
+  let customerConfirmationAllowed = false
+  if (confirmationPolicy === 'strict_live_steps') {
+    customerConfirmationAllowed =
+      overallStatus === 'success' &&
+      requiredLiveStepIds.every((id) => steps.some((step) => step.stepId === id && step.status === 'success'))
+  } else {
+    customerConfirmationAllowed = overallStatus === 'success' || overallStatus === 'partial'
+  }
+
+  return {
+    overallStatus,
+    hasSimulatedSteps,
+    failedStepIds,
+    customerConfirmationAllowed,
+  }
+}
+
 export function getSiteVisitCustomerMessage(
   workflow: Pick<WorkflowExecutionResult, 'overallStatus' | 'customerConfirmationAllowed'>,
   details?: { customerName?: string; preferredDate?: string; preferredTime?: string }
@@ -180,14 +397,7 @@ export async function executeRealEstateWorkflow({
   }
 
   // ── Step 4: n8n Webhook Pipeline Dispatch ────────────────────────────────
-  const s4Start = Date.now()
-  let n8nResult: WorkflowExecutionResult['n8nResult'] = {
-    status: 'not_configured',
-  }
-
   const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL || 'https://n8n.grovaitech.ai/webhook/v1/real-estate'
-  const isDemoN8n = !process.env.N8N_WEBHOOK_URL || n8nWebhookUrl.includes('placeholder') || n8nWebhookUrl.includes('grovaitech.ai')
-
   const webhookPayload = {
     event: 'lead.qualified',
     employee: 'real-estate-lead-receptionist',
@@ -209,84 +419,34 @@ export async function executeRealEstateWorkflow({
     },
   }
 
-  if (!isDemoN8n && n8nWebhookUrl.startsWith('http')) {
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 3000)
-      const res = await fetch(n8nWebhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Grovaitech-Event': 'lead.qualified',
-        },
-        body: JSON.stringify(webhookPayload),
-        signal: controller.signal,
-      })
-      clearTimeout(timeoutId)
-
-      n8nResult = {
-        status: 'dispatched',
-        endpoint: n8nWebhookUrl,
-        statusCode: res.status,
-      }
-
-      steps.push({
-        stepId: 's4',
-        stepName: 'Sync n8n Pipeline',
-        type: 'n8n_webhook',
-        status: res.ok ? 'success' : 'failed',
-        target: n8nWebhookUrl,
-        durationMs: Date.now() - s4Start,
-        detail: `Dispatched HTTP POST to n8n webhook (HTTP ${res.status}).`,
-        payload: webhookPayload,
-      })
-    } catch (err: any) {
-      n8nResult = {
-        status: 'failed',
-        endpoint: n8nWebhookUrl,
-        response: err.message,
-      }
-      steps.push({
-        stepId: 's4',
-        stepName: 'Sync n8n Pipeline',
-        type: 'n8n_webhook',
-        status: 'failed',
-        target: n8nWebhookUrl,
-        durationMs: Date.now() - s4Start,
-        detail: `n8n webhook dispatch failed: ${err.message || 'connection timeout'}.`,
-        payload: webhookPayload,
-      })
-    }
-  } else {
-    n8nResult = {
-      status: 'not_configured',
-      endpoint: n8nWebhookUrl,
-    }
-    steps.push({
-      stepId: 's4',
-      stepName: 'Sync n8n Pipeline',
-      type: 'n8n_webhook',
-      status: 'simulated',
-      target: n8nWebhookUrl,
-      durationMs: Date.now() - s4Start + 20,
-      detail: `[SIMULATED] Webhook payload generated and validated for n8n ingestion.`,
-      payload: webhookPayload,
-    })
-  }
+  const { step: s4Step, n8nResult } = await executeN8nWebhookStep({
+    stepId: 's4',
+    stepName: 'Sync n8n Pipeline',
+    webhookUrl: n8nWebhookUrl,
+    payload: webhookPayload,
+    target: n8nWebhookUrl,
+    mode: 'strict_fail_on_network_error',
+    headers: { 'X-Grovaitech-Event': 'lead.qualified' },
+    envVarName: 'N8N_WEBHOOK_URL',
+    timeoutMs: 3000,
+    simulatedDetail: '[SIMULATED] Webhook payload generated and validated for n8n ingestion.',
+  })
+  steps.push(s4Step)
 
   const completedAt = new Date().toISOString()
   const durationMs = Date.now() - startTime
 
-  const failedStepIds = steps.filter((step) => step.status === 'failed').map((step) => step.stepId)
-  const hasSimulatedSteps = steps.some((step) => step.status === 'simulated' || step.status === 'skipped') || n8nResult.status === 'not_configured'
-  const overallStatus: WorkflowExecutionResult['overallStatus'] = failedStepIds.length > 0
-    ? 'failed'
-    : hasSimulatedSteps
-      ? 'partial'
-      : 'success'
-  const customerConfirmationAllowed = overallStatus === 'success' &&
-    steps.some((step) => step.stepId === 's2' && step.status === 'success') &&
-    steps.some((step) => step.stepId === 's3' && step.status === 'success')
+  const {
+    overallStatus,
+    hasSimulatedSteps,
+    failedStepIds,
+    customerConfirmationAllowed,
+  } = computeWorkflowExecutionStatus({
+    steps,
+    n8nResult,
+    confirmationPolicy: 'strict_live_steps',
+    requiredLiveStepIds: ['s2', 's3'],
+  })
 
   const result: WorkflowExecutionResult = {
     executionId,
@@ -523,20 +683,10 @@ export async function executeClinicWorkflow({
   }
 
   // ── Step 4: Sync n8n Pipeline ─────────────────────────────────────────────
-  const s4Start = Date.now()
-  let n8nResult: WorkflowExecutionResult['n8nResult'] = {
-    status: 'not_configured',
-  }
-
   const n8nWebhookUrl =
     process.env.N8N_CLINIC_WEBHOOK_URL ||
     process.env.N8N_WEBHOOK_URL ||
     'https://n8n.grovaitech.ai/webhook/v1/clinic-bookings'
-  const isDemoN8n =
-    !process.env.N8N_CLINIC_WEBHOOK_URL &&
-    (!process.env.N8N_WEBHOOK_URL ||
-      n8nWebhookUrl.includes('placeholder') ||
-      n8nWebhookUrl.includes('grovaitech.ai'))
 
   const webhookPayload = {
     event: 'appointment.booked',
@@ -555,84 +705,34 @@ export async function executeClinicWorkflow({
     },
   }
 
-  if (!isDemoN8n && n8nWebhookUrl.startsWith('http')) {
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 3000)
-      const res = await fetch(n8nWebhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Grovaitech-Event': 'appointment.booked',
-        },
-        body: JSON.stringify(webhookPayload),
-        signal: controller.signal,
-      })
-      clearTimeout(timeoutId)
-
-      n8nResult = {
-        status: 'dispatched',
-        endpoint: n8nWebhookUrl,
-        statusCode: res.status,
-      }
-
-      steps.push({
-        stepId: 's4',
-        stepName: 'Sync n8n Pipeline',
-        type: 'n8n_webhook',
-        status: res.ok ? 'success' : 'failed',
-        target: n8nWebhookUrl,
-        durationMs: Date.now() - s4Start,
-        detail: `Dispatched HTTP POST to n8n clinic webhook (HTTP ${res.status}).`,
-        payload: webhookPayload,
-      })
-    } catch (err: any) {
-      n8nResult = {
-        status: 'failed',
-        endpoint: n8nWebhookUrl,
-        response: err.message,
-      }
-      steps.push({
-        stepId: 's4',
-        stepName: 'Sync n8n Pipeline',
-        type: 'n8n_webhook',
-        status: 'failed',
-        target: n8nWebhookUrl,
-        durationMs: Date.now() - s4Start,
-        detail: `n8n webhook dispatch failed: ${err.message || 'connection timeout'}.`,
-        payload: webhookPayload,
-      })
-    }
-  } else {
-    n8nResult = {
-      status: 'not_configured',
-      endpoint: n8nWebhookUrl,
-    }
-    steps.push({
-      stepId: 's4',
-      stepName: 'Sync n8n Pipeline',
-      type: 'n8n_webhook',
-      status: 'simulated',
-      target: n8nWebhookUrl,
-      durationMs: Date.now() - s4Start + 20,
-      detail: `[SIMULATED] Webhook payload generated and validated for clinic n8n ingestion.`,
-      payload: webhookPayload,
-    })
-  }
+  const { step: s4Step, n8nResult } = await executeN8nWebhookStep({
+    stepId: 's4',
+    stepName: 'Sync n8n Pipeline',
+    webhookUrl: n8nWebhookUrl,
+    payload: webhookPayload,
+    target: n8nWebhookUrl,
+    mode: 'strict_fail_on_network_error',
+    headers: { 'X-Grovaitech-Event': 'appointment.booked' },
+    envVarName: process.env.N8N_CLINIC_WEBHOOK_URL ? 'N8N_CLINIC_WEBHOOK_URL' : 'N8N_WEBHOOK_URL',
+    timeoutMs: 3000,
+    simulatedDetail: '[SIMULATED] Webhook payload generated and validated for clinic n8n ingestion.',
+  })
+  steps.push(s4Step)
 
   const completedAt = new Date().toISOString()
   const durationMs = Date.now() - startTime
 
-  const failedStepIds = steps.filter((step) => step.status === 'failed').map((step) => step.stepId)
-  const hasSimulatedSteps =
-    steps.some((step) => step.status === 'simulated' || step.status === 'skipped') ||
-    n8nResult.status === 'not_configured'
-  const overallStatus: WorkflowExecutionResult['overallStatus'] =
-    failedStepIds.length > 0 ? 'failed' : hasSimulatedSteps ? 'partial' : 'success'
-  const customerConfirmationAllowed =
-    overallStatus === 'success' &&
-    steps.some((step) => step.stepId === 's2' && step.status === 'success') &&
-    steps.some((step) => step.stepId === 's3' && step.status === 'success')
+  const {
+    overallStatus,
+    hasSimulatedSteps,
+    failedStepIds,
+    customerConfirmationAllowed,
+  } = computeWorkflowExecutionStatus({
+    steps,
+    n8nResult,
+    confirmationPolicy: 'strict_live_steps',
+    requiredLiveStepIds: ['s2', 's3'],
+  })
 
   const result: WorkflowExecutionResult = {
     executionId,
@@ -755,11 +855,16 @@ export async function executeSupportEscalationWorkflow({
 
   const completedAt = new Date().toISOString()
   const durationMs = Date.now() - startTime
-  const failedStepIds = steps.filter((step) => step.status === 'failed').map((step) => step.stepId)
-  const hasSimulatedSteps = steps.some((step) => step.status === 'simulated' || step.status === 'skipped')
-  const overallStatus: WorkflowExecutionResult['overallStatus'] =
-    failedStepIds.length > 0 ? 'failed' : hasSimulatedSteps ? 'partial' : 'success'
-  const customerConfirmationAllowed = overallStatus === 'success' || overallStatus === 'partial'
+
+  const {
+    overallStatus,
+    hasSimulatedSteps,
+    failedStepIds,
+    customerConfirmationAllowed,
+  } = computeWorkflowExecutionStatus({
+    steps,
+    confirmationPolicy: 'allow_partial',
+  })
 
   const result: WorkflowExecutionResult = {
     executionId,
@@ -868,76 +973,41 @@ export async function executeWhatsAppLeadWorkflow({
   })
 
   // Step 3: n8n Multi-CRM Sync Hub
-  const s3Start = Date.now()
   const n8nWebhookUrl = 'https://n8n.grovaitech.ai/webhook/v1/whatsapp-lead-hub'
-  let n8nResult: WorkflowExecutionResult['n8nResult'] = { status: 'not_configured' }
-  let s3Status: WorkflowStepResult['status'] = 'simulated'
-  let s3Detail = 'Simulated n8n Multi-CRM sync hub dispatch'
-
-  try {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 2000)
-
-    const n8nResp = await fetch(n8nWebhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Grovaitech-Source': 'workflow-engine-wf-004',
-      },
-      body: JSON.stringify({
-        workflow_id: 'wf-004',
-        execution_id: executionId,
-        lead_id: leadId,
-        lead,
-        timestamp: startedAt,
-      }),
-      signal: controller.signal,
-    })
-
-    clearTimeout(timeoutId)
-
-    if (n8nResp.ok) {
-      s3Status = 'success'
-      s3Detail = `Dispatched to n8n CRM hub (${n8nResp.status})`
-      n8nResult = { status: 'dispatched', endpoint: n8nWebhookUrl, statusCode: n8nResp.status }
-    } else {
-      s3Status = 'failed'
-      s3Detail = `n8n webhook returned status ${n8nResp.status}`
-      n8nResult = { status: 'failed', endpoint: n8nWebhookUrl, statusCode: n8nResp.status, response: s3Detail }
-    }
-  } catch (err: any) {
-    if (err.name === 'AbortError') {
-      s3Status = 'simulated'
-      s3Detail = 'n8n webhook timed out (sandbox fallback)'
-      n8nResult = { status: 'not_configured', endpoint: n8nWebhookUrl, response: 'Timeout' }
-    } else {
-      s3Status = 'simulated'
-      s3Detail = `n8n webhook unavailable in sandbox: ${err.message || 'Offline'}`
-      n8nResult = { status: 'not_configured', endpoint: n8nWebhookUrl, response: err.message }
-    }
-  }
-
-  steps.push({
+  const { step: s3Step, n8nResult } = await executeN8nWebhookStep({
     stepId: 's3',
     stepName: 'n8n Multi-CRM Sync Hub',
-    type: 'n8n_webhook',
-    target: 'n8n HubSpot/Zoho Node',
-    status: s3Status,
-    durationMs: Date.now() - s3Start,
-    detail: s3Detail,
+    webhookUrl: n8nWebhookUrl,
     payload: {
-      url: n8nWebhookUrl,
-      leadId,
+      workflow_id: 'wf-004',
+      execution_id: executionId,
+      lead_id: leadId,
+      lead,
+      timestamp: startedAt,
     },
+    target: 'n8n HubSpot/Zoho Node',
+    mode: 'sandbox_fallback_on_network_error',
+    headers: {
+      'X-Grovaitech-Source': 'workflow-engine-wf-004',
+    },
+    timeoutMs: 2000,
+    simulatedDetail: 'Simulated n8n Multi-CRM sync hub dispatch',
   })
+  steps.push(s3Step)
 
   const completedAt = new Date().toISOString()
   const durationMs = Date.now() - startTime
-  const failedStepIds = steps.filter((step) => step.status === 'failed').map((step) => step.stepId)
-  const hasSimulatedSteps = steps.some((step) => step.status === 'simulated' || step.status === 'skipped')
-  const overallStatus: WorkflowExecutionResult['overallStatus'] =
-    failedStepIds.length > 0 ? 'failed' : hasSimulatedSteps ? 'partial' : 'success'
-  const customerConfirmationAllowed = overallStatus === 'success' || overallStatus === 'partial'
+
+  const {
+    overallStatus,
+    hasSimulatedSteps,
+    failedStepIds,
+    customerConfirmationAllowed,
+  } = computeWorkflowExecutionStatus({
+    steps,
+    n8nResult,
+    confirmationPolicy: 'allow_partial',
+  })
 
   const result: WorkflowExecutionResult = {
     executionId,
@@ -1097,76 +1167,41 @@ export async function executeSalonWorkflow({
   })
 
   // Step 4: n8n Salon Pipeline Sync
-  const s4Start = Date.now()
   const n8nWebhookUrl = 'https://n8n.grovaitech.ai/webhook/v1/salon-bookings'
-  let n8nResult: WorkflowExecutionResult['n8nResult'] = { status: 'not_configured' }
-  let s4Status: WorkflowStepResult['status'] = 'simulated'
-  let s4Detail = 'Simulated n8n Salon Pipeline Hub dispatch'
-
-  try {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 2000)
-
-    const n8nResp = await fetch(n8nWebhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Grovaitech-Source': 'workflow-engine-wf-007',
-      },
-      body: JSON.stringify({
-        workflow_id: 'wf-007',
-        execution_id: executionId,
-        booking_id: effectiveBookingId,
-        client,
-        timestamp: startedAt,
-      }),
-      signal: controller.signal,
-    })
-
-    clearTimeout(timeoutId)
-
-    if (n8nResp.ok) {
-      s4Status = 'success'
-      s4Detail = `Dispatched to n8n Salon Hub (${n8nResp.status})`
-      n8nResult = { status: 'dispatched', endpoint: n8nWebhookUrl, statusCode: n8nResp.status }
-    } else {
-      s4Status = 'failed'
-      s4Detail = `n8n salon webhook returned status ${n8nResp.status}`
-      n8nResult = { status: 'failed', endpoint: n8nWebhookUrl, statusCode: n8nResp.status, response: s4Detail }
-    }
-  } catch (err: any) {
-    if (err.name === 'AbortError') {
-      s4Status = 'simulated'
-      s4Detail = 'n8n webhook timed out (sandbox fallback)'
-      n8nResult = { status: 'not_configured', endpoint: n8nWebhookUrl, response: 'Timeout' }
-    } else {
-      s4Status = 'simulated'
-      s4Detail = `n8n webhook unavailable in sandbox: ${err.message || 'Offline'}`
-      n8nResult = { status: 'not_configured', endpoint: n8nWebhookUrl, response: err.message }
-    }
-  }
-
-  steps.push({
+  const { step: s4Step, n8nResult } = await executeN8nWebhookStep({
     stepId: 's4',
     stepName: 'n8n Salon Pipeline Sync',
-    type: 'n8n_webhook',
-    target: 'n8n Salon Hub Node',
-    status: s4Status,
-    durationMs: Date.now() - s4Start,
-    detail: s4Detail,
+    webhookUrl: n8nWebhookUrl,
     payload: {
-      url: n8nWebhookUrl,
-      bookingId: effectiveBookingId,
+      workflow_id: 'wf-007',
+      execution_id: executionId,
+      booking_id: effectiveBookingId,
+      client,
+      timestamp: startedAt,
     },
+    target: 'n8n Salon Hub Node',
+    mode: 'sandbox_fallback_on_network_error',
+    headers: {
+      'X-Grovaitech-Source': 'workflow-engine-wf-007',
+    },
+    timeoutMs: 2000,
+    simulatedDetail: 'Simulated n8n Salon Pipeline Hub dispatch',
   })
+  steps.push(s4Step)
 
   const completedAt = new Date().toISOString()
   const durationMs = Date.now() - startTime
-  const failedStepIds = steps.filter((step) => step.status === 'failed').map((step) => step.stepId)
-  const hasSimulatedSteps = steps.some((step) => step.status === 'simulated' || step.status === 'skipped')
-  const overallStatus: WorkflowExecutionResult['overallStatus'] =
-    failedStepIds.length > 0 ? 'failed' : hasSimulatedSteps ? 'partial' : 'success'
-  const customerConfirmationAllowed = overallStatus === 'success' || overallStatus === 'partial'
+
+  const {
+    overallStatus,
+    hasSimulatedSteps,
+    failedStepIds,
+    customerConfirmationAllowed,
+  } = computeWorkflowExecutionStatus({
+    steps,
+    n8nResult,
+    confirmationPolicy: 'allow_partial',
+  })
 
   const result: WorkflowExecutionResult = {
     executionId,
@@ -1334,78 +1369,43 @@ export async function executeQaWorkflow({
   })
 
   // Step 4: n8n QA Pipeline Sync
-  const s4Start = Date.now()
   const n8nWebhookUrl = 'https://n8n.grovaitech.ai/webhook/v1/qa-audit'
-  let n8nResult: WorkflowExecutionResult['n8nResult'] = { status: 'not_configured' }
-  let s4Status: WorkflowStepResult['status'] = 'simulated'
-  let s4Detail = 'Simulated n8n QA Pipeline Hub dispatch'
-
-  try {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 2000)
-
-    const n8nResp = await fetch(n8nWebhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Grovaitech-Source': 'workflow-engine-wf-005',
-      },
-      body: JSON.stringify({
-        workflow_id: 'wf-005',
-        execution_id: executionId,
-        audit_id: effectiveAuditId,
-        score: audit.overallScore,
-        passed: audit.passed,
-        summary: audit.summary,
-        timestamp: startedAt,
-      }),
-      signal: controller.signal,
-    })
-
-    clearTimeout(timeoutId)
-
-    if (n8nResp.ok) {
-      s4Status = 'success'
-      s4Detail = `Dispatched to n8n QA Hub (${n8nResp.status})`
-      n8nResult = { status: 'dispatched', endpoint: n8nWebhookUrl, statusCode: n8nResp.status }
-    } else {
-      s4Status = 'failed'
-      s4Detail = `n8n QA webhook returned status ${n8nResp.status}`
-      n8nResult = { status: 'failed', endpoint: n8nWebhookUrl, statusCode: n8nResp.status, response: s4Detail }
-    }
-  } catch (err: any) {
-    if (err.name === 'AbortError') {
-      s4Status = 'simulated'
-      s4Detail = 'n8n webhook timed out (sandbox fallback)'
-      n8nResult = { status: 'not_configured', endpoint: n8nWebhookUrl, response: 'Timeout' }
-    } else {
-      s4Status = 'simulated'
-      s4Detail = `n8n webhook unavailable in sandbox: ${err.message || 'Offline'}`
-      n8nResult = { status: 'not_configured', endpoint: n8nWebhookUrl, response: err.message }
-    }
-  }
-
-  steps.push({
+  const { step: s4Step, n8nResult } = await executeN8nWebhookStep({
     stepId: 's4',
     stepName: 'n8n QA Pipeline Sync',
-    type: 'n8n_webhook',
-    target: 'n8n QA Hub Node',
-    status: s4Status,
-    durationMs: Date.now() - s4Start,
-    detail: s4Detail,
+    webhookUrl: n8nWebhookUrl,
     payload: {
-      url: n8nWebhookUrl,
-      auditId: effectiveAuditId,
+      workflow_id: 'wf-005',
+      execution_id: executionId,
+      audit_id: effectiveAuditId,
+      score: audit.overallScore,
+      passed: audit.passed,
+      summary: audit.summary,
+      timestamp: startedAt,
     },
+    target: 'n8n QA Hub Node',
+    mode: 'sandbox_fallback_on_network_error',
+    headers: {
+      'X-Grovaitech-Source': 'workflow-engine-wf-005',
+    },
+    timeoutMs: 2000,
+    simulatedDetail: 'Simulated n8n QA Pipeline Hub dispatch',
   })
+  steps.push(s4Step)
 
   const completedAt = new Date().toISOString()
   const durationMs = Date.now() - startTime
-  const failedStepIds = steps.filter((step) => step.status === 'failed').map((step) => step.stepId)
-  const hasSimulatedSteps = steps.some((step) => step.status === 'simulated' || step.status === 'skipped')
-  const overallStatus: WorkflowExecutionResult['overallStatus'] =
-    failedStepIds.length > 0 ? 'failed' : hasSimulatedSteps ? 'partial' : 'success'
-  const customerConfirmationAllowed = overallStatus === 'success' || overallStatus === 'partial'
+
+  const {
+    overallStatus,
+    hasSimulatedSteps,
+    failedStepIds,
+    customerConfirmationAllowed,
+  } = computeWorkflowExecutionStatus({
+    steps,
+    n8nResult,
+    confirmationPolicy: 'allow_partial',
+  })
 
   const result: WorkflowExecutionResult = {
     executionId,
@@ -1586,75 +1586,39 @@ export async function executeLegalWorkflow({
   })
 
   // ── Step 4: n8n Legal Intake Sync ─────────────────────────────────────────
-  const s4Start = Date.now()
   const n8nWebhookUrl = 'https://n8n.grovaitech.ai/webhook/v1/legal-intake'
-  let n8nResult: WorkflowExecutionResult['n8nResult'] = { status: 'not_configured' }
-  let s4Status: WorkflowStepResult['status'] = 'simulated'
-  let s4Detail = 'Simulated n8n Legal Intake Hub dispatch'
-
-  try {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 2000)
-
-    const n8nResp = await fetch(n8nWebhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Grovaitech-Source': 'workflow-engine-wf-006',
-      },
-      body: JSON.stringify({
-        workflow_id: 'wf-006',
-        execution_id: executionId,
-        intake_id: effectiveIntakeId,
-        client,
-        timestamp: startedAt,
-      }),
-      signal: controller.signal,
-    })
-
-    clearTimeout(timeoutId)
-
-    if (n8nResp.ok) {
-      s4Status = 'success'
-      s4Detail = `Dispatched to n8n Legal Hub (${n8nResp.status})`
-      n8nResult = { status: 'dispatched', endpoint: n8nWebhookUrl, statusCode: n8nResp.status }
-    } else {
-      s4Status = 'failed'
-      s4Detail = `n8n legal webhook returned status ${n8nResp.status}`
-      n8nResult = { status: 'failed', endpoint: n8nWebhookUrl, statusCode: n8nResp.status, response: s4Detail }
-    }
-  } catch (err: any) {
-    if (err.name === 'AbortError') {
-      s4Status = 'simulated'
-      s4Detail = 'n8n webhook timed out (sandbox fallback)'
-      n8nResult = { status: 'not_configured', endpoint: n8nWebhookUrl, response: 'Timeout' }
-    } else {
-      s4Status = 'simulated'
-      s4Detail = `n8n webhook unavailable in sandbox: ${err.message || 'Offline'}`
-      n8nResult = { status: 'not_configured', endpoint: n8nWebhookUrl, response: err.message }
-    }
-  }
-
-  steps.push({
+  const { step: s4Step, n8nResult } = await executeN8nWebhookStep({
     stepId: 's4',
     stepName: 'n8n Legal Intake Sync',
-    type: 'n8n_webhook',
-    target: 'n8n Legal Hub Node',
-    status: s4Status,
-    durationMs: Date.now() - s4Start,
-    detail: s4Detail,
+    webhookUrl: n8nWebhookUrl,
     payload: {
-      url: n8nWebhookUrl,
-      intakeId: effectiveIntakeId,
+      workflow_id: 'wf-006',
+      execution_id: executionId,
+      intake_id: effectiveIntakeId,
+      client,
+      timestamp: startedAt,
     },
+    target: 'n8n Legal Hub Node',
+    mode: 'sandbox_fallback_on_network_error',
+    headers: {
+      'X-Grovaitech-Source': 'workflow-engine-wf-006',
+    },
+    timeoutMs: 2000,
+    simulatedDetail: 'Simulated n8n Legal Intake Hub dispatch',
   })
+  steps.push(s4Step)
 
   const completedAt = new Date().toISOString()
   const durationMs = Date.now() - startTime
-  const failedStepIds = steps.filter((step) => step.status === 'failed').map((step) => step.stepId)
-  const hasSimulatedSteps = steps.some((step) => step.status === 'simulated' || step.status === 'skipped')
-  const overallStatus: WorkflowExecutionResult['overallStatus'] =
-    failedStepIds.length > 0 ? 'failed' : hasSimulatedSteps ? 'partial' : 'success'
+
+  const {
+    overallStatus,
+    hasSimulatedSteps,
+    failedStepIds,
+  } = computeWorkflowExecutionStatus({
+    steps,
+    n8nResult,
+  })
 
   // If a potential conflict is identified or calendar is simulated, customer confirmation of an appointment is NOT allowed
   const customerConfirmationAllowed =
@@ -1945,77 +1909,41 @@ export async function executeEcommerceWorkflow({
   }
 
   // ── Step 4: n8n Store Webhook Hub Sync ────────────────────────────────────
-  const s4Start = Date.now()
   const n8nWebhookUrl = 'https://n8n.grovaitech.ai/webhook/v1/ecommerce-hub'
-  let n8nResult: WorkflowExecutionResult['n8nResult'] = { status: 'not_configured' }
-  let s4Status: WorkflowStepResult['status'] = 'simulated'
-  let s4Detail = 'Simulated n8n Store Webhook Hub dispatch'
-
-  try {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 2000)
-
-    const n8nResp = await fetch(n8nWebhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Grovaitech-Source': 'workflow-engine-wf-008',
-      },
-      body: JSON.stringify({
-        workflow_id: 'wf-008',
-        execution_id: executionId,
-        support_id: effectiveSupportId,
-        client,
-        timestamp: startedAt,
-      }),
-      signal: controller.signal,
-    })
-
-    clearTimeout(timeoutId)
-
-    if (n8nResp.ok) {
-      s4Status = 'success'
-      s4Detail = `Dispatched to n8n Store Hub (${n8nResp.status})`
-      n8nResult = { status: 'dispatched', endpoint: n8nWebhookUrl, statusCode: n8nResp.status }
-    } else {
-      s4Status = 'failed'
-      s4Detail = `n8n store webhook returned status ${n8nResp.status}`
-      n8nResult = { status: 'failed', endpoint: n8nWebhookUrl, statusCode: n8nResp.status, response: s4Detail }
-    }
-  } catch (err: any) {
-    if (err.name === 'AbortError') {
-      s4Status = 'simulated'
-      s4Detail = 'n8n webhook timed out (sandbox fallback)'
-      n8nResult = { status: 'not_configured', endpoint: n8nWebhookUrl, response: 'Timeout' }
-    } else {
-      s4Status = 'simulated'
-      s4Detail = `n8n webhook unavailable in sandbox: ${err.message || 'Offline'}`
-      n8nResult = { status: 'not_configured', endpoint: n8nWebhookUrl, response: err.message }
-    }
-  }
-
-  steps.push({
+  const { step: s4Step, n8nResult } = await executeN8nWebhookStep({
     stepId: 's4',
     stepName: 'n8n Store Webhook Hub Sync',
-    type: 'n8n_webhook',
-    target: 'n8n Store Hub Node',
-    status: s4Status,
-    durationMs: Date.now() - s4Start,
-    detail: s4Detail,
+    webhookUrl: n8nWebhookUrl,
     payload: {
-      url: n8nWebhookUrl,
-      supportId: effectiveSupportId,
+      workflow_id: 'wf-008',
+      execution_id: executionId,
+      support_id: effectiveSupportId,
+      client,
+      timestamp: startedAt,
     },
+    target: 'n8n Store Hub Node',
+    mode: 'sandbox_fallback_on_network_error',
+    headers: {
+      'X-Grovaitech-Source': 'workflow-engine-wf-008',
+    },
+    timeoutMs: 2000,
+    simulatedDetail: 'Simulated n8n Store Webhook Hub dispatch',
   })
+  steps.push(s4Step)
 
   const completedAt = new Date().toISOString()
   const durationMs = Date.now() - startTime
-  const failedStepIds = steps.filter((step) => step.status === 'failed').map((step) => step.stepId)
-  const hasSimulatedSteps = steps.some((step) => step.status === 'simulated' || step.status === 'skipped')
-  const overallStatus: WorkflowExecutionResult['overallStatus'] =
-    failedStepIds.length > 0 ? 'failed' : hasSimulatedSteps ? 'partial' : 'success'
 
-  const customerConfirmationAllowed = overallStatus === 'success' || overallStatus === 'partial'
+  const {
+    overallStatus,
+    hasSimulatedSteps,
+    failedStepIds,
+    customerConfirmationAllowed,
+  } = computeWorkflowExecutionStatus({
+    steps,
+    n8nResult,
+    confirmationPolicy: 'allow_partial',
+  })
 
   const result: WorkflowExecutionResult = {
     executionId,
@@ -2216,77 +2144,41 @@ export async function executeOnboardingWorkflow({
   }
 
   // ── Step 4: n8n HR Webhook Hub Sync ──────────────────────────────────────
-  const s4Start = Date.now()
   const n8nWebhookUrl = 'https://n8n.grovaitech.ai/webhook/v1/hr-onboarding-hub'
-  let n8nResult: WorkflowExecutionResult['n8nResult'] = { status: 'not_configured' }
-  let s4Status: WorkflowStepResult['status'] = 'simulated'
-  let s4Detail = 'Simulated n8n HR Webhook Hub dispatch'
-
-  try {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 2000)
-
-    const n8nResp = await fetch(n8nWebhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Grovaitech-Source': 'workflow-engine-wf-009',
-      },
-      body: JSON.stringify({
-        workflow_id: 'wf-009',
-        execution_id: executionId,
-        intake_id: effectiveIntakeId,
-        client,
-        timestamp: startedAt,
-      }),
-      signal: controller.signal,
-    })
-
-    clearTimeout(timeoutId)
-
-    if (n8nResp.ok) {
-      s4Status = 'success'
-      s4Detail = `Dispatched to n8n HR Hub (${n8nResp.status})`
-      n8nResult = { status: 'dispatched', endpoint: n8nWebhookUrl, statusCode: n8nResp.status }
-    } else {
-      s4Status = 'failed'
-      s4Detail = `n8n HR webhook returned status ${n8nResp.status}`
-      n8nResult = { status: 'failed', endpoint: n8nWebhookUrl, statusCode: n8nResp.status, response: s4Detail }
-    }
-  } catch (err: any) {
-    if (err.name === 'AbortError') {
-      s4Status = 'simulated'
-      s4Detail = 'n8n webhook timed out (sandbox fallback)'
-      n8nResult = { status: 'not_configured', endpoint: n8nWebhookUrl, response: 'Timeout' }
-    } else {
-      s4Status = 'simulated'
-      s4Detail = `n8n webhook unavailable in sandbox: ${err.message || 'Offline'}`
-      n8nResult = { status: 'not_configured', endpoint: n8nWebhookUrl, response: err.message }
-    }
-  }
-
-  steps.push({
+  const { step: s4Step, n8nResult } = await executeN8nWebhookStep({
     stepId: 's4',
     stepName: 'n8n HR Webhook Hub Sync',
-    type: 'n8n_webhook',
-    target: 'n8n HR Hub Node',
-    status: s4Status,
-    durationMs: Date.now() - s4Start,
-    detail: s4Detail,
+    webhookUrl: n8nWebhookUrl,
     payload: {
-      url: n8nWebhookUrl,
-      intakeId: effectiveIntakeId,
+      workflow_id: 'wf-009',
+      execution_id: executionId,
+      intake_id: effectiveIntakeId,
+      client,
+      timestamp: startedAt,
     },
+    target: 'n8n HR Hub Node',
+    mode: 'sandbox_fallback_on_network_error',
+    headers: {
+      'X-Grovaitech-Source': 'workflow-engine-wf-009',
+    },
+    timeoutMs: 2000,
+    simulatedDetail: 'Simulated n8n HR Webhook Hub dispatch',
   })
+  steps.push(s4Step)
 
   const completedAt = new Date().toISOString()
   const durationMs = Date.now() - startTime
-  const failedStepIds = steps.filter((step) => step.status === 'failed').map((step) => step.stepId)
-  const hasSimulatedSteps = steps.some((step) => step.status === 'simulated' || step.status === 'skipped')
-  const overallStatus: WorkflowExecutionResult['overallStatus'] =
-    failedStepIds.length > 0 ? 'failed' : hasSimulatedSteps ? 'partial' : 'success'
 
-  const customerConfirmationAllowed = overallStatus === 'success' || overallStatus === 'partial'
+  const {
+    overallStatus,
+    hasSimulatedSteps,
+    failedStepIds,
+    customerConfirmationAllowed,
+  } = computeWorkflowExecutionStatus({
+    steps,
+    n8nResult,
+    confirmationPolicy: 'allow_partial',
+  })
 
   const result: WorkflowExecutionResult = {
     executionId,
@@ -2514,77 +2406,41 @@ export async function executeFinancialWorkflow(params: {
   }
 
   // ── Step 4: n8n Financial Webhook Hub Sync ───────────────────────────────
-  const s4Start = Date.now()
   const n8nWebhookUrl = 'https://n8n.grovaitech.ai/webhook/v1/financial-advisory-hub'
-  let n8nResult: WorkflowExecutionResult['n8nResult'] = { status: 'not_configured' }
-  let s4Status: WorkflowStepResult['status'] = 'simulated'
-  let s4Detail = 'Simulated n8n Financial Webhook Hub dispatch'
-
-  try {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 2000)
-
-    const n8nResp = await fetch(n8nWebhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Grovaitech-Source': 'workflow-engine-wf-010',
-      },
-      body: JSON.stringify({
-        workflow_id: 'wf-010',
-        execution_id: executionId,
-        consultation_id: effectiveConsultationId,
-        client,
-        timestamp: startedAt,
-      }),
-      signal: controller.signal,
-    })
-
-    clearTimeout(timeoutId)
-
-    if (n8nResp.ok) {
-      s4Status = 'success'
-      s4Detail = `Dispatched to n8n Financial Hub (${n8nResp.status})`
-      n8nResult = { status: 'dispatched', endpoint: n8nWebhookUrl, statusCode: n8nResp.status }
-    } else {
-      s4Status = 'failed'
-      s4Detail = `n8n Financial webhook returned status ${n8nResp.status}`
-      n8nResult = { status: 'failed', endpoint: n8nWebhookUrl, statusCode: n8nResp.status, response: s4Detail }
-    }
-  } catch (err: any) {
-    if (err.name === 'AbortError') {
-      s4Status = 'simulated'
-      s4Detail = 'n8n webhook timed out (sandbox fallback)'
-      n8nResult = { status: 'not_configured', endpoint: n8nWebhookUrl, response: 'Timeout' }
-    } else {
-      s4Status = 'simulated'
-      s4Detail = `n8n webhook unavailable in sandbox: ${err.message || 'Offline'}`
-      n8nResult = { status: 'not_configured', endpoint: n8nWebhookUrl, response: err.message }
-    }
-  }
-
-  steps.push({
+  const { step: s4Step, n8nResult } = await executeN8nWebhookStep({
     stepId: 's4',
     stepName: 'n8n Financial Webhook Hub Sync',
-    type: 'n8n_webhook',
-    target: 'n8n Financial Hub Node',
-    status: s4Status,
-    durationMs: Date.now() - s4Start,
-    detail: s4Detail,
+    webhookUrl: n8nWebhookUrl,
     payload: {
-      url: n8nWebhookUrl,
-      consultationId: effectiveConsultationId,
+      workflow_id: 'wf-010',
+      execution_id: executionId,
+      consultation_id: effectiveConsultationId,
+      client,
+      timestamp: startedAt,
     },
+    target: 'n8n Financial Hub Node',
+    mode: 'sandbox_fallback_on_network_error',
+    headers: {
+      'X-Grovaitech-Source': 'workflow-engine-wf-010',
+    },
+    timeoutMs: 2000,
+    simulatedDetail: 'Simulated n8n Financial Webhook Hub dispatch',
   })
+  steps.push(s4Step)
 
   const completedAt = new Date().toISOString()
   const durationMs = Date.now() - startTime
-  const failedStepIds = steps.filter((step) => step.status === 'failed').map((step) => step.stepId)
-  const hasSimulatedSteps = steps.some((step) => step.status === 'simulated' || step.status === 'skipped')
-  const overallStatus: WorkflowExecutionResult['overallStatus'] =
-    failedStepIds.length > 0 ? 'failed' : hasSimulatedSteps ? 'partial' : 'success'
 
-  const customerConfirmationAllowed = overallStatus === 'success' || overallStatus === 'partial'
+  const {
+    overallStatus,
+    hasSimulatedSteps,
+    failedStepIds,
+    customerConfirmationAllowed,
+  } = computeWorkflowExecutionStatus({
+    steps,
+    n8nResult,
+    confirmationPolicy: 'allow_partial',
+  })
 
   const result: WorkflowExecutionResult = {
     executionId,
