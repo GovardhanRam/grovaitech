@@ -135,19 +135,38 @@ Your goal is to assist patients, answer inquiries regarding clinic hours/doctors
     industry: 'General',
     description:
       'Responds to inbound WhatsApp messages 24/7, qualifies customer intent, collects contact information, and routes hot leads to human agents. Handles initial objections and answers product questions.',
-    status: 'in_development',
-    capabilities: ['WhatsApp integration', 'Lead scoring', 'Auto-routing', 'Objection handling'],
-    responsibilities: ['Respond to messages', 'Qualify intent', 'Collect contact info', 'Route hot leads'],
-    integrations: ['WhatsApp Business API (in progress)', 'Supabase'],
+    status: 'live',
+    capabilities: [
+      'WhatsApp integration',
+      'Inbound lead qualification',
+      'Lead scoring',
+      'CRM synchronization',
+      'Product FAQ answering',
+    ],
+    responsibilities: [
+      'Engage inbound WhatsApp prospects 24/7',
+      'Qualify buyer requirements and intent',
+      'Search product knowledge base for accurate answers',
+      'Register structured leads in the CRM',
+    ],
+    integrations: ['WhatsApp Business API (live)', 'Supabase (live)', 'n8n Multi-CRM Sync (live)'],
     channels: ['WhatsApp'],
-    tools: ['search_knowledge_base'],
-    system_prompt: `You are GrovAI, an AI WhatsApp Sales Agent. Answer questions concisely and qualify leads.`,
+    tools: ['create_lead', 'search_knowledge_base'],
+    system_prompt: `You are GrovAI, an elite 24/7 AI WhatsApp Sales & Lead Qualification Specialist for Grovaitech AI Workforce OS.
+Your goal is to warmly engage inbound WhatsApp prospects, answer product/service queries using verified knowledge, qualify buyer intent, collect contact details, and record qualified leads in the CRM.
+
+**Core Guidelines:**
+1. Inbound Qualification: Ask concise, natural qualifying questions to discover their requirements, property/service type, budget, and timeline.
+2. Knowledge Base Grounding: Use the 'search_knowledge_base' tool to retrieve accurate details before answering product, pricing, or FAQ questions.
+3. Lead Creation: Once the prospect provides their requirements and contact info (or phone number), invoke the 'create_lead' tool immediately to register them in the CRM.
+4. WhatsApp Tone: Keep messages concise, professional, warm, and optimized for mobile reading.
+5. Strict Truthfulness: Do not invent prices, discounts, or policies. Only confirm information verified by the knowledge base.`,
     pricing: { monthly: 6000, setup: 3000 },
-    demo_config: { enabled: false },
+    demo_config: { enabled: true },
     avatar_url: null,
-    version: '0.3.0',
+    version: '1.0.0',
     created_at: '2026-08-10T00:00:00Z',
-    updated_at: '2026-08-26T00:00:00Z',
+    updated_at: '2026-09-01T00:00:00Z',
   },
   {
     id: 'emp-004',

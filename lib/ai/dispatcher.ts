@@ -18,6 +18,8 @@ import {
   getClinicCustomerMessage,
   executeSupportEscalationWorkflow,
   getEscalationCustomerMessage,
+  executeWhatsAppLeadWorkflow,
+  getWhatsAppLeadCustomerMessage,
 } from '@/lib/workflows/executor'
 import { generateResponse } from '@/lib/ai/gemini'
 import { createServerClient } from '@/lib/supabase/server'
@@ -94,6 +96,9 @@ async function handleCreateLead(rawArgs: Record<string, any>): Promise<any> {
     property_type = rawArgs.property_type.toLowerCase() as typeof validPropertyTypes[number]
   }
 
+  const isWhatsApp = rawArgs.source === 'whatsapp' || rawArgs.channel === 'whatsapp'
+  const source = isWhatsApp ? ('whatsapp' as const) : ('ai_demo' as const)
+
   const leadPayload: LeadData = {
     name,
     phone,
@@ -105,7 +110,7 @@ async function handleCreateLead(rawArgs: Record<string, any>): Promise<any> {
     lead_score: 'warm',
     lead_status: 'qualified',
     notes: notes ? `[Gemini Tool] ${notes}` : '[Gemini Tool] Lead registered via AI tool call',
-    source: 'ai_demo',
+    source,
   }
 
   const result = await createLead(leadPayload)
@@ -113,11 +118,38 @@ async function handleCreateLead(rawArgs: Record<string, any>): Promise<any> {
     throw new Error(result.error || 'Failed to register lead in CRM.')
   }
 
+  let workflowResult: any = undefined
+  if (isWhatsApp) {
+    try {
+      workflowResult = await executeWhatsAppLeadWorkflow({
+        leadId: result.data?.id || '',
+        conversationId: sanitizeString(rawArgs.conversation_id || rawArgs.chat_id || ''),
+        lead: {
+          name,
+          phone,
+          property_type,
+          location,
+          budget,
+          timeline,
+          intent: sanitizeString(rawArgs.intent) || undefined,
+          notes,
+        },
+      })
+    } catch (wfErr) {
+      console.warn('[handleCreateLead] wf-004 dispatch notice:', wfErr)
+    }
+  }
+
+  const confirmationMessage = workflowResult
+    ? getWhatsAppLeadCustomerMessage(workflowResult, { name, property_type, location })
+    : `Lead for ${name} (${phone}) successfully registered in Grovaitech CRM.`
+
   return {
     leadId: result.data?.id,
     lead: result.data,
     isUpdate: result.isUpdate,
-    message: `Lead for ${name} (${phone}) successfully registered in Grovaitech CRM.`,
+    workflowResult,
+    message: confirmationMessage,
   }
 }
 
