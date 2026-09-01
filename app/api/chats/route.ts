@@ -1,23 +1,20 @@
+/**
+ * Grovaitech AI Platform
+ * app/api/chats/route.ts
+ *
+ * Web Chat Ingress Route Handler.
+ * Authenticates user session, manages conversation persistence in Supabase,
+ * and delegates agent execution to the unified headless runtime (lib/ai/runtime.ts).
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
-import { Gemini } from '@/lib/ai/gemini'
-import { getEmployeeBySlug } from '@/lib/employees'
-import {
-  REAL_ESTATE_TOOLS,
-  CLINIC_TOOLS,
-  ALL_GROVAITECH_TOOLS,
-  type GeminiFunctionDeclaration,
-} from '@/lib/ai/tools'
-import { dispatchToolCall, type ToolExecutionResult } from '@/lib/ai/dispatcher'
+import { runAgentTurn } from '@/lib/ai/runtime'
 import { extractRealEstateLead } from '@/lib/leads/extractor'
 import { executeRealEstateWorkflow, getSiteVisitCustomerMessage } from '@/lib/workflows/executor'
 import { createLead } from '@/app/actions/leads'
 
-const MAX_TOOL_ITERATIONS = 3
-
 export async function POST(request: NextRequest) {
-  console.log('=== API CHAT CALLED (Phase 3A Runtime) ===')
-
   try {
     const supabase = await createServerClient()
 
@@ -33,8 +30,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { message, chatId, history } = body
     const employeeSlug = body.employeeSlug || body.slug || 'real-estate-lead-receptionist'
-
-    console.log('[Chat API] Inbound Message:', message, '| Employee Slug:', employeeSlug, '| User:', user?.email || 'Guest Demo User')
 
     // 2. Resolve or create chat conversation session
     let currentChatId = chatId
@@ -53,7 +48,7 @@ export async function POST(request: NextRequest) {
         .single()
 
       if (chatError) {
-        console.warn('Chat record creation notice (using generated ID):', chatError.message)
+        console.warn('[Chat API] Chat creation notice:', chatError.message)
         currentChatId = `chat-session-${Date.now()}`
       } else {
         currentChatId = chat.id
@@ -62,183 +57,45 @@ export async function POST(request: NextRequest) {
 
     // 3. Persist incoming user message to database
     try {
-      await supabase
-        .from('messages')
-        .insert({
-          chat_id: currentChatId,
-          role: 'user',
-          content: message,
-        })
+      await supabase.from('messages').insert({
+        chat_id: currentChatId,
+        role: 'user',
+        content: message,
+      })
     } catch (msgErr) {
-      console.warn('Message log notice:', msgErr)
+      console.warn('[Chat API] User message log notice:', msgErr)
     }
 
-    // 4. Select Employee Persona System Prompt & Employee-specific Toolset
-    let systemInstruction = `You are GrovAI, an elite AI Lead Receptionist for Grovaitech.
-Your goal is to warmly assist prospective customers, qualify their requirements, answer questions intelligently, and use tools when appropriate to schedule visits, book appointments, or create CRM leads.
-
-**Guidelines:**
-1. If the user provides sufficient information to book a visit or appointment, invoke the appropriate tool.
-2. If any critical info is missing, ask naturally and concisely in 1-2 sentences.
-3. Keep responses friendly, highly professional, and helpful.`
-
-    let activeTools: GeminiFunctionDeclaration[] = ALL_GROVAITECH_TOOLS
-
-    if (employeeSlug.includes('real-estate')) {
-      activeTools = REAL_ESTATE_TOOLS
-      systemInstruction = `You are GrovAI, an elite AI Real Estate Lead Receptionist for Grovaitech Real Estate.
-Your goal is to warmly assist prospective property buyers, answer questions intelligently, and qualify them for a site visit.
-
-**Core Objectives:**
-1. Understand buyer preferences (Property Type, Location, BHK, Budget, Timeline).
-2. If any critical info is missing, ask naturally and concisely in 1-2 sentences.
-3. When the user wants to see properties or requests a visit (e.g. this weekend / Saturday / Sunday), ask for their name and phone number and use the 'schedule_site_visit' or 'create_lead' tool.
-4. Keep answers friendly, highly professional, and helpful.`
-    } else if (
-      employeeSlug.includes('clinic') ||
-      employeeSlug.includes('medical') ||
-      employeeSlug.includes('doctor')
-    ) {
-      activeTools = CLINIC_TOOLS
-      systemInstruction = `You are GrovAI, an elite Medical & Dental Clinic AI Front-Desk Receptionist.
-Your goal is to assist patients, answer inquiries regarding clinic hours/doctors, and book appointments using the 'book_clinic_appointment' tool.
-
-**Clinic Information:**
-- Hours: Mon - Sat: 9:00 AM - 6:00 PM (Closed Sundays)
-- Doctors: Dr. Verma (General Dentistry), Dr. Reddy (Orthodontics)
-- When patient provides name, phone, date, and time, invoke the 'book_clinic_appointment' tool.`
-    }
-
-    // Check custom employee system prompt from registry if available
-    if (employeeSlug) {
-      try {
-        const employee = await getEmployeeBySlug(employeeSlug)
-        if (employee?.system_prompt) {
-          systemInstruction = employee.system_prompt
-        }
-      } catch (empErr) {
-        console.warn('Employee registry lookup notice:', empErr)
-      }
-    }
-
-    // 5. Construct conversation contents for Gemini
-    const contents: any[] = []
-
-    if (history && Array.isArray(history) && history.length > 0) {
-      for (const turn of history) {
-        if (turn.role && turn.content) {
-          contents.push({
-            role: turn.role === 'assistant' || turn.role === 'model' ? 'model' : 'user',
-            parts: [{ text: turn.content }],
-          })
-        }
-      }
-    }
-
-    contents.push({
-      role: 'user',
-      parts: [{ text: message }],
+    // 4. Delegate to Unified Headless Agent Runtime
+    const turnResult = await runAgentTurn({
+      employeeSlug,
+      message,
+      history,
+      channel: 'web_chat',
+      customerContext: {
+        userId: user?.id,
+      },
     })
 
-    // 6. Autonomous Agent Execution Loop with Tool Calling
-    const gemini = new Gemini()
-    let iteration = 0
-    let aiFinalText = ''
-    const executedToolResults: ToolExecutionResult[] = []
-    let capturedWorkflowResult: any = null
-    let capturedLeadResult: any = null
-    let safeWorkflowMessage: string | null = null
+    let finalText = turnResult.replyText
+    let capturedLead = turnResult.leadResult
+    let capturedWorkflow = turnResult.workflowResult
 
-    console.log(`[Chat Runtime] Initiating agent execution loop (Active Tools: ${activeTools.map(t => t.name).join(', ')})`)
-
-    while (iteration < MAX_TOOL_ITERATIONS) {
-      iteration++
-
-      const geminiRes = await gemini.generateContentWithTools({
-        contents,
-        tools: activeTools,
-        systemInstruction,
-      })
-
-      // If Gemini requested structured function calls
-      if (geminiRes.functionCalls && geminiRes.functionCalls.length > 0) {
-        console.log(`[Chat Runtime] Turn ${iteration}: Gemini requested ${geminiRes.functionCalls.length} tool call(s):`, geminiRes.functionCalls.map(f => f.name))
-
-        // 1. Group all function calls in a single model turn
-        contents.push({
-          role: 'model',
-          parts: geminiRes.functionCalls.map((fnCall) => ({ functionCall: fnCall })),
-        })
-
-        const turnFunctionResponses: Array<{ name: string; response: any }> = []
-
-        for (const fnCall of geminiRes.functionCalls) {
-          // Route every tool call through the safe dispatcher
-          const toolResult = await dispatchToolCall(fnCall.name, fnCall.args)
-          executedToolResults.push(toolResult)
-
-          // Capture workflow and lead references for UI state compatibility
-          if (toolResult.toolName === 'schedule_site_visit' && toolResult.result) {
-            capturedWorkflowResult = toolResult.result.workflowId ? {
-              executionId: toolResult.result.workflowId,
-              workflowId: 'wf-001',
-              workflowName: 'Real Estate Lead ➔ WhatsApp & Site Visit Sync',
-              overallStatus: toolResult.result.workflowStatus || 'success',
-              customerConfirmationAllowed: !!toolResult.result.customerConfirmationAllowed,
-              steps: toolResult.result.steps || [],
-            } : null
-            capturedLeadResult = toolResult.result.lead || null
-            if (capturedWorkflowResult && !capturedWorkflowResult.customerConfirmationAllowed) {
-              safeWorkflowMessage = getSiteVisitCustomerMessage(capturedWorkflowResult)
-            }
-          } else if (toolResult.toolName === 'create_lead' && toolResult.result) {
-            capturedLeadResult = toolResult.result.lead || null
-          }
-
-          turnFunctionResponses.push({
-            name: fnCall.name,
-            response: toolResult.success ? toolResult.result : { error: toolResult.error },
-          })
-        }
-
-        // 2. Group all function responses in a single function turn
-        contents.push({
-          role: 'function',
-          parts: turnFunctionResponses.map((item) => ({
-            functionResponse: item,
-          })),
-        })
-      } else {
-        // Model provided conversational text response
-        aiFinalText = geminiRes.text || ''
-        break
-      }
-    }
-
-    // If loop concluded without raw text, generate a natural wrap-up summary
-    if (!aiFinalText && executedToolResults.length > 0) {
-      const summaryRes = await gemini.generateText({
-        prompt: `You have completed the following actions: ${JSON.stringify(executedToolResults)}. Please provide a polite, natural confirmation response to the customer.`,
-        systemInstruction,
-      })
-      aiFinalText = summaryRes.text
-    } else if (!aiFinalText) {
-      // Fallback
-      aiFinalText = "Thank you for reaching out! How else may I assist you today?"
-    }
-
-    // 7. Backward-compatible Vertical Slice fallback if no tool triggered on real estate inquiry
-    if (employeeSlug === 'real-estate-lead-receptionist' && executedToolResults.length === 0) {
+    // 5. Vertical Safety Net: Real Estate Passive Extraction Fallback (when 0 tools executed)
+    if (employeeSlug === 'real-estate-lead-receptionist' && turnResult.executedTools.length === 0) {
       try {
         const turnHistory = [
           ...(history || []),
           { role: 'user', content: message },
-          { role: 'assistant', content: aiFinalText },
+          { role: 'assistant', content: finalText },
         ]
 
         const extractedLead = await extractRealEstateLead(turnHistory)
-        if (extractedLead.qualification_status === 'qualified' || extractedLead.phone || extractedLead.site_visit_requested) {
-          capturedLeadResult = extractedLead
+        if (
+          extractedLead.qualification_status === 'qualified' ||
+          extractedLead.phone ||
+          extractedLead.site_visit_requested
+        ) {
           const leadRecord = {
             name: extractedLead.name || 'Interested Buyer',
             phone: extractedLead.phone || '+91 Unverified',
@@ -259,48 +116,41 @@ Your goal is to assist patients, answer inquiries regarding clinic hours/doctors
 
           const saveRes = await createLead(leadRecord)
           if (saveRes.success && saveRes.data) {
-            capturedLeadResult = saveRes.data
-            capturedWorkflowResult = await executeRealEstateWorkflow({
+            capturedLead = saveRes.data
+            const wfRes = await executeRealEstateWorkflow({
               leadId: saveRes.data.id,
               conversationId: currentChatId,
               lead: extractedLead,
             })
-            if (!capturedWorkflowResult.customerConfirmationAllowed) {
-              safeWorkflowMessage = getSiteVisitCustomerMessage(capturedWorkflowResult)
+            capturedWorkflow = wfRes
+            if (!wfRes.customerConfirmationAllowed) {
+              finalText = getSiteVisitCustomerMessage(wfRes)
             }
           }
         }
       } catch (fallbackErr) {
-        console.warn('[Chat Runtime] Passive extraction notice:', fallbackErr)
+        console.warn('[Chat API] Passive extraction fallback notice:', fallbackErr)
       }
     }
 
-    // The workflow result, not generated prose, determines whether completion
-    // can be claimed to a customer.
-    if (safeWorkflowMessage) {
-      aiFinalText = safeWorkflowMessage
-    }
-
-    // 8. Persist assistant message to database
+    // 6. Persist assistant message to database
     try {
-      await supabase
-        .from('messages')
-        .insert({
-          chat_id: currentChatId,
-          role: 'assistant',
-          content: aiFinalText,
-        })
+      await supabase.from('messages').insert({
+        chat_id: currentChatId,
+        role: 'assistant',
+        content: finalText,
+      })
     } catch (aiMsgErr) {
-      console.warn('Assistant message log notice:', aiMsgErr)
+      console.warn('[Chat API] Assistant message log notice:', aiMsgErr)
     }
 
-    // 9. Return structured response to frontend
+    // 7. Return structured response to frontend
     return NextResponse.json({
-      message: aiFinalText,
+      message: finalText,
       chatId: currentChatId,
-      toolResults: executedToolResults.length > 0 ? executedToolResults : undefined,
-      lead: capturedLeadResult,
-      workflow: capturedWorkflowResult,
+      toolResults: turnResult.executedTools.length > 0 ? turnResult.executedTools : undefined,
+      lead: capturedLead,
+      workflow: capturedWorkflow,
     })
   } catch (error: any) {
     console.error('[API Chat Exception]', error)

@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
-import { Gemini } from '@/lib/ai/gemini'
-import { REAL_ESTATE_TOOLS } from '@/lib/ai/tools'
-import { dispatchToolCall, type ToolExecutionResult } from '@/lib/ai/dispatcher'
-import { getEmployeeBySlug } from '@/lib/employees'
+import { runAgentTurn } from '@/lib/ai/runtime'
 import { extractRealEstateLead } from '@/lib/leads/extractor'
 import { executeRealEstateWorkflow, getSiteVisitCustomerMessage } from '@/lib/workflows/executor'
 import { createLead } from '@/app/actions/leads'
@@ -11,8 +8,6 @@ import { verifyMetaSignature, parseWhatsAppWebhookPayload } from '@/lib/whatsapp
 import { sendWhatsAppTextMessage } from '@/lib/whatsapp/client'
 
 export const dynamic = 'force-dynamic'
-
-const MAX_TOOL_ITERATIONS = 3
 
 /**
  * Meta WhatsApp Webhook Verification Handshake (GET)
@@ -70,7 +65,6 @@ export async function POST(request: NextRequest) {
     const { type, messages, skippedDuplicates } = parseWhatsAppWebhookPayload(body)
 
     if (type === 'status') {
-      // Delivery status update (sent, delivered, read) — acknowledge cleanly
       return NextResponse.json({ status: 'STATUS_ACKNOWLEDGED' }, { status: 200 })
     }
 
@@ -81,22 +75,22 @@ export async function POST(request: NextRequest) {
     const supabase = await createServerClient()
     const results = []
 
-    // 4. Process each actionable customer message through the Grovaitech AI pipeline
+    // 4. Process each actionable customer message through the Unified Agent Runtime
     for (const inbound of messages) {
       const { from: customerPhone, name: customerName, text: messageText, messageId } = inbound
       const chatId = `whatsapp_${customerPhone}`
 
-      console.log(`[WhatsApp Webhook] Processing message from ${customerPhone} (${customerName || 'Unknown'}): "${messageText.slice(0, 50)}"`)
+      console.log(
+        `[WhatsApp Webhook] Processing message from ${customerPhone} (${customerName || 'Unknown'}): "${messageText.slice(0, 50)}"`
+      )
 
       // A. Log user message to Supabase
       try {
-        await supabase
-          .from('messages')
-          .insert({
-            chat_id: chatId,
-            role: 'user',
-            content: messageText,
-          })
+        await supabase.from('messages').insert({
+          chat_id: chatId,
+          role: 'user',
+          content: messageText,
+        })
       } catch (logErr) {
         console.warn('[WhatsApp Webhook] Message log notice:', logErr)
       }
@@ -121,123 +115,24 @@ export async function POST(request: NextRequest) {
         history = []
       }
 
-      // C. Build Real Estate Lead Receptionist System Prompt
-      const employee = await getEmployeeBySlug('real-estate-lead-receptionist')
-      const systemInstruction = employee?.system_prompt || `You are GrovAI, an elite AI Real Estate Lead Receptionist for Grovaitech Real Estate.
-Your goal is to warmly assist prospective property buyers, answer questions intelligently, and qualify them for a site visit.
-
-**Core Objectives:**
-1. Understand buyer preferences (Property Type, Location, BHK, Budget, Timeline).
-2. If any critical info is missing, ask naturally and concisely in 1-2 sentences.
-3. When the user wants to see properties or requests a visit (e.g. this weekend / Saturday / Sunday), ask for their name and phone number and use the 'schedule_site_visit' or 'create_lead' tool.
-4. Keep answers friendly, highly professional, and helpful.`
-
-      // D. Construct conversation contents for Gemini
-      const contents: any[] = []
-      for (const turn of history) {
-        if (turn.role && turn.content) {
-          contents.push({
-            role: turn.role === 'assistant' || turn.role === 'model' ? 'model' : 'user',
-            parts: [{ text: turn.content }],
-          })
-        }
-      }
-      contents.push({
-        role: 'user',
-        parts: [{ text: messageText }],
+      // C. Delegate reasoning and tool execution to Unified Agent Runtime
+      const turnResult = await runAgentTurn({
+        employeeSlug: 'real-estate-lead-receptionist',
+        message: messageText,
+        history: history as any,
+        channel: 'whatsapp',
+        customerContext: {
+          phone: customerPhone,
+          name: customerName,
+        },
       })
 
-      // E. Autonomous Agent Execution Loop with Tool Calling
-      const gemini = new Gemini()
-      let iteration = 0
-      let aiResponse = ''
-      const executedToolResults: ToolExecutionResult[] = []
-      let capturedLeadResult: any = null
-      let capturedWorkflowResult: any = null
-      let safeWorkflowMessage: string | null = null
+      let aiResponse = turnResult.replyText
+      let capturedLeadResult = turnResult.leadResult
+      let capturedWorkflowResult = turnResult.workflowResult
 
-      while (iteration < MAX_TOOL_ITERATIONS) {
-        iteration++
-        const geminiRes = await gemini.generateContentWithTools({
-          contents,
-          tools: REAL_ESTATE_TOOLS,
-          systemInstruction,
-        })
-
-        if (geminiRes.functionCalls && geminiRes.functionCalls.length > 0) {
-          // 1. Group all function calls in a single model turn
-          contents.push({
-            role: 'model',
-            parts: geminiRes.functionCalls.map((fnCall) => ({ functionCall: fnCall })),
-          })
-
-          const turnFunctionResponses: Array<{ name: string; response: any }> = []
-
-          for (const fnCall of geminiRes.functionCalls) {
-            // Inject verified customer contact info if omitted by the model
-            const callArgs = { ...fnCall.args }
-            if (!callArgs.phone && !callArgs.patient_phone && customerPhone) {
-              callArgs.phone = customerPhone
-              callArgs.patient_phone = customerPhone
-            }
-            if (!callArgs.name && !callArgs.customer_name && !callArgs.patient_name && customerName) {
-              callArgs.name = customerName
-              callArgs.customer_name = customerName
-              callArgs.patient_name = customerName
-            }
-
-            const toolResult = await dispatchToolCall(fnCall.name, callArgs)
-            executedToolResults.push(toolResult)
-
-            if (toolResult.toolName === 'schedule_site_visit' && toolResult.result) {
-              capturedWorkflowResult = toolResult.result.workflowId ? {
-                executionId: toolResult.result.workflowId,
-                workflowId: 'wf-001',
-                workflowName: 'Real Estate Lead ➔ WhatsApp & Site Visit Sync',
-                overallStatus: toolResult.result.workflowStatus || 'success',
-                customerConfirmationAllowed: !!toolResult.result.customerConfirmationAllowed,
-                steps: toolResult.result.steps || [],
-              } : null
-              capturedLeadResult = toolResult.result.lead || null
-              if (capturedWorkflowResult && !capturedWorkflowResult.customerConfirmationAllowed) {
-                safeWorkflowMessage = getSiteVisitCustomerMessage(capturedWorkflowResult)
-              }
-            } else if (toolResult.toolName === 'create_lead' && toolResult.result) {
-              capturedLeadResult = toolResult.result.lead || null
-            }
-
-            turnFunctionResponses.push({
-              name: fnCall.name,
-              response: toolResult.success ? toolResult.result : { error: toolResult.error },
-            })
-          }
-
-          // 2. Group all function responses in a single function turn
-          contents.push({
-            role: 'function',
-            parts: turnFunctionResponses.map((item) => ({
-              functionResponse: item,
-            })),
-          })
-        } else {
-          aiResponse = geminiRes.text || ''
-          break
-        }
-      }
-
-      // If loop finished after tool calls without raw text, summarize actions for WhatsApp
-      if (!aiResponse && executedToolResults.length > 0) {
-        const summaryRes = await gemini.generateText({
-          prompt: `You have completed the following actions: ${JSON.stringify(executedToolResults)}. Please provide a polite, natural WhatsApp confirmation response to the customer.`,
-          systemInstruction,
-        })
-        aiResponse = summaryRes.text
-      } else if (!aiResponse) {
-        aiResponse = "Thank you for reaching out to Grovaitech! How else may I assist you today?"
-      }
-
-      // F. Narrow Passive Extractor Fallback (ONLY if NO tool was executed AND lead is genuinely qualified)
-      if (executedToolResults.length === 0) {
+      // D. Vertical Safety Net: Passive Extractor Fallback (ONLY if NO tool was executed on qualified lead)
+      if (turnResult.executedTools.length === 0) {
         try {
           const turnHistory = [
             ...history,
@@ -245,7 +140,6 @@ Your goal is to warmly assist prospective property buyers, answer questions inte
             { role: 'assistant', content: aiResponse },
           ]
           const extractedLead = await extractRealEstateLead(turnHistory)
-          // NOTE: Do NOT use customerPhone alone. Only create lead if genuinely qualified or site visit requested.
           if (extractedLead.qualification_status === 'qualified' || extractedLead.site_visit_requested) {
             const leadRecord = {
               name: extractedLead.name || customerName || 'WhatsApp Customer',
@@ -266,13 +160,14 @@ Your goal is to warmly assist prospective property buyers, answer questions inte
             const saveRes = await createLead(leadRecord)
             if (saveRes.success && saveRes.data) {
               capturedLeadResult = saveRes.data
-              capturedWorkflowResult = await executeRealEstateWorkflow({
+              const wfRes = await executeRealEstateWorkflow({
                 leadId: saveRes.data.id,
                 conversationId: chatId,
                 lead: extractedLead,
               })
-              if (!capturedWorkflowResult.customerConfirmationAllowed) {
-                safeWorkflowMessage = getSiteVisitCustomerMessage(capturedWorkflowResult)
+              capturedWorkflowResult = wfRes
+              if (!wfRes.customerConfirmationAllowed) {
+                aiResponse = getSiteVisitCustomerMessage(wfRes)
               }
             }
           }
@@ -281,26 +176,18 @@ Your goal is to warmly assist prospective property buyers, answer questions inte
         }
       }
 
-      // A model may phrase a request as a completed booking. The executor is
-      // authoritative: partial or failed workflows always use deterministic safe copy.
-      if (safeWorkflowMessage) {
-        aiResponse = safeWorkflowMessage
-      }
-
-      // G. Log assistant response to database
+      // E. Log assistant response to database
       try {
-        await supabase
-          .from('messages')
-          .insert({
-            chat_id: chatId,
-            role: 'assistant',
-            content: aiResponse,
-          })
+        await supabase.from('messages').insert({
+          chat_id: chatId,
+          role: 'assistant',
+          content: aiResponse,
+        })
       } catch (aiLogErr) {
         console.warn('[WhatsApp Webhook] Assistant log notice:', aiLogErr)
       }
 
-      // H. Dispatch Outbound WhatsApp Reply
+      // F. Dispatch Outbound WhatsApp Reply
       const outboundResult = await sendWhatsAppTextMessage({
         to: customerPhone,
         text: aiResponse,
@@ -313,7 +200,7 @@ Your goal is to warmly assist prospective property buyers, answer questions inte
         lead: capturedLeadResult,
         leadSaved: !!capturedLeadResult,
         workflow: capturedWorkflowResult?.workflowId || capturedWorkflowResult?.executionId || null,
-        toolResults: executedToolResults.length > 0 ? executedToolResults : undefined,
+        toolResults: turnResult.executedTools.length > 0 ? turnResult.executedTools : undefined,
         outbound: outboundResult.status,
       })
     }
@@ -325,7 +212,6 @@ Your goal is to warmly assist prospective property buyers, answer questions inte
     })
   } catch (err: any) {
     console.error('[WhatsApp Webhook Error]', err)
-    // Always return 200 to Meta to prevent retry loops on internal handling errors
     return NextResponse.json(
       { status: 'ERROR_HANDLED', message: err.message || String(err) },
       { status: 200 }
