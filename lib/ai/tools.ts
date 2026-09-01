@@ -625,76 +625,6 @@ export const BOOK_FINANCIAL_CONSULTATION_TOOL: FunctionDeclaration = {
   },
 }
 
-// ─── Grouped Tool Collections for AI Employee Personas ───────────────────────
-
-export const REAL_ESTATE_TOOLS: FunctionDeclaration[] = [
-  CREATE_LEAD_TOOL,
-  SCHEDULE_SITE_VISIT_TOOL,
-  SEARCH_KNOWLEDGE_BASE_TOOL,
-]
-
-export const CLINIC_TOOLS: FunctionDeclaration[] = [
-  BOOK_CLINIC_APPOINTMENT_TOOL,
-  SEARCH_KNOWLEDGE_BASE_TOOL,
-]
-
-export const SUPPORT_TOOLS: FunctionDeclaration[] = [
-  SEARCH_KNOWLEDGE_BASE_TOOL,
-  ESCALATE_TO_HUMAN_TOOL,
-]
-
-export const SALON_TOOLS: FunctionDeclaration[] = [
-  BOOK_SALON_SERVICE_TOOL,
-  SEARCH_KNOWLEDGE_BASE_TOOL,
-]
-
-export const QA_TOOLS: FunctionDeclaration[] = [
-  AUDIT_CONVERSATION_QUALITY_TOOL,
-  SEARCH_KNOWLEDGE_BASE_TOOL,
-]
-
-export const LEGAL_TOOLS: FunctionDeclaration[] = [
-  BOOK_LEGAL_CONSULTATION_TOOL,
-  SEARCH_KNOWLEDGE_BASE_TOOL,
-  ESCALATE_TO_HUMAN_TOOL,
-]
-
-export const ECOMMERCE_TOOLS: FunctionDeclaration[] = [
-  LOOKUP_ORDER_AND_SUPPORT_TOOL,
-  SEARCH_KNOWLEDGE_BASE_TOOL,
-  ESCALATE_TO_HUMAN_TOOL,
-]
-
-export const HR_TOOLS: FunctionDeclaration[] = [
-  SCHEDULE_ONBOARDING_INDUCTION_TOOL,
-  SEARCH_KNOWLEDGE_BASE_TOOL,
-  ESCALATE_TO_HUMAN_TOOL,
-]
-
-export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
-  BOOK_FINANCIAL_CONSULTATION_TOOL,
-  SEARCH_KNOWLEDGE_BASE_TOOL,
-  ESCALATE_TO_HUMAN_TOOL,
-]
-
-export const ALL_GROVAITECH_TOOLS: FunctionDeclaration[] = [
-  CREATE_LEAD_TOOL,
-  SCHEDULE_SITE_VISIT_TOOL,
-  BOOK_CLINIC_APPOINTMENT_TOOL,
-  SEARCH_KNOWLEDGE_BASE_TOOL,
-  ESCALATE_TO_HUMAN_TOOL,
-  BOOK_SALON_SERVICE_TOOL,
-  AUDIT_CONVERSATION_QUALITY_TOOL,
-  BOOK_LEGAL_CONSULTATION_TOOL,
-  LOOKUP_ORDER_AND_SUPPORT_TOOL,
-  SCHEDULE_ONBOARDING_INDUCTION_TOOL,
-  BOOK_FINANCIAL_CONSULTATION_TOOL,
-]
-
-export const GROVAITECH_TOOLSET: FunctionDeclarationsTool = {
-  functionDeclarations: ALL_GROVAITECH_TOOLS,
-}
-
 // ─── Tool Name Constants ────────────────────────────────────────────────────
 
 export const TOOL_NAMES = {
@@ -712,3 +642,77 @@ export const TOOL_NAMES = {
 } as const
 
 export type ToolName = typeof TOOL_NAMES[keyof typeof TOOL_NAMES]
+
+// ─── Authoritative Tool Registry ────────────────────────────────────────────
+
+export const TOOL_REGISTRY: Record<ToolName, FunctionDeclaration> = {
+  [TOOL_NAMES.CREATE_LEAD]: CREATE_LEAD_TOOL,
+  [TOOL_NAMES.SCHEDULE_SITE_VISIT]: SCHEDULE_SITE_VISIT_TOOL,
+  [TOOL_NAMES.BOOK_CLINIC_APPOINTMENT]: BOOK_CLINIC_APPOINTMENT_TOOL,
+  [TOOL_NAMES.SEARCH_KNOWLEDGE_BASE]: SEARCH_KNOWLEDGE_BASE_TOOL,
+  [TOOL_NAMES.ESCALATE_TO_HUMAN]: ESCALATE_TO_HUMAN_TOOL,
+  [TOOL_NAMES.BOOK_SALON_SERVICE]: BOOK_SALON_SERVICE_TOOL,
+  [TOOL_NAMES.AUDIT_CONVERSATION_QUALITY]: AUDIT_CONVERSATION_QUALITY_TOOL,
+  [TOOL_NAMES.BOOK_LEGAL_CONSULTATION]: BOOK_LEGAL_CONSULTATION_TOOL,
+  [TOOL_NAMES.LOOKUP_ORDER_AND_SUPPORT]: LOOKUP_ORDER_AND_SUPPORT_TOOL,
+  [TOOL_NAMES.SCHEDULE_ONBOARDING_INDUCTION]: SCHEDULE_ONBOARDING_INDUCTION_TOOL,
+  [TOOL_NAMES.BOOK_FINANCIAL_CONSULTATION]: BOOK_FINANCIAL_CONSULTATION_TOOL,
+}
+
+export const ALL_GROVAITECH_TOOLS: FunctionDeclaration[] = Object.values(TOOL_REGISTRY)
+
+export const GROVAITECH_TOOLSET: FunctionDeclarationsTool = {
+  functionDeclarations: ALL_GROVAITECH_TOOLS,
+}
+
+// ─── Grouped Tool Collections for AI Employee Personas ───────────────────────
+
+export const REAL_ESTATE_TOOLS: FunctionDeclaration[] = [
+  TOOL_REGISTRY.create_lead,
+  TOOL_REGISTRY.schedule_site_visit,
+  TOOL_REGISTRY.search_knowledge_base,
+]
+
+export const CLINIC_TOOLS: FunctionDeclaration[] = [
+  TOOL_REGISTRY.book_clinic_appointment,
+  TOOL_REGISTRY.search_knowledge_base,
+]
+
+export const SUPPORT_TOOLS: FunctionDeclaration[] = [
+  TOOL_REGISTRY.search_knowledge_base,
+  TOOL_REGISTRY.escalate_to_human,
+]
+
+export const SALON_TOOLS: FunctionDeclaration[] = [
+  TOOL_REGISTRY.book_salon_service,
+  TOOL_REGISTRY.search_knowledge_base,
+]
+
+export const QA_TOOLS: FunctionDeclaration[] = [
+  TOOL_REGISTRY.audit_conversation_quality,
+  TOOL_REGISTRY.search_knowledge_base,
+]
+
+export const LEGAL_TOOLS: FunctionDeclaration[] = [
+  TOOL_REGISTRY.book_legal_consultation,
+  TOOL_REGISTRY.search_knowledge_base,
+  TOOL_REGISTRY.escalate_to_human,
+]
+
+export const ECOMMERCE_TOOLS: FunctionDeclaration[] = [
+  TOOL_REGISTRY.lookup_order_and_support,
+  TOOL_REGISTRY.search_knowledge_base,
+  TOOL_REGISTRY.escalate_to_human,
+]
+
+export const HR_TOOLS: FunctionDeclaration[] = [
+  TOOL_REGISTRY.schedule_onboarding_induction,
+  TOOL_REGISTRY.search_knowledge_base,
+  TOOL_REGISTRY.escalate_to_human,
+]
+
+export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
+  TOOL_REGISTRY.book_financial_consultation,
+  TOOL_REGISTRY.search_knowledge_base,
+  TOOL_REGISTRY.escalate_to_human,
+]

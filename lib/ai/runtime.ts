@@ -12,6 +12,8 @@ import {
   REAL_ESTATE_TOOLS,
   CLINIC_TOOLS,
   ALL_GROVAITECH_TOOLS,
+  TOOL_REGISTRY,
+  type ToolName,
   type GeminiFunctionDeclaration,
 } from '@/lib/ai/tools'
 import { dispatchToolCall, type ToolExecutionResult } from '@/lib/ai/dispatcher'
@@ -73,9 +75,8 @@ export function resolveAuthorizedTools(slug?: string): GeminiFunctionDeclaration
 
   const canonical = getCanonicalEmployeeBySlug(slug)
   if (canonical && Array.isArray(canonical.tools) && canonical.tools.length > 0) {
-    const toolMap = new Map(ALL_GROVAITECH_TOOLS.map((t) => [t.name, t]))
     const tools = canonical.tools
-      .map((name) => toolMap.get(name))
+      .map((name) => TOOL_REGISTRY[name as ToolName])
       .filter(Boolean) as GeminiFunctionDeclaration[]
     if (tools.length > 0) {
       return tools
