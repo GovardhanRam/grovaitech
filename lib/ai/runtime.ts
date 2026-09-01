@@ -103,44 +103,14 @@ export function getDefaultSystemPrompt(slug?: string): string {
   const normalized = (slug || '').toLowerCase()
 
   if (normalized.includes('real-estate')) {
-    return `You are GrovAI, an elite AI Real Estate Lead Receptionist for Grovaitech Real Estate.
-Your goal is to warmly assist prospective property buyers, answer questions intelligently, and qualify them for a site visit.
-
-**Core Objectives:**
-1. Understand buyer preferences (Property Type, Location, BHK, Budget, Timeline).
-2. If any critical info is missing, ask naturally and concisely in 1-2 sentences.
-3. When the user wants to see properties or requests a visit (e.g. this weekend / Saturday / Sunday), ask for their name and phone number and use the 'schedule_site_visit' or 'create_lead' tool.
-4. Keep answers friendly, highly professional, and helpful.`
+    return getCanonicalEmployeeBySlug('real-estate-lead-receptionist')?.system_prompt || ''
   }
-
   if (normalized.includes('clinic') || normalized.includes('medical') || normalized.includes('doctor')) {
-    return `You are GrovAI, an elite Medical & Dental Clinic AI Front-Desk Receptionist.
-Your goal is to assist patients, answer inquiries regarding clinic hours/doctors, and book appointments using the 'book_clinic_appointment' tool.
-
-**Clinic Information:**
-- Hours: Mon - Sat: 9:00 AM - 6:00 PM (Closed Sundays)
-- Doctors: Dr. Verma (General Dentistry), Dr. Reddy (Orthodontics)
-- When patient provides name, phone, date, and time, invoke the 'book_clinic_appointment' tool.`
+    return getCanonicalEmployeeBySlug('clinic-receptionist')?.system_prompt || ''
   }
-
   if (normalized.includes('legal') || normalized.includes('law') || normalized.includes('attorney')) {
-    return `You are GrovAI, an elite AI Legal Intake & Consultation Coordinator for Grovaitech Law Chambers.
-Your goal is to warmly assist prospective clients, collect structured matter intake details for conflict screening, answer firm process FAQs using verified knowledge, and coordinate consultation requests.
-
-**Strict Legal & Compliance Boundaries:**
-1. NO LEGAL ADVICE: You are an administrative intake assistant, NOT an attorney. NEVER provide legal counsel, legal opinions, statutory interpretations, or liability assessments.
-2. NO CASE-OUTCOME PREDICTIONS: NEVER predict case outcomes, judge rulings, settlement figures, or chances of success.
-3. NO PRIVILEGE CREATION: Explicitly inform clients when appropriate that submitting intake information does not by itself establish an attorney-client relationship.
-4. NO FABRICATION: Do NOT invent legal fees, retainer amounts, court deadlines, statutes, or attorney availability not verified in the knowledge base.
-5. CONFLICT SCREENING PROTOCOL: Always collect the full name of the opposing party / other involved entities before proceeding with consultation scheduling.
-
-**Intake & Booking Protocol:**
-- Use 'search_knowledge_base' to verify practice areas, consultation procedures, and firm guidelines.
-- Collect all required intake parameters: Client Name, Phone Number, Email, Practice Area, Matter Summary, Opposing Party, Urgency, Preferred Date, and Preferred Time.
-- Once details are collected, invoke 'book_legal_consultation' immediately.
-- If a client has an emergency deadline or explicitly requests an urgent attorney, invoke 'escalate_to_human' immediately.`
+    return getCanonicalEmployeeBySlug('legal-intake-agent')?.system_prompt || ''
   }
-
   if (
     normalized.includes('ecommerce') ||
     normalized.includes('e-commerce') ||
@@ -148,62 +118,22 @@ Your goal is to warmly assist prospective clients, collect structured matter int
     normalized.includes('shipping') ||
     normalized.includes('return')
   ) {
-    return `You are GrovAI, an elite AI E-Commerce Support Specialist for Grovaitech AI Workforce OS.
-Your goal is to warmly assist customers with order tracking, return/exchange requests, order cancellations, and store product/policy inquiries.
-
-**Strict E-Commerce & Compliance Guardrails:**
-1. NO FABRICATED LOGISTICS: NEVER invent tracking numbers, delivery dates, carrier names, or order statuses. Only report data returned by the store lookup or knowledge base.
-2. NO UNAUTHORIZED REFUND PROMISES: NEVER guarantee an immediate financial refund without explaining that returned items undergo warehouse inspection before refunds are issued.
-3. MANDATORY ORDER VERIFICATION: Always ask for the Order ID and either customer email or phone number before querying or modifying order records.
-4. POLICY GROUNDING: Use 'search_knowledge_base' to verify return windows (e.g. 30 days), non-returnable items, and shipping policies.
-5. ESCALATION PROTOCOL: For lost in-transit packages, damaged shipments requiring claims, billing/chargeback disputes, or highly frustrated customers, invoke 'escalate_to_human' immediately.
-
-**Support Protocol:**
-- When a customer wants to check an order, track shipment, or request a return/exchange/cancellation, collect their Order ID and contact email/phone, then invoke 'lookup_order_and_support'.
-- Explain policies with clarity, empathy, and professionalism.`
+    return getCanonicalEmployeeBySlug('ecommerce-support-agent')?.system_prompt || ''
   }
-
   if (
     normalized.includes('hr') ||
     normalized.includes('onboarding') ||
     normalized.includes('induction')
   ) {
-    return `You are GrovAI, an elite AI HR & Onboarding Specialist for Grovaitech AI Workforce OS.
-Your goal is to warmly assist new hires with onboarding document verification, company policy and benefits FAQs, and orientation induction scheduling.
-
-**Strict HR Confidentiality & Compliance Guardrails:**
-1. NO CONFIDENTIAL PII OR SALARY DISCLOSURE: NEVER disclose internal salary benchmarks, compensation packages of other employees, disciplinary records, or confidential personnel files.
-2. NO LEGAL ADVICE: Provide factual company policy information grounded in the knowledge base; do not provide statutory labor legal opinions.
-3. GROUNDED POLICY FAQS: Use 'search_knowledge_base' to verify leave entitlements, health insurance coverage, office timings, and required compliance documents.
-4. MANDATORY INTAKE PARAMETERS: Always collect Candidate Name, Email, Phone, Role Title, Department, Joining Date, and Preferred Induction Slot before scheduling.
-5. ESCALATION PROTOCOL: For compensation discrepancies, offer letter disputes, background verification issues, or confidential grievances, invoke 'escalate_to_human' immediately.
-
-**Onboarding Protocol:**
-- Assist candidates in clarifying document requirements (e.g. Government ID, Tax Forms, Bank Details, Degree Certificates).
-- Once intake parameters and preferred slot are collected, invoke 'schedule_onboarding_induction'.
-- Maintain a warm, encouraging, and highly professional tone throughout the orientation journey.`
+    return getCanonicalEmployeeBySlug('hr-onboarding-agent')?.system_prompt || ''
   }
-
   if (
     normalized.includes('financial') ||
     normalized.includes('advisory') ||
     normalized.includes('wealth') ||
     normalized.includes('investment')
   ) {
-    return `You are GrovAI, an elite AI Financial Consultation Coordinator for Grovaitech AI Workforce OS.
-Your goal is to assist clients with financial product inquiries (Insurance, Home Loans, Personal Loans, Mutual Funds, Wealth Planning), screen preliminary eligibility and KYC readiness, and schedule consultations with certified financial advisors.
-
-**Strict Financial Regulatory & Compliance Guardrails:**
-1. NO PERSONALIZED FINANCIAL/INVESTMENT ADVICE: You are an administrative intake coordinator, NOT a registered financial advisor or broker. NEVER provide stock tips, cryptocurrency recommendations, specific portfolio allocations, or tax evasion/shelter schemes.
-2. NO GUARANTEES: NEVER guarantee investment returns, loan sanctions, interest rate locks, or insurance claim approvals.
-3. GROUNDED PRODUCT FAQS: Use 'search_knowledge_base' to verify product eligibility rules, minimum tenure, lock-in periods, and required KYC documentation.
-4. MANDATORY INTAKE PARAMETERS: Always collect Client Name, Phone, Email, Product Category, Amount Range, Employment Type, Annual Income, Preferred Date, and Preferred Time before booking.
-5. ESCALATION PROTOCOL: For high-net-worth portfolio inquiries, urgent debt/settlement disputes, or distressed customer situations, invoke 'escalate_to_human' immediately.
-
-**Coordination Protocol:**
-- Answer general product questions with factual clarity and neutral professionalism.
-- Once client parameters and preferred time slot are collected, invoke 'book_financial_consultation'.
-- Explicitly state when appropriate that final product sanction and advisory recommendations are provided by certified human advisors.`
+    return getCanonicalEmployeeBySlug('financial-advisory-agent')?.system_prompt || ''
   }
 
   return `You are GrovAI, an elite AI Lead Receptionist for Grovaitech.
@@ -213,6 +143,218 @@ Your goal is to warmly assist prospective customers, qualify their requirements,
 1. If the user provides sufficient information to book a visit or appointment, invoke the appropriate tool.
 2. If any critical info is missing, ask naturally and concisely in 1-2 sentences.
 3. Keep responses friendly, highly professional, and helpful.`
+}
+
+// ─── Workflow Outcome Extraction Helpers ─────────────────────────────────────
+
+interface WorkflowExtractorConfig {
+  workflowId: string
+  workflowName: string
+  triggerEvent: string
+  leadIdKey: string
+  formatCondition: 'always' | 'when_not_confirmed'
+  extractEntity?: (res: any) => { leadResult?: Record<string, unknown> | null; bookingResult?: Record<string, unknown> | null }
+}
+
+const WORKFLOW_EXTRACTORS: Record<string, WorkflowExtractorConfig> = {
+  schedule_site_visit: {
+    workflowId: 'wf-001',
+    workflowName: 'Real Estate Lead ➔ WhatsApp & Site Visit Sync',
+    triggerEvent: 'Lead Qualified & Site Visit Booked',
+    leadIdKey: 'leadId',
+    formatCondition: 'when_not_confirmed',
+    extractEntity: (res) => ({ leadResult: (res.lead as Record<string, unknown>) || null }),
+  },
+  book_clinic_appointment: {
+    workflowId: 'wf-002',
+    workflowName: 'Clinic Appointment Booking & Reminder Pipeline',
+    triggerEvent: 'Appointment Booked by Patient',
+    leadIdKey: 'bookingId',
+    formatCondition: 'when_not_confirmed',
+    extractEntity: (res) => ({ bookingResult: (res as Record<string, unknown>) || null }),
+  },
+  book_legal_consultation: {
+    workflowId: 'wf-006',
+    workflowName: 'Legal Consultation Intake & Conflict Check',
+    triggerEvent: 'New Legal Inquiry Submitted',
+    leadIdKey: 'intakeId',
+    formatCondition: 'when_not_confirmed',
+  },
+  lookup_order_and_support: {
+    workflowId: 'wf-008',
+    workflowName: 'E-Commerce Order Tracking & Returns Resolution Pipeline',
+    triggerEvent: 'Customer Order Query / Return Request',
+    leadIdKey: 'supportId',
+    formatCondition: 'always',
+  },
+  schedule_onboarding_induction: {
+    workflowId: 'wf-009',
+    workflowName: 'Employee Onboarding Intake & Induction Scheduling Pipeline',
+    triggerEvent: 'New Employee Onboarding / Induction Request',
+    leadIdKey: 'intakeId',
+    formatCondition: 'always',
+  },
+  book_financial_consultation: {
+    workflowId: 'wf-010',
+    workflowName: 'Financial Advisory Consultation & KYC Intake Pipeline',
+    triggerEvent: 'New Financial Inquiry Submitted',
+    leadIdKey: 'consultationId',
+    formatCondition: 'always',
+  },
+}
+
+function formatWorkflowCustomerMessage(
+  toolName: string,
+  wfResult: WorkflowExecutionResult,
+  res: any
+): string | null {
+  switch (toolName) {
+    case 'schedule_site_visit':
+      return typeof getSiteVisitCustomerMessage === 'function'
+        ? getSiteVisitCustomerMessage(wfResult, {
+            customerName: res.customerName,
+            preferredDate: res.preferredDate,
+            preferredTime: res.preferredTime,
+          })
+        : null
+    case 'book_clinic_appointment':
+      return typeof getClinicCustomerMessage === 'function'
+        ? getClinicCustomerMessage(wfResult, {
+            patientName: res.patientName,
+            appointmentDate: res.appointmentDate,
+            appointmentTime: res.appointmentTime,
+            doctorName: res.doctorName,
+          })
+        : null
+    case 'book_legal_consultation':
+      return typeof getLegalCustomerMessage === 'function'
+        ? getLegalCustomerMessage(wfResult, {
+            client_name: res.client_name,
+            client_phone: res.client_phone,
+            client_email: res.client_email,
+            practice_area: res.practice_area,
+            matter_summary: res.matter_summary,
+            opposing_party: res.opposing_party,
+            urgency: res.urgency,
+            preferred_date: res.preferred_date,
+            preferred_time: res.preferred_time,
+            conflict_status: res.conflict_status,
+          })
+        : null
+    case 'lookup_order_and_support':
+      return typeof getEcommerceCustomerMessage === 'function'
+        ? getEcommerceCustomerMessage(wfResult, {
+            order_id: res.order_id,
+            customer_email: res.customer_email,
+            customer_phone: res.customer_phone,
+            action_type: res.action_type,
+            order_status: res.order_status,
+            tracking_number: res.tracking_number,
+            carrier: res.carrier,
+            estimated_delivery: res.estimated_delivery,
+            eligibility_status: res.eligibility_status,
+          })
+        : null
+    case 'schedule_onboarding_induction':
+      return typeof getOnboardingCustomerMessage === 'function'
+        ? getOnboardingCustomerMessage(wfResult, {
+            candidate_name: res.candidate_name,
+            candidate_email: res.candidate_email,
+            candidate_phone: res.candidate_phone,
+            role_title: res.role_title,
+            department: res.department,
+            joining_date: res.joining_date,
+            preferred_induction_slot: res.preferred_induction_slot,
+            document_status: res.document_status,
+            induction_status: res.induction_status,
+            orientation_room: res.orientation_room,
+          })
+        : null
+    case 'book_financial_consultation':
+      return typeof getFinancialCustomerMessage === 'function'
+        ? getFinancialCustomerMessage(wfResult, {
+            client_name: res.client_name,
+            client_phone: res.client_phone,
+            client_email: res.client_email,
+            product_category: res.product_category,
+            amount_range: res.amount_range,
+            employment_type: res.employment_type,
+            annual_income: res.annual_income,
+            kyc_status: res.kyc_status,
+            preferred_date: res.preferred_date,
+            preferred_time: res.preferred_time,
+            assigned_advisor: res.assigned_advisor,
+            meeting_mode: res.meeting_mode,
+          })
+        : null
+    default:
+      return null
+  }
+}
+
+export function extractWorkflowOutcome(toolResult: ToolExecutionResult): {
+  workflowResult?: WorkflowExecutionResult | null
+  safeWorkflowMessage?: string | null
+  leadResult?: Record<string, unknown> | null
+  bookingResult?: Record<string, unknown> | null
+} {
+  if (!toolResult.result) return {}
+
+  if (toolResult.toolName === 'create_lead') {
+    return {
+      leadResult: (toolResult.result.lead as Record<string, unknown>) || null,
+    }
+  }
+
+  const config = WORKFLOW_EXTRACTORS[toolResult.toolName]
+  if (!config) return {}
+
+  let leadResult: Record<string, unknown> | null = null
+  let bookingResult: Record<string, unknown> | null = null
+
+  if (config.extractEntity) {
+    const entities = config.extractEntity(toolResult.result)
+    if (entities.leadResult !== undefined) leadResult = entities.leadResult
+    if (entities.bookingResult !== undefined) bookingResult = entities.bookingResult
+  }
+
+  if (!toolResult.result.workflowId) {
+    return { leadResult, bookingResult }
+  }
+
+  const executionId = toolResult.result.executionId || toolResult.result.workflowId
+  const leadId = toolResult.result[config.leadIdKey] || ''
+  const customerConfirmationAllowed = !!toolResult.result.customerConfirmationAllowed
+
+  const workflowResult: WorkflowExecutionResult = {
+    executionId,
+    workflowId: config.workflowId,
+    workflowName: config.workflowName,
+    leadId,
+    conversationId: '',
+    triggerEvent: config.triggerEvent,
+    overallStatus: toolResult.result.workflowStatus || 'success',
+    hasSimulatedSteps: !customerConfirmationAllowed,
+    failedStepIds: [],
+    customerConfirmationAllowed,
+    startedAt: new Date().toISOString(),
+    completedAt: new Date().toISOString(),
+    durationMs: 0,
+    steps: toolResult.result.steps || [],
+    n8nResult: { status: 'dispatched' },
+  }
+
+  let safeWorkflowMessage: string | null = null
+  if (config.formatCondition === 'always' || !customerConfirmationAllowed) {
+    safeWorkflowMessage = formatWorkflowCustomerMessage(toolResult.toolName, workflowResult, toolResult.result)
+  }
+
+  return {
+    workflowResult,
+    safeWorkflowMessage,
+    leadResult,
+    bookingResult,
+  }
 }
 
 // ─── Main Runtime Entry Point ───────────────────────────────────────────────
@@ -336,196 +478,18 @@ export async function runAgentTurn(options: RunAgentTurnOptions): Promise<AgentT
         }
 
         // Capture workflow and entity outcomes
-        if (toolResult.toolName === 'schedule_site_visit' && toolResult.result) {
-          if (toolResult.result.workflowId) {
-            workflowResult = {
-              executionId: toolResult.result.workflowId,
-              workflowId: 'wf-001',
-              workflowName: 'Real Estate Lead ➔ WhatsApp & Site Visit Sync',
-              leadId: toolResult.result.leadId || '',
-              conversationId: '',
-              triggerEvent: 'Lead Qualified & Site Visit Booked',
-              overallStatus: toolResult.result.workflowStatus || 'success',
-              hasSimulatedSteps: !toolResult.result.customerConfirmationAllowed,
-              failedStepIds: [],
-              customerConfirmationAllowed: !!toolResult.result.customerConfirmationAllowed,
-              startedAt: new Date().toISOString(),
-              completedAt: new Date().toISOString(),
-              durationMs: 0,
-              steps: toolResult.result.steps || [],
-              n8nResult: { status: 'dispatched' },
-            }
-            if (!workflowResult.customerConfirmationAllowed) {
-              safeWorkflowMessage = getSiteVisitCustomerMessage(workflowResult, {
-                customerName: toolResult.result.customerName,
-                preferredDate: toolResult.result.preferredDate,
-                preferredTime: toolResult.result.preferredTime,
-              })
-            }
-          }
-          leadResult = (toolResult.result.lead as Record<string, unknown>) || null
-        } else if (toolResult.toolName === 'create_lead' && toolResult.result) {
-          leadResult = (toolResult.result.lead as Record<string, unknown>) || null
-        } else if (toolResult.toolName === 'book_clinic_appointment' && toolResult.result) {
-          bookingResult = (toolResult.result as Record<string, unknown>) || null
-          if (toolResult.result.workflowId) {
-            workflowResult = {
-              executionId: toolResult.result.workflowId,
-              workflowId: 'wf-002',
-              workflowName: 'Clinic Appointment Booking & Reminder Pipeline',
-              leadId: toolResult.result.bookingId || '',
-              conversationId: '',
-              triggerEvent: 'Appointment Booked by Patient',
-              overallStatus: toolResult.result.workflowStatus || 'success',
-              hasSimulatedSteps: !toolResult.result.customerConfirmationAllowed,
-              failedStepIds: [],
-              customerConfirmationAllowed: !!toolResult.result.customerConfirmationAllowed,
-              startedAt: new Date().toISOString(),
-              completedAt: new Date().toISOString(),
-              durationMs: 0,
-              steps: toolResult.result.steps || [],
-              n8nResult: { status: 'dispatched' },
-            }
-            if (!workflowResult.customerConfirmationAllowed) {
-              safeWorkflowMessage = getClinicCustomerMessage(workflowResult, {
-                patientName: toolResult.result.patientName,
-                appointmentDate: toolResult.result.appointmentDate,
-                appointmentTime: toolResult.result.appointmentTime,
-                doctorName: toolResult.result.doctorName,
-              })
-            }
-          }
-        } else if (toolResult.toolName === 'book_legal_consultation' && toolResult.result) {
-          if (toolResult.result.workflowId) {
-            workflowResult = {
-              executionId: toolResult.result.executionId || toolResult.result.workflowId,
-              workflowId: 'wf-006',
-              workflowName: 'Legal Consultation Intake & Conflict Check',
-              leadId: toolResult.result.intakeId || '',
-              conversationId: '',
-              triggerEvent: 'New Legal Inquiry Submitted',
-              overallStatus: toolResult.result.workflowStatus || 'success',
-              hasSimulatedSteps: !toolResult.result.customerConfirmationAllowed,
-              failedStepIds: [],
-              customerConfirmationAllowed: !!toolResult.result.customerConfirmationAllowed,
-              startedAt: new Date().toISOString(),
-              completedAt: new Date().toISOString(),
-              durationMs: 0,
-              steps: toolResult.result.steps || [],
-              n8nResult: { status: 'dispatched' },
-            }
-            if (!workflowResult.customerConfirmationAllowed) {
-              safeWorkflowMessage = getLegalCustomerMessage(workflowResult, {
-                client_name: toolResult.result.client_name,
-                client_phone: toolResult.result.client_phone,
-                client_email: toolResult.result.client_email,
-                practice_area: toolResult.result.practice_area,
-                matter_summary: toolResult.result.matter_summary,
-                opposing_party: toolResult.result.opposing_party,
-                urgency: toolResult.result.urgency,
-                preferred_date: toolResult.result.preferred_date,
-                preferred_time: toolResult.result.preferred_time,
-                conflict_status: toolResult.result.conflict_status,
-              })
-            }
-          }
-        } else if (toolResult.toolName === 'lookup_order_and_support' && toolResult.result) {
-          if (toolResult.result.workflowId) {
-            workflowResult = {
-              executionId: toolResult.result.executionId || toolResult.result.workflowId,
-              workflowId: 'wf-008',
-              workflowName: 'E-Commerce Order Tracking & Returns Resolution Pipeline',
-              leadId: toolResult.result.supportId || '',
-              conversationId: '',
-              triggerEvent: 'Customer Order Query / Return Request',
-              overallStatus: toolResult.result.workflowStatus || 'success',
-              hasSimulatedSteps: !toolResult.result.customerConfirmationAllowed,
-              failedStepIds: [],
-              customerConfirmationAllowed: !!toolResult.result.customerConfirmationAllowed,
-              startedAt: new Date().toISOString(),
-              completedAt: new Date().toISOString(),
-              durationMs: 0,
-              steps: toolResult.result.steps || [],
-              n8nResult: { status: 'dispatched' },
-            }
-            safeWorkflowMessage = getEcommerceCustomerMessage(workflowResult, {
-              order_id: toolResult.result.order_id,
-              customer_email: toolResult.result.customer_email,
-              customer_phone: toolResult.result.customer_phone,
-              action_type: toolResult.result.action_type,
-              order_status: toolResult.result.order_status,
-              tracking_number: toolResult.result.tracking_number,
-              carrier: toolResult.result.carrier,
-              estimated_delivery: toolResult.result.estimated_delivery,
-              eligibility_status: toolResult.result.eligibility_status,
-            })
-          }
-        } else if (toolResult.toolName === 'schedule_onboarding_induction' && toolResult.result) {
-          if (toolResult.result.workflowId) {
-            workflowResult = {
-              executionId: toolResult.result.executionId || toolResult.result.workflowId,
-              workflowId: 'wf-009',
-              workflowName: 'Employee Onboarding Intake & Induction Scheduling Pipeline',
-              leadId: toolResult.result.intakeId || '',
-              conversationId: '',
-              triggerEvent: 'New Employee Onboarding / Induction Request',
-              overallStatus: toolResult.result.workflowStatus || 'success',
-              hasSimulatedSteps: !toolResult.result.customerConfirmationAllowed,
-              failedStepIds: [],
-              customerConfirmationAllowed: !!toolResult.result.customerConfirmationAllowed,
-              startedAt: new Date().toISOString(),
-              completedAt: new Date().toISOString(),
-              durationMs: 0,
-              steps: toolResult.result.steps || [],
-              n8nResult: { status: 'dispatched' },
-            }
-            safeWorkflowMessage = getOnboardingCustomerMessage(workflowResult, {
-              candidate_name: toolResult.result.candidate_name,
-              candidate_email: toolResult.result.candidate_email,
-              candidate_phone: toolResult.result.candidate_phone,
-              role_title: toolResult.result.role_title,
-              department: toolResult.result.department,
-              joining_date: toolResult.result.joining_date,
-              preferred_induction_slot: toolResult.result.preferred_induction_slot,
-              document_status: toolResult.result.document_status,
-              induction_status: toolResult.result.induction_status,
-              orientation_room: toolResult.result.orientation_room,
-            })
-          }
-        } else if (toolResult.toolName === 'book_financial_consultation' && toolResult.result) {
-          if (toolResult.result.workflowId) {
-            workflowResult = {
-              executionId: toolResult.result.executionId || toolResult.result.workflowId,
-              workflowId: 'wf-010',
-              workflowName: 'Financial Advisory Consultation & KYC Intake Pipeline',
-              leadId: toolResult.result.consultationId || '',
-              conversationId: '',
-              triggerEvent: 'New Financial Inquiry Submitted',
-              overallStatus: toolResult.result.workflowStatus || 'success',
-              hasSimulatedSteps: !toolResult.result.customerConfirmationAllowed,
-              failedStepIds: [],
-              customerConfirmationAllowed: !!toolResult.result.customerConfirmationAllowed,
-              startedAt: new Date().toISOString(),
-              completedAt: new Date().toISOString(),
-              durationMs: 0,
-              steps: toolResult.result.steps || [],
-              n8nResult: { status: 'dispatched' },
-            }
-            safeWorkflowMessage = getFinancialCustomerMessage(workflowResult, {
-              client_name: toolResult.result.client_name,
-              client_phone: toolResult.result.client_phone,
-              client_email: toolResult.result.client_email,
-              product_category: toolResult.result.product_category,
-              amount_range: toolResult.result.amount_range,
-              employment_type: toolResult.result.employment_type,
-              annual_income: toolResult.result.annual_income,
-              kyc_status: toolResult.result.kyc_status,
-              preferred_date: toolResult.result.preferred_date,
-              preferred_time: toolResult.result.preferred_time,
-              assigned_advisor: toolResult.result.assigned_advisor,
-              meeting_mode: toolResult.result.meeting_mode,
-            })
-          }
+        const outcome = extractWorkflowOutcome(toolResult)
+        if (outcome.workflowResult) {
+          workflowResult = outcome.workflowResult
+        }
+        if (outcome.safeWorkflowMessage) {
+          safeWorkflowMessage = outcome.safeWorkflowMessage
+        }
+        if (outcome.leadResult !== undefined) {
+          leadResult = outcome.leadResult
+        }
+        if (outcome.bookingResult !== undefined) {
+          bookingResult = outcome.bookingResult
         }
 
         turnFunctionResponses.push({
