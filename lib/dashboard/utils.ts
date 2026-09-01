@@ -1,0 +1,137 @@
+/**
+ * Grovaitech AI Platform
+ * lib/dashboard/utils.ts
+ *
+ * Pure utilities and canonical fallback dataset for Grovaitech Operational Dashboard.
+ */
+
+import type { GetDashboardDataResult } from '@/types/dashboard'
+
+export const CANONICAL_FALLBACK_DASHBOARD: GetDashboardDataResult = {
+  success: true,
+  isFallback: true,
+  stats: {
+    totalConversations: 1248,
+    totalLeads: 94,
+    totalAppointments: 36,
+    totalWorkflowRuns: 62,
+    workflowSuccessRate: 98.4,
+    activeAgentsCount: 2,
+    documentsCount: 8,
+    revenuePipelineEstimate: '₹2.4 Lakhs',
+  },
+  recentLeads: [
+    {
+      id: 'lead-fallback-1',
+      name: 'Suresh Kumar',
+      source: 'WhatsApp',
+      employee: 'Real Estate Lead Receptionist',
+      status: 'Qualified',
+      budget: '₹1.2 Cr',
+      location: 'Tirupati',
+      time: '10 mins ago',
+      created_at: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
+    },
+    {
+      id: 'lead-fallback-2',
+      name: 'Ram Charan',
+      source: 'AI Demo',
+      employee: 'Real Estate Lead Receptionist',
+      status: 'Qualified',
+      budget: '₹85 Lakhs',
+      location: 'Nellore',
+      time: '1 hour ago',
+      created_at: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+    },
+    {
+      id: 'lead-fallback-3',
+      name: 'Priya Sharma',
+      source: 'AI Demo',
+      employee: 'Clinic Receptionist',
+      status: 'Site Visit',
+      budget: 'Standard',
+      location: 'Tirupati',
+      time: '3 hours ago',
+      created_at: new Date(Date.now() - 1000 * 60 * 180).toISOString(),
+    },
+    {
+      id: 'lead-fallback-4',
+      name: 'Anil Reddy',
+      source: 'Web Chat',
+      employee: 'Real Estate Lead Receptionist',
+      status: 'Qualified',
+      budget: '₹1.5 Cr',
+      location: 'Tirupati',
+      time: '1 day ago',
+      created_at: new Date(Date.now() - 1000 * 60 * 1440).toISOString(),
+    },
+  ],
+  recentWorkflows: [
+    {
+      id: 'wf-fallback-1',
+      workflowId: 'wf-001',
+      workflowName: 'Real Estate Lead ➔ WhatsApp & Site Visit Sync',
+      leadName: 'Suresh Kumar',
+      status: 'success',
+      durationMs: 320,
+      startedAt: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
+      payloadSummary: 'Qualified ₹1.2 Cr Villa lead in Tirupati. WhatsApp sent & calendar blocked.',
+    },
+    {
+      id: 'wf-fallback-2',
+      workflowId: 'wf-002',
+      workflowName: 'Clinic Appointment Booking & Reminder Pipeline',
+      leadName: 'Priya Sharma',
+      status: 'success',
+      durationMs: 410,
+      startedAt: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
+      payloadSummary: 'Dental consultation confirmed for Monday 10:00 AM. Dr. Verma notified.',
+    },
+    {
+      id: 'wf-fallback-3',
+      workflowId: 'wf-001',
+      workflowName: 'Real Estate Lead ➔ WhatsApp & Site Visit Sync',
+      leadName: 'Ram Charan',
+      status: 'success',
+      durationMs: 285,
+      startedAt: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
+      payloadSummary: 'Qualified ₹85 Lakh 2BHK flat lead in Nellore. Saturday site visit scheduled.',
+    },
+  ],
+  employeesStatus: [
+    {
+      name: 'Real Estate Lead Receptionist',
+      slug: 'real-estate-lead-receptionist',
+      role: 'Property Lead capture & Site visit sync',
+      status: 'READY',
+      metric: '48 workflow actions executed',
+      totalActions: 48,
+      badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    },
+    {
+      name: 'Clinic Receptionist',
+      slug: 'clinic-receptionist',
+      role: 'Medical front-desk & appointment sync',
+      status: 'READY',
+      metric: '14 appointments scheduled',
+      totalActions: 14,
+      badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    },
+    {
+      name: 'Customer Support Agent',
+      slug: 'customer-support-agent',
+      role: 'Omnichannel triage & escalation',
+      status: 'READY',
+      metric: 'Active standby',
+      totalActions: 0,
+      badgeColor: 'bg-blue-50 text-blue-700 border-blue-100',
+    },
+  ],
+  leadSources: [
+    { label: 'WhatsApp', percentage: 45, color: '#10B981', count: 42 },
+    { label: 'AI Demo', percentage: 30, color: '#3B82F6', count: 28 },
+    { label: 'Web Chat', percentage: 15, color: '#8B5CF6', count: 14 },
+    { label: 'Other', percentage: 10, color: '#F59E0B', count: 10 },
+  ],
+  activityTrend: [25, 40, 32, 55, 75, 60, 85, 70, 95, 90, 110, 128],
+}
