@@ -89,6 +89,103 @@ function sanitizePhone(val: any): string {
   return val.trim().replace(/[^\d+]/g, '')
 }
 
+// ─── Declarative Parameter Validator ────────────────────────────────────────
+
+export interface FieldRule {
+  type?: 'string' | 'phone' | 'email' | 'number'
+  required?: boolean
+  requiredMessage?: string
+  minLength?: number
+  minLengthMessage?: string
+  maxLength?: number
+  enum?: readonly string[] | string[]
+  enumMessage?: string
+  strictEnum?: boolean
+  default?: any
+  aliases?: string[]
+}
+
+export type ParamSchema = Record<string, FieldRule>
+
+/**
+ * Lightweight, zero-dependency declarative argument validator and sanitizer.
+ */
+export function validateParams(
+  rawArgs: Record<string, any>,
+  schema: ParamSchema
+): Record<string, any> {
+  const result: Record<string, any> = {}
+
+  for (const [key, rule] of Object.entries(schema)) {
+    // 1. Resolve raw value from key or alias
+    let rawVal = rawArgs?.[key]
+    if (rawVal === undefined && rule.aliases) {
+      for (const alias of rule.aliases) {
+        if (rawArgs?.[alias] !== undefined) {
+          rawVal = rawArgs[alias]
+          break
+        }
+      }
+    }
+
+    // 2. Format / Sanitize value according to type
+    let val: any
+    if (rule.type === 'phone') {
+      val = sanitizePhone(rawVal)
+    } else if (rule.type === 'number') {
+      val = typeof rawVal === 'number' ? rawVal : (rule.default ?? undefined)
+    } else {
+      val = sanitizeString(rawVal, rule.maxLength)
+    }
+
+    // 3. Required check
+    if (!val || (rule.type === 'number' && typeof val !== 'number')) {
+      if (rule.required) {
+        throw new Error(rule.requiredMessage || `Validation Error: '${key}' is required.`)
+      }
+      val = rule.default !== undefined ? rule.default : undefined
+      result[key] = val
+      continue
+    }
+
+    // 4. Min length check
+    if (rule.minLength && typeof val === 'string' && val.length < rule.minLength) {
+      throw new Error(
+        rule.minLengthMessage ||
+          rule.requiredMessage ||
+          `Validation Error: '${key}' must be at least ${rule.minLength} characters.`
+      )
+    }
+
+    // 5. Email format check
+    if (rule.type === 'email' && typeof val === 'string' && !val.includes('@')) {
+      throw new Error(
+        rule.requiredMessage || `Validation Error: A valid '${key}' is required.`
+      )
+    }
+
+    // 6. Enum check
+    if (rule.enum && typeof val === 'string') {
+      const lower = val.toLowerCase()
+      const match = rule.enum.find((e) => e.toLowerCase() === lower)
+      if (match) {
+        val = match
+      } else if (rule.strictEnum) {
+        throw new Error(
+          rule.enumMessage ||
+            `Validation Error: '${key}' must be one of: ${rule.enum.join(', ')}.`
+        )
+      } else {
+        val = rule.default !== undefined ? rule.default : rule.enum[0]
+      }
+    }
+
+    result[key] = val
+  }
+
+  return result
+}
+
 // ─── Tool Handlers ───────────────────────────────────────────────────────────
 
 /**
@@ -96,41 +193,31 @@ function sanitizePhone(val: any): string {
  * Connects to existing lead creation action (app/actions/leads.ts).
  */
 async function handleCreateLead(rawArgs: Record<string, any>): Promise<any> {
-  const name = sanitizeString(rawArgs.name)
-  const phone = sanitizePhone(rawArgs.phone)
-  const email = sanitizeString(rawArgs.email) || undefined
-  const location = sanitizeString(rawArgs.location) || 'Tirupati'
-  const budget = sanitizeString(rawArgs.budget) || 'Standard'
-  const timeline = sanitizeString(rawArgs.timeline) || 'Flexible'
-  const notes = sanitizeString(rawArgs.notes) || undefined
-
-  if (!name) {
-    throw new Error("Validation Error: 'name' is required for create_lead.")
-  }
-  if (!phone || phone.length < 7) {
-    throw new Error("Validation Error: A valid 'phone' is required for create_lead.")
-  }
-
-  const validPropertyTypes = ['villa', 'apartment', 'house', 'plot', 'commercial', 'other'] as const
-  let property_type: typeof validPropertyTypes[number] = 'villa'
-  if (rawArgs.property_type && validPropertyTypes.includes(rawArgs.property_type.toLowerCase())) {
-    property_type = rawArgs.property_type.toLowerCase() as typeof validPropertyTypes[number]
-  }
+  const p = validateParams(rawArgs, {
+    name: { type: 'string', required: true, requiredMessage: "Validation Error: 'name' is required for create_lead." },
+    phone: { type: 'phone', required: true, minLength: 7, requiredMessage: "Validation Error: A valid 'phone' is required for create_lead." },
+    email: { type: 'string' },
+    location: { type: 'string', default: 'Tirupati' },
+    budget: { type: 'string', default: 'Standard' },
+    timeline: { type: 'string', default: 'Flexible' },
+    notes: { type: 'string' },
+    property_type: { type: 'string', enum: ['villa', 'apartment', 'house', 'plot', 'commercial', 'other'], default: 'villa' },
+  })
 
   const isWhatsApp = rawArgs.source === 'whatsapp' || rawArgs.channel === 'whatsapp'
   const source = isWhatsApp ? ('whatsapp' as const) : ('ai_demo' as const)
 
   const leadPayload: LeadData = {
-    name,
-    phone,
-    email,
-    property_type,
-    location,
-    budget,
-    timeline,
+    name: p.name,
+    phone: p.phone,
+    email: p.email,
+    property_type: p.property_type,
+    location: p.location,
+    budget: p.budget,
+    timeline: p.timeline,
     lead_score: 'warm',
     lead_status: 'qualified',
-    notes: notes ? `[Gemini Tool] ${notes}` : '[Gemini Tool] Lead registered via AI tool call',
+    notes: p.notes ? `[Gemini Tool] ${p.notes}` : '[Gemini Tool] Lead registered via AI tool call',
     source,
   }
 
@@ -146,14 +233,14 @@ async function handleCreateLead(rawArgs: Record<string, any>): Promise<any> {
         leadId: result.data?.id || '',
         conversationId: sanitizeString(rawArgs.conversation_id || rawArgs.chat_id || ''),
         lead: {
-          name,
-          phone,
-          property_type,
-          location,
-          budget,
-          timeline,
+          name: p.name,
+          phone: p.phone,
+          property_type: p.property_type,
+          location: p.location,
+          budget: p.budget,
+          timeline: p.timeline,
           intent: sanitizeString(rawArgs.intent) || undefined,
-          notes,
+          notes: p.notes,
         },
       })
     } catch (wfErr) {
@@ -162,8 +249,8 @@ async function handleCreateLead(rawArgs: Record<string, any>): Promise<any> {
   }
 
   const confirmationMessage = workflowResult
-    ? getWhatsAppLeadCustomerMessage(workflowResult, { name, property_type, location })
-    : `Lead for ${name} (${phone}) successfully registered in Grovaitech CRM.`
+    ? getWhatsAppLeadCustomerMessage(workflowResult, { name: p.name, property_type: p.property_type, location: p.location })
+    : `Lead for ${p.name} (${p.phone}) successfully registered in Grovaitech CRM.`
 
   return {
     leadId: result.data?.id,
@@ -179,80 +266,72 @@ async function handleCreateLead(rawArgs: Record<string, any>): Promise<any> {
  * Connects to existing lead registration and real estate workflow engine (wf-001).
  */
 async function handleScheduleSiteVisit(rawArgs: Record<string, any>): Promise<any> {
-  const customerName = sanitizeString(rawArgs.customer_name)
-  const phone = sanitizePhone(rawArgs.phone)
-  const preferredDate = sanitizeString(rawArgs.preferred_date)
-  const preferredTime = sanitizeString(rawArgs.preferred_time) || 'Morning (10:30 AM)'
-  const propertyType = sanitizeString(rawArgs.property_type) || 'Villa'
-  const location = sanitizeString(rawArgs.location) || 'Tirupati'
-  const notes = sanitizeString(rawArgs.notes) || undefined
-  const leadId = sanitizeString(rawArgs.lead_id) || undefined
-
-  if (!customerName) {
-    throw new Error("Validation Error: 'customer_name' is required to schedule a site visit.")
-  }
-  if (!phone || phone.length < 7) {
-    throw new Error("Validation Error: 'phone' is required to coordinate the site visit.")
-  }
-  if (!preferredDate) {
-    throw new Error("Validation Error: 'preferred_date' is required to schedule a site visit.")
-  }
+  const p = validateParams(rawArgs, {
+    customer_name: { type: 'string', required: true, requiredMessage: "Validation Error: 'customer_name' is required to schedule a site visit." },
+    phone: { type: 'phone', required: true, minLength: 7, requiredMessage: "Validation Error: 'phone' is required to coordinate the site visit." },
+    preferred_date: { type: 'string', required: true, requiredMessage: "Validation Error: 'preferred_date' is required to schedule a site visit." },
+    preferred_time: { type: 'string', default: 'Morning (10:30 AM)' },
+    property_type: { type: 'string', default: 'Villa' },
+    location: { type: 'string', default: 'Tirupati' },
+    notes: { type: 'string' },
+    lead_id: { type: 'string' },
+  })
 
   // 1. Ensure lead record is registered / updated in Supabase with site visit flag
   const leadPayload: LeadData = {
-    name: customerName,
-    phone,
-    location,
+    name: p.customer_name,
+    phone: p.phone,
+    location: p.location,
     budget: 'Standard',
-    timeline: preferredDate,
+    timeline: p.preferred_date,
     site_visit_requested: true,
-    site_visit_date: preferredDate,
-    site_visit_time: preferredTime,
+    site_visit_date: p.preferred_date,
+    site_visit_time: p.preferred_time,
     lead_score: 'hot',
     lead_status: 'site_visit',
-    notes: notes ? `[Site Visit Tool] ${notes}` : `[Site Visit Tool] Site visit requested for ${preferredDate} at ${preferredTime}`,
+    notes: p.notes ? `[Site Visit Tool] ${p.notes}` : `[Site Visit Tool] Site visit requested for ${p.preferred_date} at ${p.preferred_time}`,
     source: 'ai_demo',
   }
 
   const leadSaveResult = await createLead(leadPayload)
-  const effectiveLeadId = leadSaveResult.data?.id || leadId || `lead-visit-${Date.now()}`
+  const effectiveLeadId = leadSaveResult.data?.id || p.lead_id || `lead-visit-${Date.now()}`
 
   // 2. Dispatch canonical workflow wf-001
   const workflowResult = await executeRealEstateWorkflow({
     leadId: effectiveLeadId,
     conversationId: `tool-call-${Date.now()}`,
     lead: {
-      name: customerName,
-      phone,
+      name: p.customer_name,
+      phone: p.phone,
       email: null,
-      property_type: (propertyType.toLowerCase() as any) || 'villa',
+      property_type: (p.property_type.toLowerCase() as any) || 'villa',
       bhk: null,
-      location,
+      location: p.location,
       budget: 'Standard',
-      timeline: preferredDate,
+      timeline: p.preferred_date,
       intent: 'Site Visit',
       qualification_score: 95,
       qualification_status: 'qualified',
       site_visit_requested: true,
-      site_visit_date: preferredDate,
-      site_visit_time: preferredTime,
+      site_visit_date: p.preferred_date,
+      site_visit_time: p.preferred_time,
     },
   })
 
   return {
     leadId: effectiveLeadId,
-    customerName,
-    phone,
-    preferredDate,
-    preferredTime,
+    customerName: p.customer_name,
+    phone: p.phone,
+    preferredDate: p.preferred_date,
+    preferredTime: p.preferred_time,
     workflowId: workflowResult.workflowId,
     workflowStatus: workflowResult.overallStatus,
     customerConfirmationAllowed: workflowResult.customerConfirmationAllowed,
     steps: workflowResult.steps,
     message: getSiteVisitCustomerMessage(workflowResult, {
-      customerName,
-      preferredDate,
-      preferredTime,
+      customerName: p.customer_name,
+      preferredDate: p.preferred_date,
+      preferredTime: p.preferred_time,
     }),
   }
 }
@@ -262,57 +341,46 @@ async function handleScheduleSiteVisit(rawArgs: Record<string, any>): Promise<an
  * Connects to clinic appointment booking & reminder workflow engine (wf-002).
  */
 async function handleBookClinicAppointment(rawArgs: Record<string, any>): Promise<any> {
-  const patientName = sanitizeString(rawArgs.patient_name)
-  const patientPhone = sanitizePhone(rawArgs.patient_phone)
-  const patientEmail = sanitizeString(rawArgs.patient_email) || undefined
-  const appointmentDate = sanitizeString(rawArgs.appointment_date)
-  const appointmentTime = sanitizeString(rawArgs.appointment_time)
-  const doctorName = sanitizeString(rawArgs.doctor_name) || 'Dr. Verma'
-  const reason = sanitizeString(rawArgs.reason) || 'General Consultation'
-
-  if (!patientName) {
-    throw new Error("Validation Error: 'patient_name' is required for clinic booking.")
-  }
-  if (!patientPhone || patientPhone.length < 7) {
-    throw new Error("Validation Error: 'patient_phone' is required for appointment confirmation.")
-  }
-  if (!appointmentDate) {
-    throw new Error("Validation Error: 'appointment_date' (YYYY-MM-DD) is required.")
-  }
-  if (!appointmentTime) {
-    throw new Error("Validation Error: 'appointment_time' is required.")
-  }
+  const p = validateParams(rawArgs, {
+    patient_name: { type: 'string', required: true, requiredMessage: "Validation Error: 'patient_name' is required for clinic booking." },
+    patient_phone: { type: 'phone', required: true, minLength: 7, requiredMessage: "Validation Error: 'patient_phone' is required for appointment confirmation." },
+    appointment_date: { type: 'string', required: true, requiredMessage: "Validation Error: 'appointment_date' (YYYY-MM-DD) is required." },
+    appointment_time: { type: 'string', required: true, requiredMessage: "Validation Error: 'appointment_time' is required." },
+    patient_email: { type: 'string' },
+    doctor_name: { type: 'string', default: 'Dr. Verma' },
+    reason: { type: 'string', default: 'General Consultation' },
+  })
 
   const workflowResult = await executeClinicWorkflow({
     patient: {
-      patient_name: patientName,
-      patient_phone: patientPhone,
-      patient_email: patientEmail,
-      appointment_date: appointmentDate,
-      appointment_time: appointmentTime,
-      doctor_name: doctorName,
-      reason,
+      patient_name: p.patient_name,
+      patient_phone: p.patient_phone,
+      patient_email: p.patient_email,
+      appointment_date: p.appointment_date,
+      appointment_time: p.appointment_time,
+      doctor_name: p.doctor_name,
+      reason: p.reason,
     },
     conversationId: `tool-clinic-${Date.now()}`,
   })
 
   return {
     bookingId: workflowResult.leadId,
-    patientName,
-    patientPhone,
-    appointmentDate,
-    appointmentTime,
-    doctorName,
-    reason,
+    patientName: p.patient_name,
+    patientPhone: p.patient_phone,
+    appointmentDate: p.appointment_date,
+    appointmentTime: p.appointment_time,
+    doctorName: p.doctor_name,
+    reason: p.reason,
     workflowId: workflowResult.workflowId,
     workflowStatus: workflowResult.overallStatus,
     customerConfirmationAllowed: workflowResult.customerConfirmationAllowed,
     steps: workflowResult.steps,
     message: getClinicCustomerMessage(workflowResult, {
-      patientName,
-      appointmentDate,
-      appointmentTime,
-      doctorName,
+      patientName: p.patient_name,
+      appointmentDate: p.appointment_date,
+      appointmentTime: p.appointment_time,
+      doctorName: p.doctor_name,
     }),
   }
 }
@@ -322,13 +390,11 @@ async function handleBookClinicAppointment(rawArgs: Record<string, any>): Promis
  * Reuses existing RAG search logic from app/api/rag-search/route.ts.
  */
 async function handleSearchKnowledgeBase(rawArgs: Record<string, any>): Promise<any> {
-  const query = sanitizeString(rawArgs.query)
-  const category = sanitizeString(rawArgs.category) || 'general'
+  const p = validateParams(rawArgs, {
+    query: { type: 'string', required: true, requiredMessage: "Validation Error: 'query' is required for search_knowledge_base." },
+    category: { type: 'string', default: 'general' },
+  })
   const maxResults = typeof rawArgs.max_results === 'number' ? Math.min(rawArgs.max_results, 10) : 3
-
-  if (!query) {
-    throw new Error("Validation Error: 'query' is required for search_knowledge_base.")
-  }
 
   // Fetch document metadata from Supabase
   let docNames = 'Clinic FAQs, Real Estate Brochure, Pricing Guide, Company Policies'
@@ -350,16 +416,16 @@ async function handleSearchKnowledgeBase(rawArgs: Record<string, any>): Promise<
   const ragPrompt = `
 You are GrovAI, a Knowledge Base Search assistant for Grovaitech AI Workforce OS.
 Available Business Documents: [${docNames}]
-Category Filter: "${category}"
-Search Query: "${query}"
+Category Filter: "${p.category}"
+Search Query: "${p.query}"
 
 Provide a factual, concise response answering the search query based on these enterprise documents. Mention the relevant document source.`
 
   const answer = await generateResponse(ragPrompt)
 
   return {
-    query,
-    category,
+    query: p.query,
+    category: p.category,
     answer,
     referencedDocs: docNames,
   }
@@ -369,37 +435,32 @@ Provide a factual, concise response answering the search query based on these en
  * Handler for 'escalate_to_human'
  */
 async function handleEscalateToHuman(rawArgs: Record<string, any>) {
-  const reason = sanitizeString(rawArgs.reason || 'General Customer Assistance', 200)
-  const summary = sanitizeString(rawArgs.summary || 'Customer requested human assistance.', 500)
-  const urgency = sanitizeString(rawArgs.urgency || 'medium', 20).toLowerCase()
-  const customerName = sanitizeString(rawArgs.customer_name || rawArgs.name || '', 100)
-  const phone = sanitizeString(rawArgs.phone || '', 30)
-  const email = sanitizeString(rawArgs.email || '', 100)
-  const conversationId = sanitizeString(rawArgs.conversation_id || rawArgs.chat_id || '', 100)
-
-  if (!reason || reason.length < 3) {
-    throw new Error("Validation Error: 'reason' must be at least 3 characters.")
-  }
-  if (!summary || summary.length < 5) {
-    throw new Error("Validation Error: 'summary' must be at least 5 characters.")
-  }
+  const p = validateParams(rawArgs, {
+    reason: { type: 'string', default: 'General Customer Assistance', maxLength: 200, minLength: 3, minLengthMessage: "Validation Error: 'reason' must be at least 3 characters." },
+    summary: { type: 'string', default: 'Customer requested human assistance.', maxLength: 500, minLength: 5, minLengthMessage: "Validation Error: 'summary' must be at least 5 characters." },
+    urgency: { type: 'string', default: 'medium', maxLength: 20 },
+    customer_name: { type: 'string', maxLength: 100, aliases: ['name'] },
+    phone: { type: 'string', maxLength: 30 },
+    email: { type: 'string', maxLength: 100 },
+    conversation_id: { type: 'string', maxLength: 100, aliases: ['chat_id'] },
+  })
 
   const workflowRes = await executeSupportEscalationWorkflow({
-    conversationId,
+    conversationId: p.conversation_id || '',
     escalation: {
-      customer_name: customerName || undefined,
-      reason,
-      urgency,
-      summary,
-      phone: phone || undefined,
-      email: email || undefined,
+      customer_name: p.customer_name || undefined,
+      reason: p.reason,
+      urgency: p.urgency.toLowerCase(),
+      summary: p.summary,
+      phone: p.phone || undefined,
+      email: p.email || undefined,
     },
   })
 
   const message = getEscalationCustomerMessage(workflowRes, {
-    customerName: customerName || undefined,
-    reason,
-    urgency,
+    customerName: p.customer_name || undefined,
+    reason: p.reason,
+    urgency: p.urgency.toLowerCase(),
   })
 
   return {
@@ -407,9 +468,9 @@ async function handleEscalateToHuman(rawArgs: Record<string, any>) {
     workflowId: workflowRes.workflowId,
     executionId: workflowRes.executionId,
     workflowStatus: workflowRes.overallStatus,
-    reason,
-    urgency,
-    customerName: customerName || undefined,
+    reason: p.reason,
+    urgency: p.urgency.toLowerCase(),
+    customerName: p.customer_name || undefined,
     message,
     steps: workflowRes.steps,
   }
@@ -420,55 +481,41 @@ async function handleEscalateToHuman(rawArgs: Record<string, any>) {
  * Connects to canonical salon workflow engine (wf-007).
  */
 async function handleBookSalonService(rawArgs: Record<string, any>): Promise<any> {
-  const clientName = sanitizeString(rawArgs.client_name || rawArgs.name, 100)
-  const clientPhone = sanitizePhone(rawArgs.client_phone || rawArgs.phone)
-  const clientEmail = sanitizeString(rawArgs.client_email || rawArgs.email, 100) || undefined
-  const serviceName = sanitizeString(rawArgs.service_name || rawArgs.service, 150)
-  const appointmentDate = sanitizeString(rawArgs.appointment_date || rawArgs.date, 50)
-  const appointmentTime = sanitizeString(rawArgs.appointment_time || rawArgs.time, 50)
-  const stylistPreference = sanitizeString(rawArgs.stylist_preference || rawArgs.stylist, 100) || undefined
-  const notes = sanitizeString(rawArgs.notes, 500) || undefined
-  const conversationId = sanitizeString(rawArgs.conversation_id || rawArgs.chat_id, 100)
-
-  if (!clientName) {
-    throw new Error("Validation Error: 'client_name' is required to book a salon appointment.")
-  }
-  if (!clientPhone || clientPhone.length < 7) {
-    throw new Error("Validation Error: A valid 'client_phone' is required to book a salon appointment.")
-  }
-  if (!serviceName) {
-    throw new Error("Validation Error: 'service_name' is required to book a salon appointment.")
-  }
-  if (!appointmentDate) {
-    throw new Error("Validation Error: 'appointment_date' is required to book a salon appointment.")
-  }
-  if (!appointmentTime) {
-    throw new Error("Validation Error: 'appointment_time' is required to book a salon appointment.")
-  }
+  const p = validateParams(rawArgs, {
+    client_name: { type: 'string', required: true, maxLength: 100, aliases: ['name'], requiredMessage: "Validation Error: 'client_name' is required to book a salon appointment." },
+    client_phone: { type: 'phone', required: true, minLength: 7, aliases: ['phone'], requiredMessage: "Validation Error: A valid 'client_phone' is required to book a salon appointment.", minLengthMessage: "Validation Error: A valid 'client_phone' is required to book a salon appointment." },
+    service_name: { type: 'string', required: true, maxLength: 150, aliases: ['service'], requiredMessage: "Validation Error: 'service_name' is required to book a salon appointment." },
+    appointment_date: { type: 'string', required: true, maxLength: 50, aliases: ['date'], requiredMessage: "Validation Error: 'appointment_date' is required to book a salon appointment." },
+    appointment_time: { type: 'string', required: true, maxLength: 50, aliases: ['time'], requiredMessage: "Validation Error: 'appointment_time' is required to book a salon appointment." },
+    stylist_preference: { type: 'string', maxLength: 100, aliases: ['stylist'] },
+    client_email: { type: 'string', maxLength: 100, aliases: ['email'] },
+    notes: { type: 'string', maxLength: 500 },
+    conversation_id: { type: 'string', maxLength: 100, aliases: ['chat_id'] },
+  })
 
   const bookingId = `salon-bk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
 
   const workflowRes = await executeSalonWorkflow({
     bookingId,
-    conversationId,
+    conversationId: p.conversation_id || '',
     client: {
-      client_name: clientName,
-      client_phone: clientPhone,
-      client_email: clientEmail,
-      service_name: serviceName,
-      appointment_date: appointmentDate,
-      appointment_time: appointmentTime,
-      stylist_preference: stylistPreference,
-      notes,
+      client_name: p.client_name,
+      client_phone: p.client_phone,
+      client_email: p.client_email,
+      service_name: p.service_name,
+      appointment_date: p.appointment_date,
+      appointment_time: p.appointment_time,
+      stylist_preference: p.stylist_preference,
+      notes: p.notes,
     },
   })
 
   const message = getSalonCustomerMessage(workflowRes, {
-    client_name: clientName,
-    service_name: serviceName,
-    appointment_date: appointmentDate,
-    appointment_time: appointmentTime,
-    stylist_preference: stylistPreference,
+    client_name: p.client_name,
+    service_name: p.service_name,
+    appointment_date: p.appointment_date,
+    appointment_time: p.appointment_time,
+    stylist_preference: p.stylist_preference,
   })
 
   return {
@@ -476,11 +523,11 @@ async function handleBookSalonService(rawArgs: Record<string, any>): Promise<any
     workflowId: workflowRes.workflowId,
     executionId: workflowRes.executionId,
     workflowStatus: workflowRes.overallStatus,
-    clientName,
-    serviceName,
-    appointmentDate,
-    appointmentTime,
-    stylistPreference,
+    clientName: p.client_name,
+    serviceName: p.service_name,
+    appointmentDate: p.appointment_date,
+    appointmentTime: p.appointment_time,
+    stylistPreference: p.stylist_preference,
     message,
     steps: workflowRes.steps,
   }
@@ -659,70 +706,42 @@ async function handleAuditConversationQuality(rawArgs: Record<string, any>): Pro
  * Connects to Legal Intake Workflow Engine (wf-006).
  */
 async function handleBookLegalConsultation(rawArgs: Record<string, any>): Promise<any> {
-  const client_name = sanitizeString(rawArgs.client_name)
-  const client_phone = sanitizePhone(rawArgs.client_phone)
-  const client_email = sanitizeString(rawArgs.client_email)
-  const matter_summary = sanitizeString(rawArgs.matter_summary)
-  const opposing_party = sanitizeString(rawArgs.opposing_party) || 'None'
-  const preferred_date = sanitizeString(rawArgs.preferred_date)
-  const preferred_time = sanitizeString(rawArgs.preferred_time)
-  const notes = sanitizeString(rawArgs.notes) || undefined
-
-  if (!client_name) {
-    throw new Error("Validation Error: 'client_name' is required for legal consultation intake.")
-  }
-  if (!client_phone || client_phone.length < 7) {
-    throw new Error("Validation Error: A valid 'client_phone' is required for legal consultation intake.")
-  }
-  if (!client_email || !client_email.includes('@')) {
-    throw new Error("Validation Error: A valid 'client_email' is required for legal consultation intake.")
-  }
-  if (!matter_summary) {
-    throw new Error("Validation Error: 'matter_summary' is required for legal consultation intake.")
-  }
-  if (!preferred_date) {
-    throw new Error("Validation Error: 'preferred_date' is required for legal consultation intake.")
-  }
-  if (!preferred_time) {
-    throw new Error("Validation Error: 'preferred_time' is required for legal consultation intake.")
-  }
-
-  const validPracticeAreas = [
-    'corporate',
-    'litigation',
-    'family',
-    'criminal',
-    'real_estate',
-    'employment',
-    'ip',
-    'other',
-  ] as const
-  const practiceAreaRaw = (rawArgs.practice_area || '').trim().toLowerCase()
-  if (!validPracticeAreas.includes(practiceAreaRaw as any)) {
-    throw new Error(
-      `Validation Error: 'practice_area' must be one of: ${validPracticeAreas.join(', ')}.`
-    )
-  }
-  const practice_area = practiceAreaRaw as typeof validPracticeAreas[number]
-
-  const validUrgencies = ['routine', 'urgent', 'critical'] as const
-  const urgencyRaw = (rawArgs.urgency || '').trim().toLowerCase()
-  if (!validUrgencies.includes(urgencyRaw as any)) {
-    throw new Error(`Validation Error: 'urgency' must be one of: ${validUrgencies.join(', ')}.`)
-  }
-  const urgency = urgencyRaw as typeof validUrgencies[number]
+  const p = validateParams(rawArgs, {
+    client_name: { type: 'string', required: true, requiredMessage: "Validation Error: 'client_name' is required for legal consultation intake." },
+    client_phone: { type: 'phone', required: true, minLength: 7, requiredMessage: "Validation Error: A valid 'client_phone' is required for legal consultation intake.", minLengthMessage: "Validation Error: A valid 'client_phone' is required for legal consultation intake." },
+    client_email: { type: 'email', required: true, requiredMessage: "Validation Error: A valid 'client_email' is required for legal consultation intake." },
+    matter_summary: { type: 'string', required: true, requiredMessage: "Validation Error: 'matter_summary' is required for legal consultation intake." },
+    preferred_date: { type: 'string', required: true, requiredMessage: "Validation Error: 'preferred_date' is required for legal consultation intake." },
+    preferred_time: { type: 'string', required: true, requiredMessage: "Validation Error: 'preferred_time' is required for legal consultation intake." },
+    practice_area: {
+      type: 'string',
+      required: true,
+      strictEnum: true,
+      enum: ['corporate', 'litigation', 'family', 'criminal', 'real_estate', 'employment', 'ip', 'other'],
+      enumMessage: "Validation Error: 'practice_area' must be one of: corporate, litigation, family, criminal, real_estate, employment, ip, other.",
+    },
+    urgency: {
+      type: 'string',
+      required: true,
+      strictEnum: true,
+      enum: ['routine', 'urgent', 'critical'],
+      enumMessage: "Validation Error: 'urgency' must be one of: routine, urgent, critical.",
+    },
+    opposing_party: { type: 'string', default: 'None' },
+    notes: { type: 'string' },
+  })
 
   const intakePayload: LegalIntakeData = {
-    client_name,
-    client_phone,
-    client_email,
-    practice_area,
-    matter_summary,
-    opposing_party,
-    urgency,
-    preferred_date,
-    preferred_time,
-    notes,
+    client_name: p.client_name,
+    client_phone: p.client_phone,
+    client_email: p.client_email,
+    practice_area: p.practice_area,
+    matter_summary: p.matter_summary,
+    opposing_party: p.opposing_party,
+    urgency: p.urgency,
+    preferred_date: p.preferred_date,
+    preferred_time: p.preferred_time,
+    notes: p.notes,
   }
 
   const intakeId = `legal-intake-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
@@ -740,15 +759,15 @@ async function handleBookLegalConsultation(rawArgs: Record<string, any>): Promis
     intakeId,
     workflowId: workflowResult.workflowId,
     executionId: workflowResult.executionId,
-    client_name,
-    client_phone,
-    client_email,
-    practice_area,
-    matter_summary,
-    opposing_party,
-    urgency,
-    preferred_date,
-    preferred_time,
+    client_name: p.client_name,
+    client_phone: p.client_phone,
+    client_email: p.client_email,
+    practice_area: p.practice_area,
+    matter_summary: p.matter_summary,
+    opposing_party: p.opposing_party,
+    urgency: p.urgency,
+    preferred_date: p.preferred_date,
+    preferred_time: p.preferred_time,
     conflict_status: intakePayload.conflict_status || 'clear',
     workflowStatus: workflowResult.overallStatus,
     customerConfirmationAllowed: workflowResult.customerConfirmationAllowed,
@@ -762,36 +781,40 @@ async function handleBookLegalConsultation(rawArgs: Record<string, any>): Promis
  * Connects to E-Commerce Order Tracking & Returns Pipeline (wf-008).
  */
 async function handleLookupOrderAndSupport(rawArgs: Record<string, any>): Promise<any> {
-  const order_id = sanitizeString(rawArgs.order_id)
-  const customer_email = sanitizeString(rawArgs.customer_email) || undefined
-  const customer_phone = sanitizePhone(rawArgs.customer_phone) || undefined
-  const item_details = sanitizeString(rawArgs.item_details) || undefined
-  const reason = sanitizeString(rawArgs.reason) || undefined
-  const notes = sanitizeString(rawArgs.notes) || undefined
+  const p = validateParams(rawArgs, {
+    order_id: {
+      type: 'string',
+      required: true,
+      minLength: 3,
+      requiredMessage: "Validation Error: A valid 'order_id' (minimum 3 characters) is required for store support lookup.",
+      minLengthMessage: "Validation Error: A valid 'order_id' (minimum 3 characters) is required for store support lookup.",
+    },
+    customer_email: { type: 'string' },
+    customer_phone: { type: 'phone' },
+    action_type: {
+      type: 'string',
+      required: true,
+      strictEnum: true,
+      enum: ['track_order', 'return_request', 'exchange_request', 'cancel_request'],
+      enumMessage: "Validation Error: 'action_type' must be one of: track_order, return_request, exchange_request, cancel_request.",
+    },
+    item_details: { type: 'string' },
+    reason: { type: 'string' },
+    notes: { type: 'string' },
+  })
 
-  if (!order_id || order_id.length < 3) {
-    throw new Error("Validation Error: A valid 'order_id' (minimum 3 characters) is required for store support lookup.")
-  }
-
-  if (!customer_email && !customer_phone) {
+  if (!p.customer_email && !p.customer_phone) {
     throw new Error("Validation Error: Please provide at least one contact method ('customer_email' or 'customer_phone') to authenticate and look up order details.")
   }
 
-  const validActionTypes = ['track_order', 'return_request', 'exchange_request', 'cancel_request'] as const
-  const actionRaw = (rawArgs.action_type || '').trim().toLowerCase()
-  if (!validActionTypes.includes(actionRaw as any)) {
-    throw new Error(`Validation Error: 'action_type' must be one of: ${validActionTypes.join(', ')}.`)
-  }
-  const action_type = actionRaw as typeof validActionTypes[number]
-
   const supportPayload: EcommerceSupportData = {
-    order_id,
-    customer_email,
-    customer_phone,
-    action_type,
-    item_details,
-    reason,
-    notes,
+    order_id: p.order_id,
+    customer_email: p.customer_email,
+    customer_phone: p.customer_phone,
+    action_type: p.action_type,
+    item_details: p.item_details,
+    reason: p.reason,
+    notes: p.notes,
   }
 
   const supportId = `ecom-supp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
@@ -809,10 +832,10 @@ async function handleLookupOrderAndSupport(rawArgs: Record<string, any>): Promis
     supportId,
     workflowId: workflowResult.workflowId,
     executionId: workflowResult.executionId,
-    order_id,
-    customer_email,
-    customer_phone,
-    action_type,
+    order_id: p.order_id,
+    customer_email: p.customer_email,
+    customer_phone: p.customer_phone,
+    action_type: p.action_type,
     order_status: supportPayload.order_status,
     tracking_number: supportPayload.tracking_number,
     carrier: supportPayload.carrier,
@@ -830,56 +853,66 @@ async function handleLookupOrderAndSupport(rawArgs: Record<string, any>): Promis
  * Connects to Employee Onboarding Intake & Induction Pipeline (wf-009).
  */
 async function handleScheduleOnboardingInduction(rawArgs: Record<string, any>): Promise<any> {
-  const candidate_name = sanitizeString(rawArgs.candidate_name)
-  const candidate_email = sanitizeString(rawArgs.candidate_email)
-  const candidate_phone = sanitizePhone(rawArgs.candidate_phone)
-  const role_title = sanitizeString(rawArgs.role_title)
-  const joining_date = sanitizeString(rawArgs.joining_date)
-  const preferred_induction_slot = sanitizeString(rawArgs.preferred_induction_slot)
-  const notes = sanitizeString(rawArgs.notes) || undefined
-
-  if (!candidate_name || candidate_name.length < 2) {
-    throw new Error("Validation Error: 'candidate_name' must be at least 2 characters.")
-  }
-
-  if (!candidate_email || !candidate_email.includes('@')) {
-    throw new Error("Validation Error: A valid 'candidate_email' is required for onboarding registration.")
-  }
-
-  if (!candidate_phone || candidate_phone.length < 8) {
-    throw new Error("Validation Error: A valid 'candidate_phone' (minimum 8 digits) is required.")
-  }
-
-  if (!role_title || role_title.length < 2) {
-    throw new Error("Validation Error: 'role_title' is required for employee onboarding.")
-  }
-
-  const validDepartments = ['engineering', 'product', 'sales', 'marketing', 'operations', 'finance', 'hr', 'other'] as const
-  const deptRaw = (rawArgs.department || 'other').trim().toLowerCase()
-  const department = validDepartments.includes(deptRaw as any) ? (deptRaw as typeof validDepartments[number]) : 'other'
-
-  if (!joining_date) {
-    throw new Error("Validation Error: 'joining_date' is required for onboarding coordination.")
-  }
-
-  if (!preferred_induction_slot) {
-    throw new Error("Validation Error: 'preferred_induction_slot' is required to reserve an orientation session.")
-  }
-
-  const validDocStatuses = ['all_submitted', 'pending_documents', 'under_review'] as const
-  const docStatusRaw = (rawArgs.document_status || 'all_submitted').trim().toLowerCase()
-  const document_status = validDocStatuses.includes(docStatusRaw as any) ? (docStatusRaw as typeof validDocStatuses[number]) : 'all_submitted'
+  const p = validateParams(rawArgs, {
+    candidate_name: {
+      type: 'string',
+      required: true,
+      minLength: 2,
+      requiredMessage: "Validation Error: 'candidate_name' must be at least 2 characters.",
+      minLengthMessage: "Validation Error: 'candidate_name' must be at least 2 characters.",
+    },
+    candidate_email: {
+      type: 'email',
+      required: true,
+      requiredMessage: "Validation Error: A valid 'candidate_email' is required for onboarding registration.",
+    },
+    candidate_phone: {
+      type: 'phone',
+      required: true,
+      minLength: 8,
+      requiredMessage: "Validation Error: A valid 'candidate_phone' (minimum 8 digits) is required.",
+      minLengthMessage: "Validation Error: A valid 'candidate_phone' (minimum 8 digits) is required.",
+    },
+    role_title: {
+      type: 'string',
+      required: true,
+      minLength: 2,
+      requiredMessage: "Validation Error: 'role_title' is required for employee onboarding.",
+      minLengthMessage: "Validation Error: 'role_title' is required for employee onboarding.",
+    },
+    department: {
+      type: 'string',
+      enum: ['engineering', 'product', 'sales', 'marketing', 'operations', 'finance', 'hr', 'other'],
+      default: 'other',
+    },
+    joining_date: {
+      type: 'string',
+      required: true,
+      requiredMessage: "Validation Error: 'joining_date' is required for onboarding coordination.",
+    },
+    preferred_induction_slot: {
+      type: 'string',
+      required: true,
+      requiredMessage: "Validation Error: 'preferred_induction_slot' is required to reserve an orientation session.",
+    },
+    document_status: {
+      type: 'string',
+      enum: ['all_submitted', 'pending_documents', 'under_review'],
+      default: 'all_submitted',
+    },
+    notes: { type: 'string' },
+  })
 
   const onboardingPayload: OnboardingIntakeData = {
-    candidate_name,
-    candidate_email,
-    candidate_phone,
-    role_title,
-    department,
-    joining_date,
-    preferred_induction_slot,
-    document_status,
-    notes,
+    candidate_name: p.candidate_name,
+    candidate_email: p.candidate_email,
+    candidate_phone: p.candidate_phone,
+    role_title: p.role_title,
+    department: p.department,
+    joining_date: p.joining_date,
+    preferred_induction_slot: p.preferred_induction_slot,
+    document_status: p.document_status,
+    notes: p.notes,
   }
 
   const intakeId = `hr-intake-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
@@ -897,14 +930,14 @@ async function handleScheduleOnboardingInduction(rawArgs: Record<string, any>): 
     intakeId,
     workflowId: workflowResult.workflowId,
     executionId: workflowResult.executionId,
-    candidate_name,
-    candidate_email,
-    candidate_phone,
-    role_title,
-    department,
-    joining_date,
-    preferred_induction_slot,
-    document_status,
+    candidate_name: p.candidate_name,
+    candidate_email: p.candidate_email,
+    candidate_phone: p.candidate_phone,
+    role_title: p.role_title,
+    department: p.department,
+    joining_date: p.joining_date,
+    preferred_induction_slot: p.preferred_induction_slot,
+    document_status: p.document_status,
     induction_status: onboardingPayload.induction_status || 'scheduled',
     orientation_room: onboardingPayload.orientation_room,
     workflowStatus: workflowResult.overallStatus,
@@ -919,76 +952,74 @@ async function handleScheduleOnboardingInduction(rawArgs: Record<string, any>): 
  * Connects to Financial Advisory Consultation & KYC Intake Pipeline (wf-010).
  */
 async function handleBookFinancialConsultation(rawArgs: Record<string, any>): Promise<any> {
-  const client_name = sanitizeString(rawArgs.client_name)
-  const client_phone = sanitizePhone(rawArgs.client_phone)
-  const client_email = sanitizeString(rawArgs.client_email)
-  const amount_range = sanitizeString(rawArgs.amount_range)
-  const annual_income = sanitizeString(rawArgs.annual_income) || undefined
-  const preferred_date = sanitizeString(rawArgs.preferred_date)
-  const preferred_time = sanitizeString(rawArgs.preferred_time)
-  const notes = sanitizeString(rawArgs.notes) || undefined
-
-  if (!client_name || client_name.length < 2) {
-    throw new Error("Validation Error: 'client_name' must be at least 2 characters.")
-  }
-
-  if (!client_email || !client_email.includes('@')) {
-    throw new Error("Validation Error: A valid 'client_email' is required for advisory booking.")
-  }
-
-  if (!client_phone || client_phone.length < 8) {
-    throw new Error("Validation Error: A valid 'client_phone' (minimum 8 digits) is required.")
-  }
-
-  const validCategories = [
-    'insurance',
-    'home_loan',
-    'personal_loan',
-    'mutual_funds',
-    'wealth_management',
-    'retirement_planning',
-    'tax_planning',
-    'other',
-  ] as const
-  const categoryRaw = (rawArgs.product_category || 'other').trim().toLowerCase()
-  const product_category = validCategories.includes(categoryRaw as any)
-    ? (categoryRaw as typeof validCategories[number])
-    : 'other'
-
-  if (!amount_range || amount_range.length < 2) {
-    throw new Error("Validation Error: 'amount_range' is required to qualify financial consultation scope.")
-  }
-
-  const validEmployment = ['salaried', 'self_employed', 'business_owner', 'retired', 'other'] as const
-  const empRaw = (rawArgs.employment_type || 'other').trim().toLowerCase()
-  const employment_type = validEmployment.includes(empRaw as any)
-    ? (empRaw as typeof validEmployment[number])
-    : 'other'
-
-  if (!preferred_date) {
-    throw new Error("Validation Error: 'preferred_date' is required for advisor consultation scheduling.")
-  }
-
-  if (!preferred_time) {
-    throw new Error("Validation Error: 'preferred_time' is required for advisor consultation scheduling.")
-  }
-
-  const validKyc = ['verified', 'documents_pending', 'exempt'] as const
-  const kycRaw = (rawArgs.kyc_status || 'verified').trim().toLowerCase()
-  const kyc_status = validKyc.includes(kycRaw as any) ? (kycRaw as typeof validKyc[number]) : 'verified'
+  const p = validateParams(rawArgs, {
+    client_name: {
+      type: 'string',
+      required: true,
+      minLength: 2,
+      requiredMessage: "Validation Error: 'client_name' must be at least 2 characters.",
+      minLengthMessage: "Validation Error: 'client_name' must be at least 2 characters.",
+    },
+    client_email: {
+      type: 'email',
+      required: true,
+      requiredMessage: "Validation Error: A valid 'client_email' is required for advisory booking.",
+    },
+    client_phone: {
+      type: 'phone',
+      required: true,
+      minLength: 8,
+      requiredMessage: "Validation Error: A valid 'client_phone' (minimum 8 digits) is required.",
+      minLengthMessage: "Validation Error: A valid 'client_phone' (minimum 8 digits) is required.",
+    },
+    product_category: {
+      type: 'string',
+      enum: ['insurance', 'home_loan', 'personal_loan', 'mutual_funds', 'wealth_management', 'retirement_planning', 'tax_planning', 'other'],
+      default: 'other',
+    },
+    amount_range: {
+      type: 'string',
+      required: true,
+      minLength: 2,
+      requiredMessage: "Validation Error: 'amount_range' is required to qualify financial consultation scope.",
+      minLengthMessage: "Validation Error: 'amount_range' is required to qualify financial consultation scope.",
+    },
+    employment_type: {
+      type: 'string',
+      enum: ['salaried', 'self_employed', 'business_owner', 'retired', 'other'],
+      default: 'other',
+    },
+    preferred_date: {
+      type: 'string',
+      required: true,
+      requiredMessage: "Validation Error: 'preferred_date' is required for advisor consultation scheduling.",
+    },
+    preferred_time: {
+      type: 'string',
+      required: true,
+      requiredMessage: "Validation Error: 'preferred_time' is required for advisor consultation scheduling.",
+    },
+    kyc_status: {
+      type: 'string',
+      enum: ['verified', 'documents_pending', 'exempt'],
+      default: 'verified',
+    },
+    annual_income: { type: 'string' },
+    notes: { type: 'string' },
+  })
 
   const financialPayload: FinancialConsultationData = {
-    client_name,
-    client_phone,
-    client_email,
-    product_category,
-    amount_range,
-    employment_type,
-    annual_income,
-    kyc_status,
-    preferred_date,
-    preferred_time,
-    notes,
+    client_name: p.client_name,
+    client_phone: p.client_phone,
+    client_email: p.client_email,
+    product_category: p.product_category,
+    amount_range: p.amount_range,
+    employment_type: p.employment_type,
+    annual_income: p.annual_income,
+    kyc_status: p.kyc_status,
+    preferred_date: p.preferred_date,
+    preferred_time: p.preferred_time,
+    notes: p.notes,
   }
 
   const consultationId = `fin-consult-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
@@ -1006,16 +1037,16 @@ async function handleBookFinancialConsultation(rawArgs: Record<string, any>): Pr
     consultationId,
     workflowId: workflowResult.workflowId,
     executionId: workflowResult.executionId,
-    client_name,
-    client_phone,
-    client_email,
-    product_category,
-    amount_range,
-    employment_type,
-    annual_income,
-    kyc_status,
-    preferred_date,
-    preferred_time,
+    client_name: p.client_name,
+    client_phone: p.client_phone,
+    client_email: p.client_email,
+    product_category: p.product_category,
+    amount_range: p.amount_range,
+    employment_type: p.employment_type,
+    annual_income: p.annual_income,
+    kyc_status: p.kyc_status,
+    preferred_date: p.preferred_date,
+    preferred_time: p.preferred_time,
     assigned_advisor: financialPayload.assigned_advisor,
     meeting_mode: financialPayload.meeting_mode,
     workflowStatus: workflowResult.overallStatus,
