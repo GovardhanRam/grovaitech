@@ -11,7 +11,12 @@
 
 import { createLead, type LeadData } from '@/app/actions/leads'
 import { createBooking } from '@/app/actions/bookings'
-import { executeRealEstateWorkflow, getSiteVisitCustomerMessage } from '@/lib/workflows/executor'
+import {
+  executeRealEstateWorkflow,
+  getSiteVisitCustomerMessage,
+  executeClinicWorkflow,
+  getClinicCustomerMessage,
+} from '@/lib/workflows/executor'
 import { generateResponse } from '@/lib/ai/gemini'
 import { createServerClient } from '@/lib/supabase/server'
 import {
@@ -198,15 +203,15 @@ async function handleScheduleSiteVisit(rawArgs: Record<string, any>): Promise<an
 
 /**
  * Handler 3: book_clinic_appointment
- * Connects to existing clinic booking server action (app/actions/bookings.ts).
+ * Connects to clinic appointment booking & reminder workflow engine (wf-002).
  */
 async function handleBookClinicAppointment(rawArgs: Record<string, any>): Promise<any> {
   const patientName = sanitizeString(rawArgs.patient_name)
   const patientPhone = sanitizePhone(rawArgs.patient_phone)
-  const patientEmail = sanitizeString(rawArgs.patient_email)
+  const patientEmail = sanitizeString(rawArgs.patient_email) || undefined
   const appointmentDate = sanitizeString(rawArgs.appointment_date)
   const appointmentTime = sanitizeString(rawArgs.appointment_time)
-  const doctorName = sanitizeString(rawArgs.doctor_name) || 'Attending Physician'
+  const doctorName = sanitizeString(rawArgs.doctor_name) || 'Dr. Verma'
   const reason = sanitizeString(rawArgs.reason) || 'General Consultation'
 
   if (!patientName) {
@@ -222,38 +227,37 @@ async function handleBookClinicAppointment(rawArgs: Record<string, any>): Promis
     throw new Error("Validation Error: 'appointment_time' is required.")
   }
 
-  // Construct FormData expected by createBooking server action
-  const formData = new FormData()
-  formData.append('patientName', patientName)
-  formData.append('patientPhone', patientPhone)
-  if (patientEmail) formData.append('patientEmail', patientEmail)
-  formData.append('appointmentDate', appointmentDate)
-  formData.append('appointmentTime', appointmentTime)
-  formData.append('doctorName', doctorName)
-  formData.append('reason', reason)
-
-  const bookingResult = await createBooking(formData)
-
-  if (bookingResult.error) {
-    // If auth required in production, provide structured feedback
-    if (bookingResult.error.includes('log in')) {
-      return {
-        status: 'provisional',
-        patientName,
-        patientPhone,
-        appointmentDate,
-        appointmentTime,
-        doctorName,
-        reason,
-        message: `Appointment details for ${patientName} on ${appointmentDate} at ${appointmentTime} noted. Please log in to finalize clinic record.`,
-      }
-    }
-    throw new Error(bookingResult.error)
-  }
+  const workflowResult = await executeClinicWorkflow({
+    patient: {
+      patient_name: patientName,
+      patient_phone: patientPhone,
+      patient_email: patientEmail,
+      appointment_date: appointmentDate,
+      appointment_time: appointmentTime,
+      doctor_name: doctorName,
+      reason,
+    },
+    conversationId: `tool-clinic-${Date.now()}`,
+  })
 
   return {
-    booking: bookingResult.booking,
-    message: `Appointment successfully booked for ${patientName} with ${doctorName} on ${appointmentDate} at ${appointmentTime}.`,
+    bookingId: workflowResult.leadId,
+    patientName,
+    patientPhone,
+    appointmentDate,
+    appointmentTime,
+    doctorName,
+    reason,
+    workflowId: workflowResult.workflowId,
+    workflowStatus: workflowResult.overallStatus,
+    customerConfirmationAllowed: workflowResult.customerConfirmationAllowed,
+    steps: workflowResult.steps,
+    message: getClinicCustomerMessage(workflowResult, {
+      patientName,
+      appointmentDate,
+      appointmentTime,
+      doctorName,
+    }),
   }
 }
 

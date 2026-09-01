@@ -16,7 +16,7 @@ import type {
   GetWorkflowsResult,
 } from '@/types/workflows'
 import { CANONICAL_DEMO_WORKFLOWS } from '@/lib/workflows/utils'
-import { executeRealEstateWorkflow } from '@/lib/workflows/executor'
+import { executeRealEstateWorkflow, executeClinicWorkflow } from '@/lib/workflows/executor'
 
 export async function getWorkflows(): Promise<GetWorkflowsResult> {
   try {
@@ -153,6 +153,31 @@ export async function triggerTestWorkflow(workflowId: string): Promise<{
       return {
         success: true,
         workflowId: 'wf-001',
+        executionId: execResult.executionId,
+        execution: execResult,
+      }
+    }
+
+    if (workflowId === 'wf-002') {
+      const samplePatient = {
+        patient_name: 'Priya Sharma',
+        patient_phone: '+91 98765 12345',
+        patient_email: 'priya.sharma@example.com',
+        appointment_date: '2026-09-05',
+        appointment_time: '10:00 AM',
+        doctor_name: 'Dr. Verma',
+        reason: 'Dental Consultation',
+      }
+
+      const execResult = await executeClinicWorkflow({
+        bookingId: `test-booking-${Date.now()}`,
+        conversationId: `test-clinic-run-${Date.now()}`,
+        patient: samplePatient,
+      })
+
+      return {
+        success: true,
+        workflowId: 'wf-002',
         executionId: execResult.executionId,
         execution: execResult,
       }

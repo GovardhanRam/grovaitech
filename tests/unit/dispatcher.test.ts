@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { dispatchToolCall } from '@/lib/ai/dispatcher'
 import { createLead } from '@/app/actions/leads'
 import { createBooking } from '@/app/actions/bookings'
-import { executeRealEstateWorkflow } from '@/lib/workflows/executor'
+import { executeRealEstateWorkflow, executeClinicWorkflow } from '@/lib/workflows/executor'
 import { generateResponse } from '@/lib/ai/gemini'
 import { createServerClient } from '@/lib/supabase/server'
 
@@ -18,6 +18,7 @@ vi.mock('@/app/actions/bookings', () => ({
 
 vi.mock('@/lib/workflows/executor', () => ({
   executeRealEstateWorkflow: vi.fn(),
+  executeClinicWorkflow: vi.fn(),
   getSiteVisitCustomerMessage: (workflow: any, details?: any) => {
     if (workflow.overallStatus === 'failed') {
       return "I've recorded your request, but I couldn't complete the booking automatically. Our team will follow up to confirm it."
@@ -26,6 +27,15 @@ vi.mock('@/lib/workflows/executor', () => ({
       return 'Your site visit request has been recorded. Our team will confirm the exact slot shortly.'
     }
     return `Your site visit for ${details.preferredDate} at ${details.preferredTime} has been confirmed, ${details.customerName}.`
+  },
+  getClinicCustomerMessage: (workflow: any, details?: any) => {
+    if (workflow.overallStatus === 'failed') {
+      return "I've recorded your appointment request, but I couldn't complete the booking automatically. Our clinic front desk will follow up to confirm it."
+    }
+    if (!workflow.customerConfirmationAllowed) {
+      return `Your appointment request for ${details?.patientName || 'you'} with ${details?.doctorName || 'Dr. Verma'} on ${details?.appointmentDate || 'the requested date'} at ${details?.appointmentTime || 'the requested time'} has been recorded. Our clinic team will confirm the final slot shortly.`
+    }
+    return `Your appointment with ${details?.doctorName || 'Dr. Verma'} on ${details?.appointmentDate} at ${details?.appointmentTime} has been confirmed for ${details?.patientName || 'you'}.`
   },
 }))
 
@@ -167,6 +177,7 @@ describe('lib/ai/dispatcher - dispatchToolCall()', () => {
       vi.mocked(createLead).mockResolvedValueOnce({
         success: true,
         data: { id: 'lead_visit_001' } as any,
+        isUpdate: false,
       })
       vi.mocked(executeRealEstateWorkflow).mockResolvedValueOnce({
         workflowId: 'wf_exec_999',
@@ -197,7 +208,7 @@ describe('lib/ai/dispatcher - dispatchToolCall()', () => {
     })
 
     it('uses request-recorded wording for a partial site-visit workflow', async () => {
-      vi.mocked(createLead).mockResolvedValueOnce({ success: true, data: { id: 'lead_partial' } as any })
+      vi.mocked(createLead).mockResolvedValueOnce({ success: true, data: { id: 'lead_partial' } as any, isUpdate: false })
       vi.mocked(executeRealEstateWorkflow).mockResolvedValueOnce({
         workflowId: 'wf_partial', overallStatus: 'partial', customerConfirmationAllowed: false, steps: [],
       } as any)
@@ -212,7 +223,7 @@ describe('lib/ai/dispatcher - dispatchToolCall()', () => {
     })
 
     it('uses follow-up wording for a failed site-visit workflow', async () => {
-      vi.mocked(createLead).mockResolvedValueOnce({ success: true, data: { id: 'lead_failed' } as any })
+      vi.mocked(createLead).mockResolvedValueOnce({ success: true, data: { id: 'lead_failed' } as any, isUpdate: false })
       vi.mocked(executeRealEstateWorkflow).mockResolvedValueOnce({
         workflowId: 'wf_failed', overallStatus: 'failed', customerConfirmationAllowed: false, steps: [],
       } as any)
@@ -225,9 +236,28 @@ describe('lib/ai/dispatcher - dispatchToolCall()', () => {
       expect(result.result.message).toBe("I've recorded your request, but I couldn't complete the booking automatically. Our team will follow up to confirm it.")
     })
 
-    it('book_clinic_appointment calls the mocked booking action', async () => {
-      vi.mocked(createBooking).mockResolvedValueOnce({
-        booking: { id: 'booking_123', patient_name: 'Sunita Roy' } as any,
+    it('book_clinic_appointment routes through executeClinicWorkflow and returns structured result', async () => {
+      vi.mocked(executeClinicWorkflow).mockResolvedValueOnce({
+        executionId: 'exec_clinic_123',
+        workflowId: 'wf-002',
+        workflowName: 'Clinic Appointment Booking & Reminder Pipeline',
+        leadId: 'booking_123',
+        conversationId: 'tool-clinic-1',
+        triggerEvent: 'Appointment Booked by Patient',
+        overallStatus: 'partial',
+        hasSimulatedSteps: true,
+        failedStepIds: [],
+        customerConfirmationAllowed: false,
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        durationMs: 45,
+        steps: [
+          { stepId: 's1', stepName: 'Save Clinic Booking', type: 'database', status: 'success', target: 'Supabase', durationMs: 15, detail: 'Saved' },
+          { stepId: 's2', stepName: 'Doctor Calendar Block', type: 'calendar', status: 'simulated', target: 'Google Calendar', durationMs: 0, detail: 'Simulated' },
+          { stepId: 's3', stepName: 'Queue WhatsApp 24h Reminder', type: 'whatsapp', status: 'simulated', target: 'Patient Phone', durationMs: 0, detail: 'Simulated' },
+          { stepId: 's4', stepName: 'Sync n8n Pipeline', type: 'n8n_webhook', status: 'simulated', target: 'n8n', durationMs: 20, detail: 'Simulated' },
+        ],
+        n8nResult: { status: 'not_configured' },
       })
 
       const result = await dispatchToolCall('book_clinic_appointment', {
@@ -241,10 +271,11 @@ describe('lib/ai/dispatcher - dispatchToolCall()', () => {
       })
 
       expect(result.success).toBe(true)
-      expect(result.result.booking.id).toBe('booking_123')
-      expect(result.result.message).toContain('Appointment successfully booked for Sunita Roy')
-      expect(createBooking).toHaveBeenCalledTimes(1)
-      expect(createBooking).toHaveBeenCalledWith(expect.any(FormData))
+      expect(result.result.bookingId).toBe('booking_123')
+      expect(result.result.workflowId).toBe('wf-002')
+      expect(result.result.patientName).toBe('Sunita Roy')
+      expect(result.result.message).toContain('Your appointment request for Sunita Roy')
+      expect(executeClinicWorkflow).toHaveBeenCalledTimes(1)
     })
 
     it('search_knowledge_base uses mocked database/Gemini dependencies and returns success', async () => {
@@ -308,7 +339,7 @@ describe('lib/ai/dispatcher - dispatchToolCall()', () => {
     })
 
     it('sanitizes sensitive JWT tokens in the returned error', async () => {
-      vi.mocked(createBooking).mockRejectedValueOnce(
+      vi.mocked(executeClinicWorkflow).mockRejectedValueOnce(
         new Error('Unauthorized: bearer token eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c expired')
       )
 

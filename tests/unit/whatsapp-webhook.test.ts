@@ -175,6 +175,7 @@ describe('WhatsApp Webhook Route - app/api/webhooks/whatsapp/route.ts', () => {
     vi.mocked(createLead).mockResolvedValue({
       success: true,
       data: { id: 'lead_mock_wa_001', name: 'Test User' } as any,
+      isUpdate: false,
     })
 
     vi.mocked(executeRealEstateWorkflow).mockResolvedValue({
@@ -186,7 +187,9 @@ describe('WhatsApp Webhook Route - app/api/webhooks/whatsapp/route.ts', () => {
     vi.mocked(sendWhatsAppTextMessage).mockResolvedValue({
       success: true,
       messageId: 'outbound_msg_001',
-      status: 'SENT',
+      recipient: '919876543210',
+      durationMs: 10,
+      status: 'sent',
     })
   })
 
