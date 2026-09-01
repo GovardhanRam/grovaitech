@@ -14,9 +14,13 @@ vi.mock('@/lib/ai/dispatcher', () => ({
   dispatchToolCall: vi.fn(),
 }))
 
-vi.mock('@/lib/employees', () => ({
-  getEmployeeBySlug: vi.fn().mockResolvedValue(null),
-}))
+vi.mock('@/lib/employees', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/employees')>()
+  return {
+    ...actual,
+    getEmployeeBySlug: vi.fn(actual.getEmployeeBySlug),
+  }
+})
 
 describe('lib/ai/runtime - Unified Headless Agent Runtime', () => {
   let mockGenerateContentWithTools: any

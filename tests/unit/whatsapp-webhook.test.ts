@@ -33,9 +33,13 @@ vi.mock('@/lib/supabase/server', () => ({
   createServerClient: vi.fn(),
 }))
 
-vi.mock('@/lib/employees', () => ({
-  getEmployeeBySlug: vi.fn(),
-}))
+vi.mock('@/lib/employees', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/employees')>()
+  return {
+    ...actual,
+    getEmployeeBySlug: vi.fn(actual.getEmployeeBySlug),
+  }
+})
 
 vi.mock('@/lib/leads/extractor', () => ({
   extractRealEstateLead: vi.fn(),

@@ -15,7 +15,7 @@ import {
   type GeminiFunctionDeclaration,
 } from '@/lib/ai/tools'
 import { dispatchToolCall, type ToolExecutionResult } from '@/lib/ai/dispatcher'
-import { getEmployeeBySlug } from '@/lib/employees'
+import { getEmployeeBySlug, getCanonicalEmployeeBySlug } from '@/lib/employees'
 import {
   getSiteVisitCustomerMessage,
   getClinicCustomerMessage,
@@ -65,7 +65,20 @@ export interface AgentTurnResult {
 // ─── Persona & Tool Authorization Resolution ────────────────────────────────
 
 export function resolveAuthorizedTools(slug?: string): GeminiFunctionDeclaration[] {
-  const normalized = (slug || '').toLowerCase()
+  if (!slug) return ALL_GROVAITECH_TOOLS
+
+  const canonical = getCanonicalEmployeeBySlug(slug)
+  if (canonical && Array.isArray(canonical.tools) && canonical.tools.length > 0) {
+    const toolMap = new Map(ALL_GROVAITECH_TOOLS.map((t) => [t.name, t]))
+    const tools = canonical.tools
+      .map((name) => toolMap.get(name))
+      .filter(Boolean) as GeminiFunctionDeclaration[]
+    if (tools.length > 0) {
+      return tools
+    }
+  }
+
+  const normalized = slug.toLowerCase()
   if (normalized.includes('real-estate')) {
     return REAL_ESTATE_TOOLS
   }
@@ -76,6 +89,13 @@ export function resolveAuthorizedTools(slug?: string): GeminiFunctionDeclaration
 }
 
 export function getDefaultSystemPrompt(slug?: string): string {
+  if (slug) {
+    const canonical = getCanonicalEmployeeBySlug(slug)
+    if (canonical && canonical.system_prompt) {
+      return canonical.system_prompt
+    }
+  }
+
   const normalized = (slug || '').toLowerCase()
 
   if (normalized.includes('real-estate')) {
