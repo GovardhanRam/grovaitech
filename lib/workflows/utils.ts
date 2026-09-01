@@ -179,7 +179,7 @@ export const CANONICAL_DEMO_WORKFLOWS: Workflow[] = [
     name: 'Legal Consultation Intake & Conflict Check',
     description:
       'Standardized intake pipeline for law firms: captures legal matter parameters, performs automated conflict-of-interest check, and schedules preliminary attorney consultation.',
-    status: 'draft',
+    status: 'active',
     trigger_event: 'New Legal Inquiry Submitted',
     trigger_source: 'Legal Intake Agent',
     assigned_employee: 'Legal Intake Agent',
@@ -188,6 +188,7 @@ export const CANONICAL_DEMO_WORKFLOWS: Workflow[] = [
       { id: 's1', name: 'Matter Intake Form', type: 'database', target: 'Supabase legal_matters' },
       { id: 's2', name: 'Conflict of Interest Query', type: 'database', target: 'Law Firm Database' },
       { id: 's3', name: 'Schedule Consultation', type: 'calendar', target: 'Attorney Calendar' },
+      { id: 's4', name: 'n8n Legal Intake Sync', type: 'n8n_webhook', target: 'https://n8n.grovaitech.ai/webhook/v1/legal-intake' },
     ],
     n8n_webhook_url: 'https://n8n.grovaitech.ai/webhook/v1/legal-intake',
     total_executions: 0,

@@ -25,6 +25,9 @@ import {
   executeQaWorkflow,
   getQaAuditCustomerMessage,
   type QaRubricBreakdown,
+  executeLegalWorkflow,
+  getLegalCustomerMessage,
+  type LegalIntakeData,
 } from '@/lib/workflows/executor'
 import { generateResponse } from '@/lib/ai/gemini'
 import { createServerClient } from '@/lib/supabase/server'
@@ -35,6 +38,7 @@ import {
   type ScheduleSiteVisitParams,
   type BookClinicAppointmentParams,
   type SearchKnowledgeBaseParams,
+  type BookLegalConsultationParams,
 } from '@/lib/ai/tools'
 
 // ─── Dispatcher Response Interfaces ──────────────────────────────────────────
@@ -638,6 +642,109 @@ async function handleAuditConversationQuality(rawArgs: Record<string, any>): Pro
   }
 }
 
+/**
+ * Handler 8: book_legal_consultation
+ * Connects to Legal Intake Workflow Engine (wf-006).
+ */
+async function handleBookLegalConsultation(rawArgs: Record<string, any>): Promise<any> {
+  const client_name = sanitizeString(rawArgs.client_name)
+  const client_phone = sanitizePhone(rawArgs.client_phone)
+  const client_email = sanitizeString(rawArgs.client_email)
+  const matter_summary = sanitizeString(rawArgs.matter_summary)
+  const opposing_party = sanitizeString(rawArgs.opposing_party) || 'None'
+  const preferred_date = sanitizeString(rawArgs.preferred_date)
+  const preferred_time = sanitizeString(rawArgs.preferred_time)
+  const notes = sanitizeString(rawArgs.notes) || undefined
+
+  if (!client_name) {
+    throw new Error("Validation Error: 'client_name' is required for legal consultation intake.")
+  }
+  if (!client_phone || client_phone.length < 7) {
+    throw new Error("Validation Error: A valid 'client_phone' is required for legal consultation intake.")
+  }
+  if (!client_email || !client_email.includes('@')) {
+    throw new Error("Validation Error: A valid 'client_email' is required for legal consultation intake.")
+  }
+  if (!matter_summary) {
+    throw new Error("Validation Error: 'matter_summary' is required for legal consultation intake.")
+  }
+  if (!preferred_date) {
+    throw new Error("Validation Error: 'preferred_date' is required for legal consultation intake.")
+  }
+  if (!preferred_time) {
+    throw new Error("Validation Error: 'preferred_time' is required for legal consultation intake.")
+  }
+
+  const validPracticeAreas = [
+    'corporate',
+    'litigation',
+    'family',
+    'criminal',
+    'real_estate',
+    'employment',
+    'ip',
+    'other',
+  ] as const
+  const practiceAreaRaw = (rawArgs.practice_area || '').trim().toLowerCase()
+  if (!validPracticeAreas.includes(practiceAreaRaw as any)) {
+    throw new Error(
+      `Validation Error: 'practice_area' must be one of: ${validPracticeAreas.join(', ')}.`
+    )
+  }
+  const practice_area = practiceAreaRaw as typeof validPracticeAreas[number]
+
+  const validUrgencies = ['routine', 'urgent', 'critical'] as const
+  const urgencyRaw = (rawArgs.urgency || '').trim().toLowerCase()
+  if (!validUrgencies.includes(urgencyRaw as any)) {
+    throw new Error(`Validation Error: 'urgency' must be one of: ${validUrgencies.join(', ')}.`)
+  }
+  const urgency = urgencyRaw as typeof validUrgencies[number]
+
+  const intakePayload: LegalIntakeData = {
+    client_name,
+    client_phone,
+    client_email,
+    practice_area,
+    matter_summary,
+    opposing_party,
+    urgency,
+    preferred_date,
+    preferred_time,
+    notes,
+  }
+
+  const intakeId = `legal-intake-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+  const conversationId = sanitizeString(rawArgs.conversation_id || rawArgs.chat_id || '')
+
+  const workflowResult = await executeLegalWorkflow({
+    intakeId,
+    conversationId,
+    client: intakePayload,
+  })
+
+  const message = getLegalCustomerMessage(workflowResult, intakePayload)
+
+  return {
+    intakeId,
+    workflowId: workflowResult.workflowId,
+    executionId: workflowResult.executionId,
+    client_name,
+    client_phone,
+    client_email,
+    practice_area,
+    matter_summary,
+    opposing_party,
+    urgency,
+    preferred_date,
+    preferred_time,
+    conflict_status: intakePayload.conflict_status || 'clear',
+    workflowStatus: workflowResult.overallStatus,
+    customerConfirmationAllowed: workflowResult.customerConfirmationAllowed,
+    message,
+    steps: workflowResult.steps,
+  }
+}
+
 // ─── Main Dispatcher Entry Point ─────────────────────────────────────────────
 
 /**
@@ -704,6 +811,10 @@ export async function dispatchToolCall(
 
       case TOOL_NAMES.AUDIT_CONVERSATION_QUALITY:
         result = await handleAuditConversationQuality(rawArgs || {})
+        break
+
+      case TOOL_NAMES.BOOK_LEGAL_CONSULTATION:
+        result = await handleBookLegalConsultation(rawArgs || {})
         break
 
       default:

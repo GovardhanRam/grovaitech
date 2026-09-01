@@ -19,6 +19,7 @@ import { getEmployeeBySlug, getCanonicalEmployeeBySlug } from '@/lib/employees'
 import {
   getSiteVisitCustomerMessage,
   getClinicCustomerMessage,
+  getLegalCustomerMessage,
   type WorkflowExecutionResult,
   type PatientAppointmentData,
 } from '@/lib/workflows/executor'
@@ -117,6 +118,24 @@ Your goal is to assist patients, answer inquiries regarding clinic hours/doctors
 - Hours: Mon - Sat: 9:00 AM - 6:00 PM (Closed Sundays)
 - Doctors: Dr. Verma (General Dentistry), Dr. Reddy (Orthodontics)
 - When patient provides name, phone, date, and time, invoke the 'book_clinic_appointment' tool.`
+  }
+
+  if (normalized.includes('legal') || normalized.includes('law') || normalized.includes('attorney')) {
+    return `You are GrovAI, an elite AI Legal Intake & Consultation Coordinator for Grovaitech Law Chambers.
+Your goal is to warmly assist prospective clients, collect structured matter intake details for conflict screening, answer firm process FAQs using verified knowledge, and coordinate consultation requests.
+
+**Strict Legal & Compliance Boundaries:**
+1. NO LEGAL ADVICE: You are an administrative intake assistant, NOT an attorney. NEVER provide legal counsel, legal opinions, statutory interpretations, or liability assessments.
+2. NO CASE-OUTCOME PREDICTIONS: NEVER predict case outcomes, judge rulings, settlement figures, or chances of success.
+3. NO PRIVILEGE CREATION: Explicitly inform clients when appropriate that submitting intake information does not by itself establish an attorney-client relationship.
+4. NO FABRICATION: Do NOT invent legal fees, retainer amounts, court deadlines, statutes, or attorney availability not verified in the knowledge base.
+5. CONFLICT SCREENING PROTOCOL: Always collect the full name of the opposing party / other involved entities before proceeding with consultation scheduling.
+
+**Intake & Booking Protocol:**
+- Use 'search_knowledge_base' to verify practice areas, consultation procedures, and firm guidelines.
+- Collect all required intake parameters: Client Name, Phone Number, Email, Practice Area, Matter Summary, Opposing Party, Urgency, Preferred Date, and Preferred Time.
+- Once details are collected, invoke 'book_legal_consultation' immediately.
+- If a client has an emergency deadline or explicitly requests an urgent attorney, invoke 'escalate_to_human' immediately.`
   }
 
   return `You are GrovAI, an elite AI Lead Receptionist for Grovaitech.
@@ -305,6 +324,40 @@ export async function runAgentTurn(options: RunAgentTurnOptions): Promise<AgentT
                 appointmentDate: toolResult.result.appointmentDate,
                 appointmentTime: toolResult.result.appointmentTime,
                 doctorName: toolResult.result.doctorName,
+              })
+            }
+          }
+        } else if (toolResult.toolName === 'book_legal_consultation' && toolResult.result) {
+          if (toolResult.result.workflowId) {
+            workflowResult = {
+              executionId: toolResult.result.executionId || toolResult.result.workflowId,
+              workflowId: 'wf-006',
+              workflowName: 'Legal Consultation Intake & Conflict Check',
+              leadId: toolResult.result.intakeId || '',
+              conversationId: '',
+              triggerEvent: 'New Legal Inquiry Submitted',
+              overallStatus: toolResult.result.workflowStatus || 'success',
+              hasSimulatedSteps: !toolResult.result.customerConfirmationAllowed,
+              failedStepIds: [],
+              customerConfirmationAllowed: !!toolResult.result.customerConfirmationAllowed,
+              startedAt: new Date().toISOString(),
+              completedAt: new Date().toISOString(),
+              durationMs: 0,
+              steps: toolResult.result.steps || [],
+              n8nResult: { status: 'dispatched' },
+            }
+            if (!workflowResult.customerConfirmationAllowed) {
+              safeWorkflowMessage = getLegalCustomerMessage(workflowResult, {
+                client_name: toolResult.result.client_name,
+                client_phone: toolResult.result.client_phone,
+                client_email: toolResult.result.client_email,
+                practice_area: toolResult.result.practice_area,
+                matter_summary: toolResult.result.matter_summary,
+                opposing_party: toolResult.result.opposing_party,
+                urgency: toolResult.result.urgency,
+                preferred_date: toolResult.result.preferred_date,
+                preferred_time: toolResult.result.preferred_time,
+                conflict_status: toolResult.result.conflict_status,
               })
             }
           }

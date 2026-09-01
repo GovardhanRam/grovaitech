@@ -44,6 +44,19 @@ export interface BookClinicAppointmentParams {
   reason?: string
 }
 
+export interface BookLegalConsultationParams {
+  client_name: string
+  client_phone: string
+  client_email: string
+  practice_area: 'corporate' | 'litigation' | 'family' | 'criminal' | 'real_estate' | 'employment' | 'ip' | 'other'
+  matter_summary: string
+  opposing_party: string
+  urgency: 'routine' | 'urgent' | 'critical'
+  preferred_date: string
+  preferred_time: string
+  notes?: string
+}
+
 export interface SearchKnowledgeBaseParams {
   query: string
   category?: string
@@ -322,6 +335,71 @@ export const AUDIT_CONVERSATION_QUALITY_TOOL: FunctionDeclaration = {
   },
 }
 
+export const BOOK_LEGAL_CONSULTATION_TOOL: FunctionDeclaration = {
+  name: 'book_legal_consultation',
+  description: "Submits a prospective client's legal intake details, identifies practice area and opposing party for conflict checking, and schedules an attorney consultation request. Do not describe it as a confirmed appointment unless the returned result explicitly verifies that outcome.",
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      client_name: {
+        type: SchemaType.STRING,
+        description: 'Full name of the prospective client requesting legal consultation.',
+      },
+      client_phone: {
+        type: SchemaType.STRING,
+        description: 'Primary contact phone number of the client.',
+      },
+      client_email: {
+        type: SchemaType.STRING,
+        description: 'Contact email address of the client.',
+      },
+      practice_area: {
+        type: SchemaType.STRING,
+        format: 'enum',
+        enum: ['corporate', 'litigation', 'family', 'criminal', 'real_estate', 'employment', 'ip', 'other'],
+        description: 'Primary practice area or type of legal inquiry.',
+      },
+      matter_summary: {
+        type: SchemaType.STRING,
+        description: 'Brief overview of the legal matter, question, or dispute.',
+      },
+      opposing_party: {
+        type: SchemaType.STRING,
+        description: 'Name of the adverse party, opposing individual, or company involved for conflict-of-interest screening (use "None" if purely transactional or not applicable).',
+      },
+      urgency: {
+        type: SchemaType.STRING,
+        format: 'enum',
+        enum: ['routine', 'urgent', 'critical'],
+        description: 'Urgency level of the legal inquiry (e.g. routine, urgent, critical).',
+      },
+      preferred_date: {
+        type: SchemaType.STRING,
+        description: 'Requested date for the consultation in YYYY-MM-DD format (or relative day like Tomorrow, Next Monday).',
+      },
+      preferred_time: {
+        type: SchemaType.STRING,
+        description: 'Requested time slot for the consultation (e.g. 10:00 AM, 3:30 PM, Afternoon).',
+      },
+      notes: {
+        type: SchemaType.STRING,
+        description: 'Optional additional context or special intake notes.',
+      },
+    },
+    required: [
+      'client_name',
+      'client_phone',
+      'client_email',
+      'practice_area',
+      'matter_summary',
+      'opposing_party',
+      'urgency',
+      'preferred_date',
+      'preferred_time',
+    ],
+  },
+}
+
 // ─── Grouped Tool Collections for AI Employee Personas ───────────────────────
 
 export const REAL_ESTATE_TOOLS: FunctionDeclaration[] = [
@@ -350,6 +428,12 @@ export const QA_TOOLS: FunctionDeclaration[] = [
   SEARCH_KNOWLEDGE_BASE_TOOL,
 ]
 
+export const LEGAL_TOOLS: FunctionDeclaration[] = [
+  BOOK_LEGAL_CONSULTATION_TOOL,
+  SEARCH_KNOWLEDGE_BASE_TOOL,
+  ESCALATE_TO_HUMAN_TOOL,
+]
+
 export const ALL_GROVAITECH_TOOLS: FunctionDeclaration[] = [
   CREATE_LEAD_TOOL,
   SCHEDULE_SITE_VISIT_TOOL,
@@ -358,6 +442,7 @@ export const ALL_GROVAITECH_TOOLS: FunctionDeclaration[] = [
   ESCALATE_TO_HUMAN_TOOL,
   BOOK_SALON_SERVICE_TOOL,
   AUDIT_CONVERSATION_QUALITY_TOOL,
+  BOOK_LEGAL_CONSULTATION_TOOL,
 ]
 
 export const GROVAITECH_TOOLSET: FunctionDeclarationsTool = {
@@ -374,6 +459,7 @@ export const TOOL_NAMES = {
   ESCALATE_TO_HUMAN: 'escalate_to_human',
   BOOK_SALON_SERVICE: 'book_salon_service',
   AUDIT_CONVERSATION_QUALITY: 'audit_conversation_quality',
+  BOOK_LEGAL_CONSULTATION: 'book_legal_consultation',
 } as const
 
 export type ToolName = typeof TOOL_NAMES[keyof typeof TOOL_NAMES]

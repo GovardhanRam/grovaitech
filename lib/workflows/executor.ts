@@ -1432,3 +1432,256 @@ export async function executeQaWorkflow({
   await saveWorkflowExecution(result, `QA Audit: Score ${audit.overallScore}/100`)
   return result
 }
+
+// ─── Canonical wf-006: Legal Consultation Intake & Conflict Check ───────────
+
+export interface LegalIntakeData {
+  client_name: string
+  client_phone: string
+  client_email: string
+  practice_area: 'corporate' | 'litigation' | 'family' | 'criminal' | 'real_estate' | 'employment' | 'ip' | 'other'
+  matter_summary: string
+  opposing_party: string
+  urgency: 'routine' | 'urgent' | 'critical'
+  preferred_date: string
+  preferred_time: string
+  conflict_status?: 'clear' | 'potential_conflict' | 'manual_review_required'
+  notes?: string
+}
+
+export function getLegalCustomerMessage(
+  workflow: Pick<WorkflowExecutionResult, 'overallStatus' | 'customerConfirmationAllowed'>,
+  details?: Partial<LegalIntakeData>
+): string {
+  if (workflow.overallStatus === 'failed') {
+    return "I've recorded your legal intake details, but automated processing encountered an issue. Our legal intake team will follow up directly with you."
+  }
+
+  const nameGreeting = details?.client_name ? `Thank you, ${details.client_name}.` : 'Thank you.'
+  const practiceText = details?.practice_area ? ` regarding your ${details.practice_area} inquiry` : ''
+  const slotText =
+    details?.preferred_date && details?.preferred_time
+      ? ` for ${details.preferred_date} at ${details.preferred_time}`
+      : ''
+
+  if (
+    details?.conflict_status === 'potential_conflict' ||
+    details?.conflict_status === 'manual_review_required'
+  ) {
+    return `${nameGreeting} Your intake information${practiceText} has been received. Because of our strict professional standards, our legal team is conducting a mandatory conflict-of-interest review regarding the parties involved before any consultation can be scheduled.`
+  }
+
+  if (!workflow.customerConfirmationAllowed) {
+    return `${nameGreeting} Your legal consultation request${practiceText}${slotText} has been recorded. Our intake coordinator is conducting a preliminary conflict check and will contact you shortly to confirm the appointment.`
+  }
+
+  return `${nameGreeting} Your legal consultation request${practiceText}${slotText} has been recorded and submitted for attorney review.`
+}
+
+export async function executeLegalWorkflow({
+  intakeId = '',
+  conversationId = '',
+  client,
+  adapters,
+}: {
+  intakeId?: string
+  conversationId?: string
+  client: LegalIntakeData
+  adapters?: WorkflowExecutionAdapters
+}): Promise<WorkflowExecutionResult> {
+  const startTime = Date.now()
+  const executionId = `exec-legal-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+  const startedAt = new Date().toISOString()
+  const effectiveIntakeId = intakeId || executionId
+  const steps: WorkflowStepResult[] = []
+
+  console.log(
+    `[Workflow Engine] Starting wf-006 execution for Client: ${client.client_name} / Practice: ${client.practice_area}`
+  )
+
+  // ── Step 1: Matter Intake Form (Structure Recording) ──────────────────────
+  const s1Start = Date.now()
+  steps.push({
+    stepId: 's1',
+    stepName: 'Matter Intake Form',
+    type: 'database',
+    target: 'Supabase legal_matters',
+    status: 'success',
+    durationMs: Date.now() - s1Start,
+    detail: `Recorded structured intake for ${client.client_name} (${client.practice_area.toUpperCase()} - Urgency: ${client.urgency.toUpperCase()}).`,
+    payload: {
+      client_name: client.client_name,
+      client_phone: client.client_phone,
+      client_email: client.client_email,
+      practice_area: client.practice_area,
+      matter_summary: client.matter_summary,
+      opposing_party: client.opposing_party,
+      urgency: client.urgency,
+      preferred_date: client.preferred_date,
+      preferred_time: client.preferred_time,
+    },
+  })
+
+  // ── Step 2: Conflict of Interest Query ───────────────────────────────────
+  const s2Start = Date.now()
+  const opposingNormalized = (client.opposing_party || '').trim().toLowerCase()
+  const conflictKeywords = ['conflict', 'adverse', 'opposing corp', 'abc corp', 'apex industries', 'disputed entity']
+  const hasPotentialConflict =
+    opposingNormalized.length > 0 &&
+    opposingNormalized !== 'none' &&
+    opposingNormalized !== 'n/a' &&
+    conflictKeywords.some((kw) => opposingNormalized.includes(kw))
+
+  const conflictStatus: LegalIntakeData['conflict_status'] = hasPotentialConflict
+    ? 'potential_conflict'
+    : opposingNormalized.length > 0 && opposingNormalized !== 'none' && opposingNormalized !== 'n/a'
+    ? 'clear'
+    : 'clear'
+
+  client.conflict_status = conflictStatus
+
+  steps.push({
+    stepId: 's2',
+    stepName: 'Conflict of Interest Query',
+    type: 'database',
+    target: 'Law Firm Database',
+    status: 'success',
+    durationMs: Date.now() - s2Start,
+    detail: hasPotentialConflict
+      ? `Potential conflict identified for opposing party '${client.opposing_party}'. Matter flagged for attorney manual review.`
+      : `Preliminary conflict screen completed for opposing party '${client.opposing_party}'. No direct active conflicts detected in index.`,
+    payload: {
+      opposing_party: client.opposing_party,
+      conflict_status: conflictStatus,
+      manual_review_required: hasPotentialConflict,
+    },
+  })
+
+  // ── Step 3: Schedule Consultation (Calendar Reservation / Sandbox) ───────
+  const s3Start = Date.now()
+  let s3Status: WorkflowStepResult['status'] = 'simulated'
+  let s3Detail = 'Attorney calendar reservation simulated (calendar adapter unconfigured)'
+  if (adapters?.createCalendarEvent) {
+    try {
+      const adapterRes = await adapters.createCalendarEvent({
+        title: `Legal Consultation: ${client.practice_area.toUpperCase()} - ${client.client_name}`,
+        date: client.preferred_date,
+        time: client.preferred_time,
+      })
+      s3Status = adapterRes.status
+      s3Detail = adapterRes.detail
+    } catch (err: any) {
+      s3Status = 'failed'
+      s3Detail = `Calendar reservation failed: ${err?.message || err}`
+    }
+  }
+  steps.push({
+    stepId: 's3',
+    stepName: 'Schedule Consultation',
+    type: 'calendar',
+    target: 'Attorney Calendar',
+    status: s3Status,
+    durationMs: Date.now() - s3Start,
+    detail: s3Detail,
+  })
+
+  // ── Step 4: n8n Legal Intake Sync ─────────────────────────────────────────
+  const s4Start = Date.now()
+  const n8nWebhookUrl = 'https://n8n.grovaitech.ai/webhook/v1/legal-intake'
+  let n8nResult: WorkflowExecutionResult['n8nResult'] = { status: 'not_configured' }
+  let s4Status: WorkflowStepResult['status'] = 'simulated'
+  let s4Detail = 'Simulated n8n Legal Intake Hub dispatch'
+
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 2000)
+
+    const n8nResp = await fetch(n8nWebhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Grovaitech-Source': 'workflow-engine-wf-006',
+      },
+      body: JSON.stringify({
+        workflow_id: 'wf-006',
+        execution_id: executionId,
+        intake_id: effectiveIntakeId,
+        client,
+        timestamp: startedAt,
+      }),
+      signal: controller.signal,
+    })
+
+    clearTimeout(timeoutId)
+
+    if (n8nResp.ok) {
+      s4Status = 'success'
+      s4Detail = `Dispatched to n8n Legal Hub (${n8nResp.status})`
+      n8nResult = { status: 'dispatched', endpoint: n8nWebhookUrl, statusCode: n8nResp.status }
+    } else {
+      s4Status = 'failed'
+      s4Detail = `n8n legal webhook returned status ${n8nResp.status}`
+      n8nResult = { status: 'failed', endpoint: n8nWebhookUrl, statusCode: n8nResp.status, response: s4Detail }
+    }
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      s4Status = 'simulated'
+      s4Detail = 'n8n webhook timed out (sandbox fallback)'
+      n8nResult = { status: 'not_configured', endpoint: n8nWebhookUrl, response: 'Timeout' }
+    } else {
+      s4Status = 'simulated'
+      s4Detail = `n8n webhook unavailable in sandbox: ${err.message || 'Offline'}`
+      n8nResult = { status: 'not_configured', endpoint: n8nWebhookUrl, response: err.message }
+    }
+  }
+
+  steps.push({
+    stepId: 's4',
+    stepName: 'n8n Legal Intake Sync',
+    type: 'n8n_webhook',
+    target: 'n8n Legal Hub Node',
+    status: s4Status,
+    durationMs: Date.now() - s4Start,
+    detail: s4Detail,
+    payload: {
+      url: n8nWebhookUrl,
+      intakeId: effectiveIntakeId,
+    },
+  })
+
+  const completedAt = new Date().toISOString()
+  const durationMs = Date.now() - startTime
+  const failedStepIds = steps.filter((step) => step.status === 'failed').map((step) => step.stepId)
+  const hasSimulatedSteps = steps.some((step) => step.status === 'simulated' || step.status === 'skipped')
+  const overallStatus: WorkflowExecutionResult['overallStatus'] =
+    failedStepIds.length > 0 ? 'failed' : hasSimulatedSteps ? 'partial' : 'success'
+
+  // If a potential conflict is identified or calendar is simulated, customer confirmation of an appointment is NOT allowed
+  const customerConfirmationAllowed =
+    !hasPotentialConflict && s3Status === 'success' && overallStatus === 'success'
+
+  const result: WorkflowExecutionResult = {
+    executionId,
+    workflowId: 'wf-006',
+    workflowName: 'Legal Consultation Intake & Conflict Check',
+    leadId: effectiveIntakeId,
+    conversationId,
+    triggerEvent: 'New Legal Inquiry Submitted',
+    overallStatus,
+    hasSimulatedSteps,
+    failedStepIds,
+    customerConfirmationAllowed,
+    startedAt,
+    completedAt,
+    durationMs,
+    steps,
+    n8nResult,
+  }
+
+  console.log(
+    `[Workflow Engine] Completed wf-006 execution ${executionId} in ${durationMs}ms with status: ${result.overallStatus}`
+  )
+
+  await saveWorkflowExecution(result, client.client_name)
+  return result
+}

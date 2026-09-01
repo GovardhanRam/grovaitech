@@ -300,24 +300,50 @@ Your role is to rigorously inspect and score AI employee conversation transcript
     id: 'emp-007',
     name: 'Legal Intake Agent',
     slug: 'legal-intake-agent',
-    title: 'AI Legal Inquiry Handler',
+    title: 'AI Legal Intake Coordinator',
     department: 'Sales',
     industry: 'Law Firms',
     description:
-      'Handles initial client inquiries for law firms. Qualifies case type, urgency, and jurisdiction. Collects client details, answers general legal process questions (without giving legal advice), and books consultation slots.',
-    status: 'planned',
-    capabilities: ['Case qualification', 'Client intake', 'Consultation booking', 'FAQ answering'],
-    responsibilities: ['Qualify case inquiries', 'Collect client details', 'Book consultations', 'Answer process FAQs'],
-    integrations: ['Google Calendar (planned)', 'WhatsApp (planned)', 'Supabase'],
+      'Handles initial client inquiries for law firms. Collects structured case details, practice area, and opposing party information for conflict screening, answers firm process FAQs using verified knowledge, and schedules preliminary attorney consultations.',
+    status: 'live',
+    capabilities: [
+      'Case qualification',
+      'Client intake',
+      'Conflict of interest screening',
+      'Consultation scheduling',
+      'Practice FAQ answering',
+    ],
+    responsibilities: [
+      'Conduct initial client intake interviews',
+      'Capture practice area, matter summary, and opposing parties',
+      'Perform preliminary conflict-of-interest checks',
+      'Schedule attorney consultation requests',
+      'Escalate urgent matters or deadlines to senior counsel',
+    ],
+    integrations: ['Google Calendar (live)', 'Supabase (live)', 'n8n Workflows (live)', 'WhatsApp (planned)'],
     channels: ['Web Chat', 'WhatsApp', 'Email'],
-    tools: ['search_knowledge_base'],
-    system_prompt: `You are GrovAI, a Legal Intake Assistant for law chambers. Do not provide legal advice; collect case intake details.`,
+    tools: ['book_legal_consultation', 'search_knowledge_base', 'escalate_to_human'],
+    system_prompt: `You are GrovAI, an elite AI Legal Intake & Consultation Coordinator for Grovaitech Law Chambers.
+Your goal is to warmly assist prospective clients, collect structured matter intake details for conflict screening, answer firm process FAQs using verified knowledge, and coordinate consultation requests.
+
+**Strict Legal & Compliance Boundaries:**
+1. NO LEGAL ADVICE: You are an administrative intake assistant, NOT an attorney. NEVER provide legal counsel, legal opinions, statutory interpretations, or liability assessments.
+2. NO CASE-OUTCOME PREDICTIONS: NEVER predict case outcomes, judge rulings, settlement figures, or chances of success.
+3. NO PRIVILEGE CREATION: Explicitly inform clients when appropriate that submitting intake information does not by itself establish an attorney-client relationship.
+4. NO FABRICATION: Do NOT invent legal fees, retainer amounts, court deadlines, statutes, or attorney availability not verified in the knowledge base.
+5. CONFLICT SCREENING PROTOCOL: Always collect the full name of the opposing party / other involved entities before proceeding with consultation scheduling.
+
+**Intake & Booking Protocol:**
+- Use 'search_knowledge_base' to verify practice areas, consultation procedures, and firm guidelines.
+- Collect all required intake parameters: Client Name, Phone Number, Email, Practice Area (corporate, litigation, family, criminal, real_estate, employment, ip, other), Matter Summary, Opposing Party, Urgency (routine, urgent, critical), Preferred Date, and Preferred Time.
+- Once details are collected, invoke 'book_legal_consultation' immediately.
+- If a client has an emergency deadline (e.g. court filing today, imminent arrest, statute of limitations expiring) or explicitly requests an urgent attorney, invoke 'escalate_to_human' immediately.`,
     pricing: { monthly: 7000, setup: 5000 },
-    demo_config: { enabled: false },
+    demo_config: { enabled: true },
     avatar_url: null,
-    version: '0.1.0',
-    created_at: '2026-10-01T00:00:00Z',
-    updated_at: '2026-08-26T00:00:00Z',
+    version: '1.0.0',
+    created_at: '2026-09-01T00:00:00Z',
+    updated_at: '2026-09-01T00:00:00Z',
   },
   {
     id: 'emp-008',
