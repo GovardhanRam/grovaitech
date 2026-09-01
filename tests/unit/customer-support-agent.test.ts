@@ -11,6 +11,12 @@ import {
 } from '@/lib/workflows/executor'
 import { createServerClient } from '@/lib/supabase/server'
 import { Gemini } from '@/lib/ai/gemini'
+import {
+  createMockSupabaseClient,
+  createMockGeminiInstance,
+  mockGeminiToolCall,
+  mockGeminiTextResponse,
+} from '../helpers/mocks'
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: vi.fn(),
@@ -29,41 +35,25 @@ describe('Customer Support Agent Vertical Slice & wf-003 Escalation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mockSupabase = {
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            order: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue({ data: [], error: null }),
-            }),
-            single: vi.fn().mockResolvedValue({ data: null, error: null }),
-          }),
-          order: vi.fn().mockResolvedValue({
-            data: [
-              { name: 'support_policy.pdf' },
-              { name: 'refund_guidelines.docx' },
-            ],
-            error: null,
-          }),
-        }),
-        insert: vi.fn().mockResolvedValue({ data: { id: 'rec-1' }, error: null }),
-      }),
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'usr-1' } }, error: null }),
-      },
-    }
+    mockSupabase = createMockSupabaseClient({
+      defaultData: [
+        { name: 'support_policy.pdf' },
+        { name: 'refund_guidelines.docx' },
+      ],
+      user: { id: 'usr-1' },
+    })
 
     vi.mocked(createServerClient).mockResolvedValue(mockSupabase as any)
 
     mockGenerateContentWithTools = vi.fn()
     mockGenerateText = vi.fn()
 
-    vi.mocked(Gemini).mockImplementation(() => ({
-      generateContentWithTools: mockGenerateContentWithTools,
-      generateText: mockGenerateText,
-      generateContent: vi.fn(),
-      getEmbeddings: vi.fn(),
-    } as any))
+    vi.mocked(Gemini).mockImplementation(() =>
+      createMockGeminiInstance({
+        generateContentWithTools: mockGenerateContentWithTools,
+        generateText: mockGenerateText,
+      }) as any
+    )
   })
 
   it('1. verifies customer-support-agent is live and has correct tools bound in registry', () => {
@@ -143,26 +133,25 @@ describe('Customer Support Agent Vertical Slice & wf-003 Escalation', () => {
 
   it('7. executes complete multi-turn reasoning turn for customer-support-agent in runtime', async () => {
     // Turn 1: Model requests escalate_to_human tool call
-    mockGenerateContentWithTools.mockResolvedValueOnce({
-      text: null,
-      functionCalls: [
+    mockGenerateContentWithTools.mockResolvedValueOnce(
+      mockGeminiToolCall(
+        'escalate_to_human',
         {
-          name: 'escalate_to_human',
-          args: {
-            customer_name: 'Anjali',
-            reason: 'Damaged shipment received',
-            urgency: 'high',
-            summary: 'Package arrived with broken seal and damaged item.',
-          },
+          customer_name: 'Anjali',
+          reason: 'Damaged shipment received',
+          urgency: 'high',
+          summary: 'Package arrived with broken seal and damaged item.',
         },
-      ],
-    })
+        null as any
+      )
+    )
 
     // Turn 2: Model returns response text
-    mockGenerateContentWithTools.mockResolvedValueOnce({
-      text: 'Anjali, I have alerted our human support team regarding "Damaged shipment received". An on-duty operator has received your conversation summary and will take over shortly.',
-      functionCalls: [],
-    })
+    mockGenerateContentWithTools.mockResolvedValueOnce(
+      mockGeminiTextResponse(
+        'Anjali, I have alerted our human support team regarding "Damaged shipment received". An on-duty operator has received your conversation summary and will take over shortly.'
+      )
+    )
 
     const turnRes = await runAgentTurn({
       employeeSlug: 'customer-support-agent',

@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { getCanonicalEmployeeBySlug, getCanonicalEmployees } from '@/lib/employees'
 import { resolveAuthorizedTools, getDefaultSystemPrompt, runAgentTurn } from '@/lib/ai/runtime'
 import { dispatchToolCall } from '@/lib/ai/dispatcher'
@@ -10,6 +10,12 @@ import {
 import { createServerClient } from '@/lib/supabase/server'
 import { Gemini } from '@/lib/ai/gemini'
 import { CANONICAL_DEMO_WORKFLOWS } from '@/lib/workflows/utils'
+import {
+  createMockSupabaseClient,
+  createMockGeminiInstance,
+  mockGeminiToolCall,
+  mockGeminiTextResponse,
+} from '../helpers/mocks'
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: vi.fn(),
@@ -28,31 +34,22 @@ describe('HR Onboarding Agent (emp-009) & WF-009 Vertical Slice', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mockSupabase = {
-      from: vi.fn().mockReturnValue({
-        insert: vi.fn().mockResolvedValue({ data: { id: 'wf-exec-hr-1' }, error: null }),
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: null, error: null }),
-          }),
-        }),
-      }),
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'usr-hr' } }, error: null }),
-      },
-    }
+    mockSupabase = createMockSupabaseClient({
+      defaultData: { id: 'wf-exec-hr-1' },
+      user: { id: 'usr-hr' },
+    })
 
     vi.mocked(createServerClient).mockResolvedValue(mockSupabase as any)
 
     mockGenerateContentWithTools = vi.fn()
     mockGenerateText = vi.fn()
 
-    vi.mocked(Gemini).mockImplementation(() => ({
-      generateContentWithTools: mockGenerateContentWithTools,
-      generateText: mockGenerateText,
-      generateContent: vi.fn(),
-      getEmbeddings: vi.fn(),
-    } as any))
+    vi.mocked(Gemini).mockImplementation(() =>
+      createMockGeminiInstance({
+        generateContentWithTools: mockGenerateContentWithTools,
+        generateText: mockGenerateText,
+      }) as any
+    )
   })
 
   // ─── 1. Registry Activation ────────────────────────────────────────────────
@@ -369,28 +366,27 @@ describe('HR Onboarding Agent (emp-009) & WF-009 Vertical Slice', () => {
 
   // ─── 16. Multi-turn runAgentTurn Integration & Regression Protection ────────
   it('16. integrates with runAgentTurn and maintains regression safety for emp-001..emp-008 and wf-001..wf-008', async () => {
-    mockGenerateContentWithTools.mockResolvedValueOnce({
-      text: null,
-      functionCalls: [
+    mockGenerateContentWithTools.mockResolvedValueOnce(
+      mockGeminiToolCall(
+        'schedule_onboarding_induction',
         {
-          name: 'schedule_onboarding_induction',
-          args: {
-            candidate_name: 'Pooja Hegde',
-            candidate_email: 'pooja.hegde@grovaitech.ai',
-            candidate_phone: '+919876543210',
-            role_title: 'Security Specialist',
-            department: 'engineering',
-            joining_date: '2026-09-15',
-            preferred_induction_slot: 'Monday 10:00 AM',
-          },
+          candidate_name: 'Pooja Hegde',
+          candidate_email: 'pooja.hegde@grovaitech.ai',
+          candidate_phone: '+919876543210',
+          role_title: 'Security Specialist',
+          department: 'engineering',
+          joining_date: '2026-09-15',
+          preferred_induction_slot: 'Monday 10:00 AM',
         },
-      ],
-    })
+        null as any
+      )
+    )
 
-    mockGenerateContentWithTools.mockResolvedValueOnce({
-      text: 'Welcome to the team Pooja! Your induction session is confirmed for Monday 10:00 AM.',
-      functionCalls: [],
-    })
+    mockGenerateContentWithTools.mockResolvedValueOnce(
+      mockGeminiTextResponse(
+        'Welcome to the team Pooja! Your induction session is confirmed for Monday 10:00 AM.'
+      )
+    )
 
     const turnResult = await runAgentTurn({
       employeeSlug: 'hr-onboarding-agent',

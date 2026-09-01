@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { getCanonicalEmployeeBySlug, getCanonicalEmployees } from '@/lib/employees'
 import { resolveAuthorizedTools, getDefaultSystemPrompt, runAgentTurn } from '@/lib/ai/runtime'
 import { dispatchToolCall } from '@/lib/ai/dispatcher'
@@ -10,6 +10,12 @@ import {
 import { createServerClient } from '@/lib/supabase/server'
 import { Gemini } from '@/lib/ai/gemini'
 import { CANONICAL_DEMO_WORKFLOWS } from '@/lib/workflows/utils'
+import {
+  createMockSupabaseClient,
+  createMockGeminiInstance,
+  mockGeminiToolCall,
+  mockGeminiTextResponse,
+} from '../helpers/mocks'
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: vi.fn(),
@@ -28,31 +34,22 @@ describe('Financial Advisory Agent (emp-010) & WF-010 Vertical Slice', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mockSupabase = {
-      from: vi.fn().mockReturnValue({
-        insert: vi.fn().mockResolvedValue({ data: { id: 'wf-exec-fin-1' }, error: null }),
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: null, error: null }),
-          }),
-        }),
-      }),
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'usr-fin' } }, error: null }),
-      },
-    }
+    mockSupabase = createMockSupabaseClient({
+      defaultData: { id: 'wf-exec-fin-1' },
+      user: { id: 'usr-fin' },
+    })
 
     vi.mocked(createServerClient).mockResolvedValue(mockSupabase as any)
 
     mockGenerateContentWithTools = vi.fn()
     mockGenerateText = vi.fn()
 
-    vi.mocked(Gemini).mockImplementation(() => ({
-      generateContentWithTools: mockGenerateContentWithTools,
-      generateText: mockGenerateText,
-      generateContent: vi.fn(),
-      getEmbeddings: vi.fn(),
-    } as any))
+    vi.mocked(Gemini).mockImplementation(() =>
+      createMockGeminiInstance({
+        generateContentWithTools: mockGenerateContentWithTools,
+        generateText: mockGenerateText,
+      }) as any
+    )
   })
 
   // ─── 1. Registry Activation ────────────────────────────────────────────────
@@ -389,29 +386,28 @@ describe('Financial Advisory Agent (emp-010) & WF-010 Vertical Slice', () => {
 
   // ─── 16. Multi-turn runAgentTurn Integration & Regression Protection ────────
   it('16. integrates with runAgentTurn and maintains regression safety for emp-001..emp-009 and wf-001..wf-009', async () => {
-    mockGenerateContentWithTools.mockResolvedValueOnce({
-      text: null,
-      functionCalls: [
+    mockGenerateContentWithTools.mockResolvedValueOnce(
+      mockGeminiToolCall(
+        'book_financial_consultation',
         {
-          name: 'book_financial_consultation',
-          args: {
-            client_name: 'Nandini Das',
-            client_phone: '+919876543210',
-            client_email: 'nandini@example.com',
-            product_category: 'wealth_management',
-            amount_range: '₹1 Crore',
-            employment_type: 'business_owner',
-            preferred_date: '2026-09-22',
-            preferred_time: '3:00 PM',
-          },
+          client_name: 'Nandini Das',
+          client_phone: '+919876543210',
+          client_email: 'nandini@example.com',
+          product_category: 'wealth_management',
+          amount_range: '₹1 Crore',
+          employment_type: 'business_owner',
+          preferred_date: '2026-09-22',
+          preferred_time: '3:00 PM',
         },
-      ],
-    })
+        null as any
+      )
+    )
 
-    mockGenerateContentWithTools.mockResolvedValueOnce({
-      text: 'Thank you Nandini! Your Wealth Management consultation is booked for 2026-09-22 at 3:00 PM.',
-      functionCalls: [],
-    })
+    mockGenerateContentWithTools.mockResolvedValueOnce(
+      mockGeminiTextResponse(
+        'Thank you Nandini! Your Wealth Management consultation is booked for 2026-09-22 at 3:00 PM.'
+      )
+    )
 
     const turnResult = await runAgentTurn({
       employeeSlug: 'financial-advisory-agent',

@@ -12,6 +12,13 @@ import {
 } from '@/lib/workflows/executor'
 import { createServerClient } from '@/lib/supabase/server'
 import { Gemini } from '@/lib/ai/gemini'
+import {
+  createMockSupabaseClient,
+  createMockGeminiInstance,
+  createMockWorkflowAdapters,
+  mockGeminiToolCall,
+  mockGeminiTextResponse,
+} from '../helpers/mocks'
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: vi.fn(),
@@ -30,41 +37,25 @@ describe('Salon & Spa Receptionist Vertical Slice & wf-007 Pipeline', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mockSupabase = {
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            order: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue({ data: [], error: null }),
-            }),
-            single: vi.fn().mockResolvedValue({ data: null, error: null }),
-          }),
-          order: vi.fn().mockResolvedValue({
-            data: [
-              { name: 'spa_service_menu.pdf' },
-              { name: 'bridal_packages.docx' },
-            ],
-            error: null,
-          }),
-        }),
-        insert: vi.fn().mockResolvedValue({ data: { id: 'wf-exec-1' }, error: null }),
-      }),
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'usr-1' } }, error: null }),
-      },
-    }
+    mockSupabase = createMockSupabaseClient({
+      defaultData: [
+        { name: 'spa_service_menu.pdf' },
+        { name: 'bridal_packages.docx' },
+      ],
+      user: { id: 'usr-1' },
+    })
 
     vi.mocked(createServerClient).mockResolvedValue(mockSupabase as any)
 
     mockGenerateContentWithTools = vi.fn()
     mockGenerateText = vi.fn()
 
-    vi.mocked(Gemini).mockImplementation(() => ({
-      generateContentWithTools: mockGenerateContentWithTools,
-      generateText: mockGenerateText,
-      generateContent: vi.fn(),
-      getEmbeddings: vi.fn(),
-    } as any))
+    vi.mocked(Gemini).mockImplementation(() =>
+      createMockGeminiInstance({
+        generateContentWithTools: mockGenerateContentWithTools,
+        generateText: mockGenerateText,
+      }) as any
+    )
   })
 
   it('1. verifies salon-spa-receptionist is live and has correct tools bound in registry', () => {
@@ -121,10 +112,10 @@ describe('Salon & Spa Receptionist Vertical Slice & wf-007 Pipeline', () => {
   })
 
   it('5. executes executeSalonWorkflow with live adapters returning success', async () => {
-    const liveAdapters: WorkflowExecutionAdapters = {
-      createCalendarEvent: async () => ({ status: 'success', detail: 'Stylist calendar reserved.' }),
-      dispatchWhatsAppTemplate: async () => ({ status: 'success', detail: 'WhatsApp template sent.' }),
-    }
+    const liveAdapters = createMockWorkflowAdapters({
+      createCalendarEvent: vi.fn().mockResolvedValue({ status: 'success', detail: 'Stylist calendar reserved.' }),
+      dispatchWhatsAppTemplate: vi.fn().mockResolvedValue({ status: 'success', detail: 'WhatsApp template sent.' }),
+    })
 
     const wfRes = await executeSalonWorkflow({
       bookingId: 'salon-101',
@@ -169,28 +160,27 @@ describe('Salon & Spa Receptionist Vertical Slice & wf-007 Pipeline', () => {
 
   it('7. executes complete multi-turn reasoning turn for salon-spa-receptionist in runtime', async () => {
     // Turn 1: Model requests book_salon_service tool call
-    mockGenerateContentWithTools.mockResolvedValueOnce({
-      text: null,
-      functionCalls: [
+    mockGenerateContentWithTools.mockResolvedValueOnce(
+      mockGeminiToolCall(
+        'book_salon_service',
         {
-          name: 'book_salon_service',
-          args: {
-            client_name: 'Ananya Roy',
-            client_phone: '+919876543210',
-            service_name: 'Aromatherapy Massage',
-            appointment_date: '2026-09-06',
-            appointment_time: '3:00 PM',
-            stylist_preference: 'Maya',
-          },
+          client_name: 'Ananya Roy',
+          client_phone: '+919876543210',
+          service_name: 'Aromatherapy Massage',
+          appointment_date: '2026-09-06',
+          appointment_time: '3:00 PM',
+          stylist_preference: 'Maya',
         },
-      ],
-    })
+        null as any
+      )
+    )
 
     // Turn 2: Model returns response text
-    mockGenerateContentWithTools.mockResolvedValueOnce({
-      text: 'Thank you, Ananya Roy! Your appointment for "Aromatherapy Massage" on 2026-09-06 at 3:00 PM with Maya has been received. Our salon team has blocked the schedule and will confirm details shortly via WhatsApp.',
-      functionCalls: [],
-    })
+    mockGenerateContentWithTools.mockResolvedValueOnce(
+      mockGeminiTextResponse(
+        'Thank you, Ananya Roy! Your appointment for "Aromatherapy Massage" on 2026-09-06 at 3:00 PM with Maya has been received. Our salon team has blocked the schedule and will confirm details shortly via WhatsApp.'
+      )
+    )
 
     const turnRes = await runAgentTurn({
       employeeSlug: 'salon-spa-receptionist',

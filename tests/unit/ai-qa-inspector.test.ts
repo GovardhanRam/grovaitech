@@ -9,6 +9,13 @@ import {
 } from '@/lib/workflows/executor'
 import { createServerClient } from '@/lib/supabase/server'
 import { Gemini } from '@/lib/ai/gemini'
+import {
+  createMockSupabaseClient,
+  createMockGeminiInstance,
+  createMockWorkflowAdapters,
+  mockGeminiToolCall,
+  mockGeminiTextResponse,
+} from '../helpers/mocks'
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: vi.fn(),
@@ -27,44 +34,25 @@ describe('AI QA Inspector Vertical Slice & wf-005 Pipeline', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mockSupabase = {
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            order: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue({
-                data: [
-                  { role: 'user', content: 'Hello, what is your refund policy?', created_at: '2026-09-01T10:00:00Z' },
-                  { role: 'assistant', content: 'We offer refunds within 30 days as verified in our policy document.', created_at: '2026-09-01T10:00:05Z' },
-                ],
-                error: null,
-              }),
-            }),
-            single: vi.fn().mockResolvedValue({ data: null, error: null }),
-          }),
-          order: vi.fn().mockResolvedValue({
-            data: [{ name: 'qa_compliance_rubric.pdf' }],
-            error: null,
-          }),
-        }),
-        insert: vi.fn().mockResolvedValue({ data: { id: 'wf-exec-qa-1' }, error: null }),
-      }),
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'usr-qa' } }, error: null }),
-      },
-    }
+    mockSupabase = createMockSupabaseClient({
+      defaultData: [
+        { role: 'user', content: 'Hello, what is your refund policy?', created_at: '2026-09-01T10:00:00Z' },
+        { role: 'assistant', content: 'We offer refunds within 30 days as verified in our policy document.', created_at: '2026-09-01T10:00:05Z' },
+      ],
+      user: { id: 'usr-qa' },
+    })
 
     vi.mocked(createServerClient).mockResolvedValue(mockSupabase as any)
 
     mockGenerateContentWithTools = vi.fn()
     mockGenerateText = vi.fn()
 
-    vi.mocked(Gemini).mockImplementation(() => ({
-      generateContentWithTools: mockGenerateContentWithTools,
-      generateText: mockGenerateText,
-      generateContent: vi.fn(),
-      getEmbeddings: vi.fn(),
-    } as any))
+    vi.mocked(Gemini).mockImplementation(() =>
+      createMockGeminiInstance({
+        generateContentWithTools: mockGenerateContentWithTools,
+        generateText: mockGenerateText,
+      }) as any
+    )
   })
 
   it('1. verifies ai-qa-inspector is live and has correct tools bound in registry', () => {
@@ -133,9 +121,9 @@ ASSISTANT: Yes, we guarantee 100% profit within 3 months! Also, shut up if you d
   })
 
   it('6. executes executeQaWorkflow with live adapters returning success', async () => {
-    const liveAdapters: WorkflowExecutionAdapters = {
-      dispatchWhatsAppTemplate: async () => ({ status: 'success', detail: 'Executive notification email dispatched.' }),
-    }
+    const liveAdapters = createMockWorkflowAdapters({
+      dispatchWhatsAppTemplate: vi.fn().mockResolvedValue({ status: 'success', detail: 'Executive notification email dispatched.' }),
+    })
 
     const wfRes = await executeQaWorkflow({
       auditId: 'qa-audit-101',
@@ -187,24 +175,23 @@ ASSISTANT: Yes, we guarantee 100% profit within 3 months! Also, shut up if you d
 
   it('8. executes complete multi-turn reasoning turn for ai-qa-inspector in runtime', async () => {
     // Turn 1: Model invokes audit_conversation_quality tool
-    mockGenerateContentWithTools.mockResolvedValueOnce({
-      text: null,
-      functionCalls: [
+    mockGenerateContentWithTools.mockResolvedValueOnce(
+      mockGeminiToolCall(
+        'audit_conversation_quality',
         {
-          name: 'audit_conversation_quality',
-          args: {
-            transcript: 'USER: Can I book a haircut?\nASSISTANT: Yes, what date and time would you like?',
-            rubric: 'hospitality',
-          },
+          transcript: 'USER: Can I book a haircut?\nASSISTANT: Yes, what date and time would you like?',
+          rubric: 'hospitality',
         },
-      ],
-    })
+        null as any
+      )
+    )
 
     // Turn 2: Model returns structured audit text
-    mockGenerateContentWithTools.mockResolvedValueOnce({
-      text: '### QA Interaction Audit Report (✅ PASSED)\n**Overall Quality Score:** 92/100 (Compliant)\n**Rubric Breakdown:** Truthfulness: 25/25 | Helpfulness: 25/25 | Compliance: 22/25 | Safety: 20/25\n**Executive Summary:** Interaction passed quality rubric scoring 92/100.',
-      functionCalls: [],
-    })
+    mockGenerateContentWithTools.mockResolvedValueOnce(
+      mockGeminiTextResponse(
+        '### QA Interaction Audit Report (✅ PASSED)\n**Overall Quality Score:** 92/100 (Compliant)\n**Rubric Breakdown:** Truthfulness: 25/25 | Helpfulness: 25/25 | Compliance: 22/25 | Safety: 20/25\n**Executive Summary:** Interaction passed quality rubric scoring 92/100.'
+      )
+    )
 
     const turnRes = await runAgentTurn({
       employeeSlug: 'ai-qa-inspector',

@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { getCanonicalEmployeeBySlug, getCanonicalEmployees } from '@/lib/employees'
 import { resolveAuthorizedTools, getDefaultSystemPrompt, runAgentTurn } from '@/lib/ai/runtime'
 import { dispatchToolCall } from '@/lib/ai/dispatcher'
@@ -11,6 +11,12 @@ import {
 import { createServerClient } from '@/lib/supabase/server'
 import { Gemini } from '@/lib/ai/gemini'
 import { CANONICAL_DEMO_WORKFLOWS } from '@/lib/workflows/utils'
+import {
+  createMockSupabaseClient,
+  createMockGeminiInstance,
+  mockGeminiToolCall,
+  mockGeminiTextResponse,
+} from '../helpers/mocks'
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: vi.fn(),
@@ -29,31 +35,22 @@ describe('Legal Intake Agent (emp-007) & WF-006 Vertical Slice', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mockSupabase = {
-      from: vi.fn().mockReturnValue({
-        insert: vi.fn().mockResolvedValue({ data: { id: 'wf-exec-legal-1' }, error: null }),
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: null, error: null }),
-          }),
-        }),
-      }),
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'usr-legal' } }, error: null }),
-      },
-    }
+    mockSupabase = createMockSupabaseClient({
+      defaultData: { id: 'wf-exec-legal-1' },
+      user: { id: 'usr-legal' },
+    })
 
     vi.mocked(createServerClient).mockResolvedValue(mockSupabase as any)
 
     mockGenerateContentWithTools = vi.fn()
     mockGenerateText = vi.fn()
 
-    vi.mocked(Gemini).mockImplementation(() => ({
-      generateContentWithTools: mockGenerateContentWithTools,
-      generateText: mockGenerateText,
-      generateContent: vi.fn(),
-      getEmbeddings: vi.fn(),
-    } as any))
+    vi.mocked(Gemini).mockImplementation(() =>
+      createMockGeminiInstance({
+        generateContentWithTools: mockGenerateContentWithTools,
+        generateText: mockGenerateText,
+      }) as any
+    )
   })
 
   // ─── 1. Registry Activation ────────────────────────────────────────────────
@@ -357,30 +354,29 @@ describe('Legal Intake Agent (emp-007) & WF-006 Vertical Slice', () => {
 
   // ─── 12. Multi-turn runAgentTurn Integration ───────────────────────────────
   it('12. integrates seamlessly with runAgentTurn for legal-intake-agent persona', async () => {
-    mockGenerateContentWithTools.mockResolvedValueOnce({
-      text: null,
-      functionCalls: [
+    mockGenerateContentWithTools.mockResolvedValueOnce(
+      mockGeminiToolCall(
+        'book_legal_consultation',
         {
-          name: 'book_legal_consultation',
-          args: {
-            client_name: 'Aravind Swamy',
-            client_phone: '+919988776655',
-            client_email: 'aravind@example.com',
-            practice_area: 'real_estate',
-            matter_summary: 'Commercial property title verification and dispute',
-            opposing_party: 'None',
-            urgency: 'routine',
-            preferred_date: '2026-09-28',
-            preferred_time: '11:00 AM',
-          },
+          client_name: 'Aravind Swamy',
+          client_phone: '+919988776655',
+          client_email: 'aravind@example.com',
+          practice_area: 'real_estate',
+          matter_summary: 'Commercial property title verification and dispute',
+          opposing_party: 'None',
+          urgency: 'routine',
+          preferred_date: '2026-09-28',
+          preferred_time: '11:00 AM',
         },
-      ],
-    })
+        null as any
+      )
+    )
 
-    mockGenerateContentWithTools.mockResolvedValueOnce({
-      text: 'I have scheduled your legal consultation request with Grovaitech Law Chambers.',
-      functionCalls: [],
-    })
+    mockGenerateContentWithTools.mockResolvedValueOnce(
+      mockGeminiTextResponse(
+        'I have scheduled your legal consultation request with Grovaitech Law Chambers.'
+      )
+    )
 
     const turnResult = await runAgentTurn({
       employeeSlug: 'legal-intake-agent',

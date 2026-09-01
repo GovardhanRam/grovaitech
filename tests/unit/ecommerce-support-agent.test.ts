@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { getCanonicalEmployeeBySlug, getCanonicalEmployees } from '@/lib/employees'
 import { resolveAuthorizedTools, getDefaultSystemPrompt, runAgentTurn } from '@/lib/ai/runtime'
 import { dispatchToolCall } from '@/lib/ai/dispatcher'
@@ -10,6 +10,12 @@ import {
 import { createServerClient } from '@/lib/supabase/server'
 import { Gemini } from '@/lib/ai/gemini'
 import { CANONICAL_DEMO_WORKFLOWS } from '@/lib/workflows/utils'
+import {
+  createMockSupabaseClient,
+  createMockGeminiInstance,
+  mockGeminiToolCall,
+  mockGeminiTextResponse,
+} from '../helpers/mocks'
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: vi.fn(),
@@ -28,31 +34,22 @@ describe('E-Commerce Support Agent (emp-008) & WF-008 Vertical Slice', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mockSupabase = {
-      from: vi.fn().mockReturnValue({
-        insert: vi.fn().mockResolvedValue({ data: { id: 'wf-exec-ecom-1' }, error: null }),
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: null, error: null }),
-          }),
-        }),
-      }),
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'usr-ecom' } }, error: null }),
-      },
-    }
+    mockSupabase = createMockSupabaseClient({
+      defaultData: { id: 'wf-exec-ecom-1' },
+      user: { id: 'usr-ecom' },
+    })
 
     vi.mocked(createServerClient).mockResolvedValue(mockSupabase as any)
 
     mockGenerateContentWithTools = vi.fn()
     mockGenerateText = vi.fn()
 
-    vi.mocked(Gemini).mockImplementation(() => ({
-      generateContentWithTools: mockGenerateContentWithTools,
-      generateText: mockGenerateText,
-      generateContent: vi.fn(),
-      getEmbeddings: vi.fn(),
-    } as any))
+    vi.mocked(Gemini).mockImplementation(() =>
+      createMockGeminiInstance({
+        generateContentWithTools: mockGenerateContentWithTools,
+        generateText: mockGenerateText,
+      }) as any
+    )
   })
 
   // ─── 1. Registry Activation ────────────────────────────────────────────────
@@ -315,24 +312,23 @@ describe('E-Commerce Support Agent (emp-008) & WF-008 Vertical Slice', () => {
 
   // ─── 16. Multi-turn runAgentTurn Integration & Regression Protection ────────
   it('16. integrates with runAgentTurn and maintains regression safety for emp-001..emp-007 and wf-001..wf-007', async () => {
-    mockGenerateContentWithTools.mockResolvedValueOnce({
-      text: null,
-      functionCalls: [
+    mockGenerateContentWithTools.mockResolvedValueOnce(
+      mockGeminiToolCall(
+        'lookup_order_and_support',
         {
-          name: 'lookup_order_and_support',
-          args: {
-            order_id: '#ORD-88231',
-            customer_email: 'rahul@example.com',
-            action_type: 'track_order',
-          },
+          order_id: '#ORD-88231',
+          customer_email: 'rahul@example.com',
+          action_type: 'track_order',
         },
-      ],
-    })
+        null as any
+      )
+    )
 
-    mockGenerateContentWithTools.mockResolvedValueOnce({
-      text: 'Your order #ORD-88231 is currently in transit via BlueDart Logistics.',
-      functionCalls: [],
-    })
+    mockGenerateContentWithTools.mockResolvedValueOnce(
+      mockGeminiTextResponse(
+        'Your order #ORD-88231 is currently in transit via BlueDart Logistics.'
+      )
+    )
 
     const turnResult = await runAgentTurn({
       employeeSlug: 'ecommerce-support-agent',
