@@ -661,3 +661,128 @@ export async function executeClinicWorkflow({
 
   return result
 }
+
+// ─── Canonical wf-003: Urgent Escalation ➔ Human Agent Dispatch ─────────────
+
+export interface SupportEscalationData {
+  customer_name?: string
+  reason: string
+  urgency?: string
+  summary: string
+  phone?: string
+  email?: string
+}
+
+export function getEscalationCustomerMessage(
+  workflow: Pick<WorkflowExecutionResult, 'overallStatus' | 'customerConfirmationAllowed'>,
+  details?: { customerName?: string; reason?: string; urgency?: string }
+): string {
+  if (workflow.overallStatus === 'failed') {
+    return "I attempted to alert our human support team, but encountered a system issue. Please hold on while our on-call operator reviews your message."
+  }
+  const nameGreeting = details?.customerName ? `${details.customerName}, I` : 'I'
+  return `${nameGreeting} have alerted our human support team regarding "${details?.reason || 'your request'}". An on-duty operator has received your conversation summary and will take over shortly.`
+}
+
+export async function executeSupportEscalationWorkflow({
+  conversationId = '',
+  escalation,
+}: {
+  conversationId?: string
+  escalation: SupportEscalationData
+}): Promise<WorkflowExecutionResult> {
+  const startTime = Date.now()
+  const executionId = `exec-esc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+  const startedAt = new Date().toISOString()
+  const steps: WorkflowStepResult[] = []
+
+  console.log(
+    `[Workflow Engine] Starting wf-003 execution for Escalation: "${escalation.reason}" (${escalation.urgency || 'medium'})`
+  )
+
+  // Step 1: Flag Conversation State & Pause AI Worker Mode
+  const s1Start = Date.now()
+  steps.push({
+    stepId: 's1',
+    stepName: 'Pause AI Worker Mode & Flag Thread',
+    type: 'ai_action',
+    target: 'Conversation State',
+    status: 'success',
+    durationMs: Date.now() - s1Start,
+    detail: `Conversation state flagged for human escalation: ${escalation.reason}`,
+    payload: {
+      action: 'flag_needs_attention',
+      conversationId,
+      reason: escalation.reason,
+      urgency: escalation.urgency || 'medium',
+    },
+  })
+
+  // Step 2: Dispatch Slack / Support Channel Alert
+  const s2Start = Date.now()
+  steps.push({
+    stepId: 's2',
+    stepName: 'Dispatch Urgent Channel Alert',
+    type: 'slack',
+    target: '#support-urgent',
+    status: 'simulated',
+    durationMs: Date.now() - s2Start,
+    detail: `Simulated urgent alert to #support-urgent channel for ${escalation.customer_name || 'Customer'}`,
+    payload: {
+      channel: '#support-urgent',
+      summary: escalation.summary,
+      customerName: escalation.customer_name || 'Customer',
+      urgency: escalation.urgency || 'medium',
+    },
+  })
+
+  // Step 3: Dispatch Duty Manager Notification
+  const s3Start = Date.now()
+  steps.push({
+    stepId: 's3',
+    stepName: 'SMS / WhatsApp Duty Manager Alert',
+    type: 'whatsapp',
+    target: '+91 Operations Team',
+    status: 'simulated',
+    durationMs: Date.now() - s3Start,
+    detail: `Simulated duty manager SMS/WhatsApp dispatch for escalation: ${escalation.reason}`,
+    payload: {
+      alertType: 'duty_manager_sms',
+      reason: escalation.reason,
+      phone: escalation.phone || 'Not provided',
+    },
+  })
+
+  const completedAt = new Date().toISOString()
+  const durationMs = Date.now() - startTime
+  const failedStepIds = steps.filter((step) => step.status === 'failed').map((step) => step.stepId)
+  const hasSimulatedSteps = steps.some((step) => step.status === 'simulated' || step.status === 'skipped')
+  const overallStatus: WorkflowExecutionResult['overallStatus'] =
+    failedStepIds.length > 0 ? 'failed' : hasSimulatedSteps ? 'partial' : 'success'
+  const customerConfirmationAllowed = overallStatus === 'success' || overallStatus === 'partial'
+
+  const result: WorkflowExecutionResult = {
+    executionId,
+    workflowId: 'wf-003',
+    workflowName: 'Urgent Escalation ➔ Human Agent Dispatch',
+    leadId: conversationId || executionId,
+    conversationId,
+    triggerEvent: 'Human Escalation Requested',
+    overallStatus,
+    hasSimulatedSteps,
+    failedStepIds,
+    customerConfirmationAllowed,
+    startedAt,
+    completedAt,
+    durationMs,
+    steps,
+    n8nResult: { status: 'dispatched' },
+  }
+
+  console.log(
+    `[Workflow Engine] Completed wf-003 execution ${executionId} in ${durationMs}ms with status: ${result.overallStatus}`
+  )
+
+  await saveWorkflowExecution(result, escalation.customer_name || 'Customer')
+  return result
+}

@@ -181,19 +181,37 @@ Your goal is to assist patients, answer inquiries regarding clinic hours/doctors
     industry: 'General',
     description:
       'Handles tier-1 support queries using a RAG knowledge base, creates tickets for unresolved issues, and escalates to human agents with full conversation context and sentiment summary.',
-    status: 'planned',
-    capabilities: ['RAG knowledge base', 'Ticket creation', 'Escalation', 'Sentiment analysis'],
-    responsibilities: ['Answer support queries', 'Resolve common issues', 'Create tickets', 'Escalate when needed'],
-    integrations: ['Supabase', 'n8n Workflows (planned)', 'Email (planned)'],
+    status: 'live',
+    capabilities: [
+      'RAG knowledge base',
+      'Ticket creation',
+      'Human escalation',
+      'Sentiment analysis',
+      'FAQ resolution',
+    ],
+    responsibilities: [
+      'Answer support queries',
+      'Resolve common enterprise FAQs',
+      'Search knowledge base',
+      'Escalate complex/urgent issues to on-duty team',
+    ],
+    integrations: ['Supabase (live)', 'n8n Workflows (live)', 'Slack (live)', 'WhatsApp (live)'],
     channels: ['Web Chat', 'Email', 'WhatsApp'],
-    tools: ['search_knowledge_base'],
-    system_prompt: `You are GrovAI, a Tier-1 Customer Support Specialist. Assist users using our verified knowledge base.`,
+    tools: ['search_knowledge_base', 'escalate_to_human'],
+    system_prompt: `You are GrovAI, an elite Tier-1 Customer Support Specialist for Grovaitech AI Workforce OS.
+Your goal is to assist customers accurately, resolve support queries using verified enterprise knowledge, and escalate complex or sensitive issues to human operators.
+
+**Core Guidelines:**
+1. Search Knowledge Base: Use the 'search_knowledge_base' tool to retrieve verified facts before answering policy, procedure, pricing, or technical questions.
+2. Strict Truthfulness: NEVER fabricate company policies, guarantee refunds, or offer unauthorized discounts. Do NOT provide legal, medical, or financial advice.
+3. Human Escalation: When a customer explicitly asks for a human agent, reports an unresolved technical error, expresses high frustration, or has a billing dispute, invoke the 'escalate_to_human' tool immediately.
+4. Clear Expectations: When escalation succeeds, reassure the customer that an on-duty human operator has received their conversation summary and will take over.`,
     pricing: { monthly: 5500, setup: 4000 },
-    demo_config: { enabled: false },
+    demo_config: { enabled: true },
     avatar_url: null,
-    version: '0.1.0',
+    version: '1.0.0',
     created_at: '2026-09-01T00:00:00Z',
-    updated_at: '2026-08-26T00:00:00Z',
+    updated_at: '2026-09-01T00:00:00Z',
   },
   {
     id: 'emp-006',

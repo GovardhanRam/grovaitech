@@ -214,6 +214,41 @@ export const SEARCH_KNOWLEDGE_BASE_TOOL: FunctionDeclaration = {
   },
 }
 
+export const ESCALATE_TO_HUMAN_TOOL: FunctionDeclaration = {
+  name: 'escalate_to_human',
+  description: 'Escalates an active customer inquiry to an on-duty human support operator when the issue is complex, sensitive, unresolved, or explicitly requested by the customer.',
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      reason: {
+        type: SchemaType.STRING,
+        description: 'Specific reason for human escalation (e.g., Billing Dispute, Complex Technical Error, Explicit Human Request, High Frustration).',
+      },
+      summary: {
+        type: SchemaType.STRING,
+        description: 'Concise 1-2 sentence summary of the issue and context for the human agent.',
+      },
+      urgency: {
+        type: SchemaType.STRING,
+        description: 'Urgency level: low, medium, high, or critical (default: medium).',
+      },
+      customer_name: {
+        type: SchemaType.STRING,
+        description: 'Name of the customer requiring assistance.',
+      },
+      phone: {
+        type: SchemaType.STRING,
+        description: 'Contact phone number of the customer if provided.',
+      },
+      email: {
+        type: SchemaType.STRING,
+        description: 'Contact email address of the customer if provided.',
+      },
+    },
+    required: ['reason', 'summary'],
+  },
+}
+
 // ─── Grouped Tool Collections for AI Employee Personas ───────────────────────
 
 export const REAL_ESTATE_TOOLS: FunctionDeclaration[] = [
@@ -227,11 +262,17 @@ export const CLINIC_TOOLS: FunctionDeclaration[] = [
   SEARCH_KNOWLEDGE_BASE_TOOL,
 ]
 
+export const SUPPORT_TOOLS: FunctionDeclaration[] = [
+  SEARCH_KNOWLEDGE_BASE_TOOL,
+  ESCALATE_TO_HUMAN_TOOL,
+]
+
 export const ALL_GROVAITECH_TOOLS: FunctionDeclaration[] = [
   CREATE_LEAD_TOOL,
   SCHEDULE_SITE_VISIT_TOOL,
   BOOK_CLINIC_APPOINTMENT_TOOL,
   SEARCH_KNOWLEDGE_BASE_TOOL,
+  ESCALATE_TO_HUMAN_TOOL,
 ]
 
 export const GROVAITECH_TOOLSET: FunctionDeclarationsTool = {
@@ -245,6 +286,7 @@ export const TOOL_NAMES = {
   SCHEDULE_SITE_VISIT: 'schedule_site_visit',
   BOOK_CLINIC_APPOINTMENT: 'book_clinic_appointment',
   SEARCH_KNOWLEDGE_BASE: 'search_knowledge_base',
+  ESCALATE_TO_HUMAN: 'escalate_to_human',
 } as const
 
 export type ToolName = typeof TOOL_NAMES[keyof typeof TOOL_NAMES]

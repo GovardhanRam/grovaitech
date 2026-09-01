@@ -16,6 +16,8 @@ import {
   getSiteVisitCustomerMessage,
   executeClinicWorkflow,
   getClinicCustomerMessage,
+  executeSupportEscalationWorkflow,
+  getEscalationCustomerMessage,
 } from '@/lib/workflows/executor'
 import { generateResponse } from '@/lib/ai/gemini'
 import { createServerClient } from '@/lib/supabase/server'
@@ -52,9 +54,10 @@ function sanitizeErrorMessage(error: any): string {
     .slice(0, 300)
 }
 
-function sanitizeString(val: any): string {
+function sanitizeString(val: any, maxLength?: number): string {
   if (typeof val !== 'string') return ''
-  return val.trim()
+  const trimmed = val.trim()
+  return typeof maxLength === 'number' ? trimmed.slice(0, maxLength) : trimmed
 }
 
 function sanitizePhone(val: any): string {
@@ -309,6 +312,56 @@ Provide a factual, concise response answering the search query based on these en
   }
 }
 
+/**
+ * Handler for 'escalate_to_human'
+ */
+async function handleEscalateToHuman(rawArgs: Record<string, any>) {
+  const reason = sanitizeString(rawArgs.reason || 'General Customer Assistance', 200)
+  const summary = sanitizeString(rawArgs.summary || 'Customer requested human assistance.', 500)
+  const urgency = sanitizeString(rawArgs.urgency || 'medium', 20).toLowerCase()
+  const customerName = sanitizeString(rawArgs.customer_name || rawArgs.name || '', 100)
+  const phone = sanitizeString(rawArgs.phone || '', 30)
+  const email = sanitizeString(rawArgs.email || '', 100)
+  const conversationId = sanitizeString(rawArgs.conversation_id || rawArgs.chat_id || '', 100)
+
+  if (!reason || reason.length < 3) {
+    throw new Error("Validation Error: 'reason' must be at least 3 characters.")
+  }
+  if (!summary || summary.length < 5) {
+    throw new Error("Validation Error: 'summary' must be at least 5 characters.")
+  }
+
+  const workflowRes = await executeSupportEscalationWorkflow({
+    conversationId,
+    escalation: {
+      customer_name: customerName || undefined,
+      reason,
+      urgency,
+      summary,
+      phone: phone || undefined,
+      email: email || undefined,
+    },
+  })
+
+  const message = getEscalationCustomerMessage(workflowRes, {
+    customerName: customerName || undefined,
+    reason,
+    urgency,
+  })
+
+  return {
+    escalated: true,
+    workflowId: workflowRes.workflowId,
+    executionId: workflowRes.executionId,
+    workflowStatus: workflowRes.overallStatus,
+    reason,
+    urgency,
+    customerName: customerName || undefined,
+    message,
+    steps: workflowRes.steps,
+  }
+}
+
 // ─── Main Dispatcher Entry Point ─────────────────────────────────────────────
 
 /**
@@ -363,6 +416,10 @@ export async function dispatchToolCall(
 
       case TOOL_NAMES.SEARCH_KNOWLEDGE_BASE:
         result = await handleSearchKnowledgeBase(rawArgs || {})
+        break
+
+      case TOOL_NAMES.ESCALATE_TO_HUMAN:
+        result = await handleEscalateToHuman(rawArgs || {})
         break
 
       default:

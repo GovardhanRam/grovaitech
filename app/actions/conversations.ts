@@ -208,11 +208,29 @@ export async function getConversations(): Promise<GetConversationsResult> {
       let assignedEmployee = 'Real Estate Lead Receptionist'
       if (chatRecord.title?.toLowerCase().includes('clinic') || matchedLead?.notes?.toLowerCase().includes('clinic')) {
         assignedEmployee = 'Clinic Receptionist'
+      } else if (
+        chatRecord.title?.toLowerCase().includes('support') ||
+        chatRecord.title?.toLowerCase().includes('help') ||
+        formattedMessages.some(
+          (m) =>
+            m.content.toLowerCase().includes('human support team') ||
+            m.content.toLowerCase().includes('support agent')
+        )
+      ) {
+        assignedEmployee = 'Customer Support Agent'
       }
+
+      const isEscalated = formattedMessages.some(
+        (m) =>
+          m.content.toLowerCase().includes('alerted our human support team') ||
+          m.content.toLowerCase().includes('operator has received your conversation summary')
+      )
 
       // Resolve status & unread count
       let status: ConversationStatus = 'active'
-      if (matchedLead?.lead_status === 'converted' || matchedLead?.lead_status === 'lost') {
+      if (isEscalated) {
+        status = 'needs_attention'
+      } else if (matchedLead?.lead_status === 'converted' || matchedLead?.lead_status === 'lost') {
         status = 'resolved'
       } else if (formattedMessages.length > 0 && formattedMessages[formattedMessages.length - 1].role === 'customer') {
         status = 'active'
@@ -228,6 +246,7 @@ export async function getConversations(): Promise<GetConversationsResult> {
       }
 
       const tags: string[] = []
+      if (isEscalated) tags.push('Escalated', 'Support')
       if (channel === 'WhatsApp') tags.push('WhatsApp')
       if (matchedLead?.property_type) tags.push(matchedLead.property_type)
       if (matchedLead?.site_visit_requested) tags.push('Site Visit Requested')
