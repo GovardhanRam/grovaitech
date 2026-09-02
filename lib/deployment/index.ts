@@ -2,9 +2,9 @@
  * Grovaitech AI Platform
  * lib/deployment/index.ts
  *
- * Grovaitech AI Employee Deployment Engine (Phase 1).
+ * Grovaitech AI Employee Deployment Engine.
  * Single entry point for revenue leak detection, canonical worker matching,
- * personalized demo synthesis, and CRM readiness evaluation.
+ * personalized demo synthesis, CRM readiness evaluation, and safe demo execution.
  */
 
 import type { Prospect, DeploymentAnalysis, CrmReadiness } from './types'
@@ -16,6 +16,7 @@ export * from './types'
 export * from './revenue-leaks'
 export * from './matcher'
 export * from './demo-planner'
+export * from './demo-executor'
 
 /**
  * Evaluates CRM readiness according to Grovaitech LeadData strict specifications.

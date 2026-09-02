@@ -7,6 +7,7 @@
 
 import type { AIEmployeePricing } from '@/lib/employees/registry'
 import type { LeadData } from '@/app/actions/leads'
+import type { ConversationTurn } from '@/lib/ai/runtime'
 
 export interface Prospect {
   company_name: string
@@ -105,4 +106,26 @@ export interface DeploymentAnalysis {
   alternative_matches: EmployeeMatch[]
   demo: DemoPlan | null
   crm: CrmReadiness
+}
+
+export interface ExecuteDeploymentDemoOptions {
+  prospect: Prospect
+  employeeSlug: string
+  conversationStarter: string
+  history?: ConversationTurn[]
+  executionMode?: 'sandbox' | 'live'
+}
+
+export interface DeploymentDemoResult {
+  success: boolean
+  executionMode: 'sandbox' | 'live'
+  employeeSlug: string
+  employeeName: string
+  replyText: string
+  conversationStarter: string
+  executedTools: string[]
+  simulatedActions: string[]
+  workflowId?: string
+  hasRealSideEffects: false
+  error?: string
 }
