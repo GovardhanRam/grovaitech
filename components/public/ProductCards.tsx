@@ -72,10 +72,10 @@ export default function ProductCards() {
             </div>
             <Link
               href="/ai-employees"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700 transition group"
+              className="inline-flex items-center justify-between w-full px-4 py-2.5 rounded-xl bg-blue-50/80 hover:bg-blue-100/80 text-blue-700 font-semibold text-xs transition group border border-blue-100"
             >
               <span>Explore Marketplace</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
             </Link>
           </div>
 
@@ -94,10 +94,10 @@ export default function ProductCards() {
             </div>
             <Link
               href="/workflows"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700 transition group"
+              className="inline-flex items-center justify-between w-full px-4 py-2.5 rounded-xl bg-indigo-50/80 hover:bg-indigo-100/80 text-indigo-700 font-semibold text-xs transition group border border-indigo-100"
             >
               <span>View Solutions</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
             </Link>
           </div>
 
@@ -116,10 +116,10 @@ export default function ProductCards() {
             </div>
             <Link
               href="#how-it-works"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700 transition group"
+              className="inline-flex items-center justify-between w-full px-4 py-2.5 rounded-xl bg-amber-50/80 hover:bg-amber-100/80 text-amber-800 font-semibold text-xs transition group border border-amber-100"
             >
               <span>See the Process</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
             </Link>
           </div>
 
@@ -143,10 +143,10 @@ export default function ProductCards() {
             </div>
             <Link
               href="/blog"
-              className="inline-flex items-center gap-2 text-sm font-bold text-blue-700 hover:text-blue-900 transition group"
+              className="inline-flex items-center justify-between w-full px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition group shadow-xs"
             >
               <span>Read Articles</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
             </Link>
           </div>
 
@@ -167,10 +167,10 @@ export default function ProductCards() {
               <button
                 type="button"
                 onClick={() => setSuggestionModalOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold rounded-xl shadow-xs transition-colors cursor-pointer"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer"
               >
                 <span>Submit Suggestion</span>
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>

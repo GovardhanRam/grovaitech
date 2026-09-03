@@ -1,9 +1,9 @@
 import { notFound } from 'next/navigation'
-import { getEmployeeBySlug, getAllEmployees } from '@/lib/employees'
+import { getEmployeeBySlug, getCanonicalEmployees } from '@/lib/employees'
 import EmployeeDemo from '@/components/employee/EmployeeDemo'
 
 export async function generateStaticParams() {
-  const employees = await getAllEmployees()
+  const employees = getCanonicalEmployees()
 
   return employees.map((employee) => ({
     slug: employee.slug

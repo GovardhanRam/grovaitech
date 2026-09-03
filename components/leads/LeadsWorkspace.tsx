@@ -402,7 +402,7 @@ export function LeadsWorkspace({ serverLeads }: LeadsWorkspaceProps) {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-0px)] -m-6 bg-slate-50 overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-0px)] -m-4 sm:-m-6 lg:-m-8 bg-slate-50 overflow-hidden">
 
       {/* ── Header ───────────────────────────────────────────────────── */}
       <div className="shrink-0 px-6 pt-6 pb-4 bg-white border-b border-slate-200">

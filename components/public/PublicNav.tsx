@@ -9,6 +9,7 @@ export default function PublicNav() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const navLinks = [
+    { name: 'Deploy AI', href: '/deploy' },
     { name: 'AI Employees', href: '/ai-employees' },
     { name: 'Solutions', href: '#solutions' },
     { name: 'How It Works', href: '#how-it-works' },
@@ -30,7 +31,7 @@ export default function PublicNav() {
               width={240}
               height={84}
               priority
-              className="w-[180px] sm:w-[210px] md:w-[240px] h-auto object-contain transition-opacity group-hover:opacity-90"
+              className="w-[145px] sm:w-[200px] md:w-[240px] h-auto object-contain transition-opacity group-hover:opacity-90"
             />
           </Link>
 
@@ -74,14 +75,14 @@ export default function PublicNav() {
           <div className="flex md:hidden items-center gap-2">
             <Link
               href="/signup"
-              className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition whitespace-nowrap"
+              className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition shadow-xs whitespace-nowrap cursor-pointer"
             >
               Sign up
             </Link>
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition"
+              className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
               aria-label="Toggle Navigation Menu"
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}

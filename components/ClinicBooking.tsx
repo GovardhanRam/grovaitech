@@ -188,9 +188,9 @@ export default function ClinicBooking() {
       <div className="mt-4">
         <button
           onClick={loadBookings}
-          className="text-sm text-blue-600 hover:underline mb-4"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition mb-4 cursor-pointer"
         >
-          {loading ? 'Loading...' : 'Refresh Bookings'}
+          <span>{loading ? 'Loading...' : 'Refresh Bookings'}</span>
         </button>
 
         <div className="space-y-3">
@@ -198,28 +198,28 @@ export default function ClinicBooking() {
             <p className="text-gray-500 text-center py-8">No bookings yet. Create your first booking above.</p>
           ) : (
             bookings.map((booking) => (
-              <div key={booking.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200 flex justify-between items-center">
+              <div key={booking.id} className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                 <div>
-                  <p className="text-gray-900 font-medium">{booking.patient_name}</p>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-slate-900 font-bold text-sm">{booking.patient_name}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
                     {booking.appointment_date} at {booking.appointment_time}
                     {booking.doctor_name && ` • Dr. ${booking.doctor_name}`}
                   </p>
-                  <p className="text-sm text-gray-500">{booking.patient_phone}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{booking.patient_phone}</p>
                 </div>
-                <div className="flex gap-2">
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    booking.status === 'confirmed' ? 'bg-green-100 text-green-700' :
-                    booking.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                    booking.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                    'bg-red-100 text-red-700'
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                    booking.status === 'confirmed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                    booking.status === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                    booking.status === 'completed' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                    'bg-rose-50 text-rose-700 border-rose-200'
                   }`}>
                     {booking.status}
                   </span>
                   {booking.status === 'pending' && (
                     <button
                       onClick={() => handleStatusUpdate(booking.id, 'confirmed')}
-                      className="text-xs text-blue-600 hover:underline"
+                      className="px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition cursor-pointer"
                     >
                       Confirm
                     </button>
@@ -227,7 +227,7 @@ export default function ClinicBooking() {
                   {booking.status === 'confirmed' && (
                     <button
                       onClick={() => handleStatusUpdate(booking.id, 'completed')}
-                      className="text-xs text-green-600 hover:underline"
+                      className="px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition cursor-pointer"
                     >
                       Complete
                     </button>
@@ -235,7 +235,7 @@ export default function ClinicBooking() {
                   {booking.status !== 'cancelled' && (
                     <button
                       onClick={() => handleStatusUpdate(booking.id, 'cancelled')}
-                      className="text-xs text-red-600 hover:underline"
+                      className="px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition cursor-pointer"
                     >
                       Cancel
                     </button>

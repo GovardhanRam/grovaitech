@@ -269,31 +269,48 @@ export default function DashboardWorkspace({ initialData }: DashboardWorkspacePr
             </Link>
           </div>
 
-          <div className="space-y-3">
-            {employeesStatus.map((emp, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 bg-slate-50 hover:bg-slate-100/50 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-blue-600/10 border border-blue-500/20 flex items-center justify-center font-bold text-blue-600">
-                    <Bot className="w-4 h-4" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {employeesStatus.map((emp, i) => {
+              const slug = emp.name.toLowerCase().includes('real estate')
+                ? 'real-estate-lead-receptionist'
+                : emp.name.toLowerCase().includes('clinic')
+                ? 'clinic-receptionist'
+                : 'whatsapp-lead-qualifier'
+              return (
+                <div
+                  key={i}
+                  className="p-4.5 rounded-xl border border-slate-200 bg-white hover:border-blue-300 hover:shadow-xs transition-all duration-200 flex flex-col justify-between space-y-3.5"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center font-bold text-blue-600 shrink-0">
+                        <Bot className="w-4.5 h-4.5" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-900 leading-tight">{emp.name}</h4>
+                        <p className="text-[10px] text-slate-500 mt-0.5">{emp.role}</p>
+                      </div>
+                    </div>
+                    <span
+                      className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase border shrink-0 ${emp.badgeColor}`}
+                    >
+                      {emp.status}
+                    </span>
                   </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-800">{emp.name}</h4>
-                    <p className="text-[10px] text-slate-500 mt-0.5">{emp.role}</p>
+
+                  <div className="flex items-center justify-between pt-2.5 border-t border-slate-100 text-xs">
+                    <span className="text-[11px] text-slate-500 font-medium">{emp.metric}</span>
+                    <Link
+                      href={`/ai-employees/${slug}`}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50/80 hover:bg-blue-100/80 px-2.5 py-1 rounded-lg transition"
+                    >
+                      <span>View</span>
+                      <ChevronRight className="w-3 h-3" />
+                    </Link>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-[10px] text-slate-500 font-semibold">{emp.metric}</span>
-                  <span
-                    className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase border ${emp.badgeColor}`}
-                  >
-                    {emp.status}
-                  </span>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 

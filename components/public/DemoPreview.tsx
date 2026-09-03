@@ -107,14 +107,14 @@ export default function DemoPreview() {
           <button
             type="button"
             onClick={() => setModalOpen(true)}
-            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-xs transition-colors cursor-pointer"
+            className="w-full sm:flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-xs transition-colors cursor-pointer"
           >
             <MessageSquare className="w-4 h-4" />
             <span>Try the Live Demo</span>
           </button>
           <Link
             href="/ai-employees/real-estate-lead-receptionist"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors whitespace-nowrap"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors whitespace-nowrap"
           >
             <span>Full Profile</span>
             <ArrowRight className="w-3.5 h-3.5" />

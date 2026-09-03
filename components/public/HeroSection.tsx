@@ -46,7 +46,7 @@ export default function HeroSection() {
 
             {/* Headline */}
             <div className="space-y-2">
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 tracking-tight leading-[1.12]">
+              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 tracking-tight leading-[1.15]">
                 We Don’t Sell Software.{' '}
                 <span className="block text-blue-600 mt-1">
                   We Deploy AI Employees.
@@ -55,8 +55,8 @@ export default function HeroSection() {
             </div>
 
             {/* Supporting Copy */}
-            <p className="text-lg sm:text-xl text-slate-600 max-w-2xl font-normal leading-relaxed">
-              AI Employees that handle real conversations, automate workflows, and deliver measurable business results.
+            <p className="text-base sm:text-lg lg:text-xl text-slate-600 max-w-2xl font-normal leading-relaxed">
+              Specialized AI Employees that handle real conversations, automate workflows, and deliver measurable business results.
             </p>
 
             {/* Primary Command / Search Interaction */}
@@ -80,28 +80,26 @@ export default function HeroSection() {
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500 pl-1">
-                <span className="text-slate-400">Popular:</span>
+              <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500 pl-0.5">
+                <span className="text-slate-400 font-medium">Popular:</span>
                 <button
                   type="button"
                   onClick={() => router.push('/ai-employees?search=receptionist')}
-                  className="hover:text-blue-600 underline underline-offset-2 transition"
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 border border-slate-200/80 font-medium transition cursor-pointer"
                 >
                   Receptionist
                 </button>
-                <span>•</span>
                 <button
                   type="button"
                   onClick={() => router.push('/ai-employees?search=leads')}
-                  className="hover:text-blue-600 underline underline-offset-2 transition"
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 border border-slate-200/80 font-medium transition cursor-pointer"
                 >
                   Lead Qualification
                 </button>
-                <span>•</span>
                 <button
                   type="button"
                   onClick={() => router.push('/ai-employees?search=whatsapp')}
-                  className="hover:text-blue-600 underline underline-offset-2 transition"
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 border border-slate-200/80 font-medium transition cursor-pointer"
                 >
                   WhatsApp Agent
                 </button>
@@ -109,17 +107,17 @@ export default function HeroSection() {
             </form>
 
             {/* CTAs */}
-            <div className="flex flex-wrap items-center gap-4 pt-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 pt-2">
               <Link
                 href="/ai-employees"
-                className="inline-flex items-center gap-2 px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white text-sm sm:text-base font-semibold rounded-xl shadow-xs transition-colors"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white text-sm sm:text-base font-semibold rounded-xl shadow-xs transition-colors text-center"
               >
                 <span>Explore AI Employees</span>
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <Link
                 href="#how-it-works"
-                className="inline-flex items-center gap-2 px-6 py-3.5 bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 text-sm sm:text-base font-semibold rounded-xl border border-slate-200 transition-colors"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 text-sm sm:text-base font-semibold rounded-xl border border-slate-200 transition-colors text-center"
               >
                 <span>See how it works</span>
               </Link>
@@ -131,17 +129,17 @@ export default function HeroSection() {
                 <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
                 AI Employees
               </span>
-              <span className="text-slate-300">•</span>
+              <span className="hidden sm:inline text-slate-300">•</span>
               <span className="flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
                 Workflows
               </span>
-              <span className="text-slate-300">•</span>
+              <span className="hidden sm:inline text-slate-300">•</span>
               <span className="flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
                 Integrations
               </span>
-              <span className="text-slate-300">•</span>
+              <span className="hidden sm:inline text-slate-300">•</span>
               <span className="flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
                 Results

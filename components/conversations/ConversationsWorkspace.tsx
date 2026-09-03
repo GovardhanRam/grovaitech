@@ -145,7 +145,7 @@ export function ConversationsWorkspace({
   const sl = selected ? statusLabel(selected.status) : { label: 'Active', cls: 'bg-slate-100 text-slate-500' }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-0px)] -m-6 bg-slate-50 overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-0px)] -m-4 sm:-m-6 lg:-m-8 bg-slate-50 overflow-hidden">
       {/* ── Page Header ──────────────────────────────────────────────── */}
       <div className="shrink-0 px-6 pt-6 pb-4 bg-white border-b border-slate-200">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

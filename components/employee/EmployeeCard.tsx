@@ -1,7 +1,8 @@
 import Link from 'next/link'
+import { Bot, ArrowRight, Sparkles } from 'lucide-react'
 
 interface EmployeeCardProps {
-  id: string
+  id?: string
   name: string
   slug: string
   title: string
@@ -11,20 +12,12 @@ interface EmployeeCardProps {
   capabilities: string[]
 }
 
-const statusColors = {
-  live: 'bg-green-100 text-green-700',
-  beta: 'bg-yellow-100 text-yellow-700',
-  demo: 'bg-blue-100 text-blue-700',
-  in_development: 'bg-purple-100 text-purple-700',
-  planned: 'bg-gray-100 text-gray-500'
-}
-
-const statusLabels = {
-  live: 'Live',
-  beta: 'Beta',
-  demo: 'Demo',
-  in_development: 'In Development',
-  planned: 'Planned'
+const statusMeta = {
+  live: { label: 'Live', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
+  beta: { label: 'Beta', cls: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
+  demo: { label: 'Demo', cls: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
+  in_development: { label: 'In Dev', cls: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500' },
+  planned: { label: 'Planned', cls: 'bg-slate-100 text-slate-500 border-slate-200', dot: 'bg-slate-400' }
 }
 
 export default function EmployeeCard({
@@ -36,23 +29,31 @@ export default function EmployeeCard({
   status,
   capabilities
 }: EmployeeCardProps) {
+  const meta = statusMeta[status] || statusMeta.live
+
   return (
-    <div className="group bg-white rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all duration-200 overflow-hidden">
+    <div className="group bg-white rounded-2xl border border-slate-200/90 hover:border-blue-300 hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col justify-between">
       <div className="p-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">{name}</h3>
-            <p className="text-sm text-gray-500">{title}</p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0 group-hover:scale-105 transition-transform">
+              <Bot className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900 leading-tight">{name}</h3>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">{title}</p>
+            </div>
           </div>
 
           <span
-            className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[status]}`}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border shrink-0 ${meta.cls}`}
           >
-            {statusLabels[status]}
+            <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
+            {meta.label}
           </span>
         </div>
 
-        <p className="mt-3 text-sm text-gray-600 line-clamp-2">
+        <p className="mt-4 text-xs sm:text-sm text-slate-600 line-clamp-2 leading-relaxed">
           {description}
         </p>
 
@@ -60,29 +61,30 @@ export default function EmployeeCard({
           {capabilities.slice(0, 3).map((cap, i) => (
             <span
               key={i}
-              className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full"
+              className="px-2.5 py-1 bg-slate-50 text-slate-600 text-xs font-medium rounded-lg border border-slate-200/80"
             >
               {cap}
             </span>
           ))}
 
           {capabilities.length > 3 && (
-            <span className="px-2 py-1 bg-gray-100 text-gray-400 text-xs rounded-full">
-              +{capabilities.length - 3}
+            <span className="px-2 py-1 text-slate-400 text-xs font-medium self-center">
+              +{capabilities.length - 3} more
             </span>
           )}
         </div>
+      </div>
 
-        <div className="mt-5 flex items-center justify-between">
-          <span className="text-sm text-gray-500">{department}</span>
+      <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
+        <span className="text-xs font-semibold text-slate-500">{department}</span>
 
-          <Link
-            href={`/ai-employees/${slug}`}
-            className="text-blue-600 hover:text-blue-700 font-medium text-sm"
-          >
-            View Employee →
-          </Link>
-        </div>
+        <Link
+          href={`/ai-employees/${slug}`}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-white bg-blue-50 hover:bg-blue-600 px-3.5 py-1.5 rounded-xl border border-blue-200 hover:border-blue-600 transition shadow-2xs"
+        >
+          <span>View Profile</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
       </div>
     </div>
   )
