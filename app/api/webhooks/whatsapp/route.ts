@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
-import { runAgentTurn } from '@/lib/ai/runtime'
-import { extractRealEstateLead } from '@/lib/leads/extractor'
-import { executeRealEstateWorkflow, getSiteVisitCustomerMessage } from '@/lib/workflows/executor'
-import { createLead } from '@/app/actions/leads'
+import { executeLiveDeploymentTurn, resolveDeploymentByPhoneNumberId } from '@/lib/deployment/live-executor'
 import { verifyMetaSignature, parseWhatsAppWebhookPayload } from '@/lib/whatsapp/security'
 import { sendWhatsAppTextMessage } from '@/lib/whatsapp/client'
 
@@ -40,6 +37,8 @@ export async function GET(request: NextRequest) {
 
 /**
  * Inbound WhatsApp Message Ingestion (POST)
+ * Verifies HMAC-SHA256 signature, resolves Meta phoneNumberId to active ClientDeployment,
+ * routes message to executeLiveDeploymentTurn(), and returns outbound reply.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -75,16 +74,33 @@ export async function POST(request: NextRequest) {
     const supabase = await createServerClient()
     const results = []
 
-    // 4. Process each actionable customer message through the Unified Agent Runtime
+    // 4. Process each actionable customer message through the Live Deployment Runtime
     for (const inbound of messages) {
-      const { from: customerPhone, name: customerName, text: messageText, messageId } = inbound
-      const chatId = `whatsapp_${customerPhone}`
+      const { from: customerPhone, name: customerName, text: messageText, messageId, phoneNumberId } = inbound
+
+      // A. Exact Channel Binding Resolution: Resolve Meta phone_number_id to active ClientDeployment
+      const deployment = await resolveDeploymentByPhoneNumberId(phoneNumberId)
+
+      if (!deployment) {
+        console.warn(
+          `[WhatsApp Webhook] Unbound or inactive channel: phoneNumberId "${phoneNumberId}" has no active deployment. Skipping execution.`
+        )
+        results.push({
+          messageId,
+          phoneNumberId,
+          status: 'UNBOUND_CHANNEL_ACKNOWLEDGED',
+        })
+        continue
+      }
+
+      // B. Tenant-Scoped Conversation Identity: Isolates chat history by deployment + customer phone
+      const chatId = `whatsapp_${deployment.id}_${customerPhone}`
 
       console.log(
-        `[WhatsApp Webhook] Processing message from ${customerPhone} (${customerName || 'Unknown'}): "${messageText.slice(0, 50)}"`
+        `[WhatsApp Webhook] Processing message for Deployment ${deployment.id} (${deployment.company_name}) from ${customerPhone}: "${messageText.slice(0, 50)}"`
       )
 
-      // A. Log user message to Supabase
+      // C. Log incoming user message to Supabase (tenant-scoped)
       try {
         await supabase.from('messages').insert({
           chat_id: chatId,
@@ -95,8 +111,8 @@ export async function POST(request: NextRequest) {
         console.warn('[WhatsApp Webhook] Message log notice:', logErr)
       }
 
-      // B. Fetch conversation history for context
-      let history: { role: string; content: string }[] = []
+      // D. Fetch tenant-isolated conversation history
+      let history: { role: 'user' | 'assistant' | 'system'; content: string }[] = []
       try {
         const { data: pastMessages } = await supabase
           .from('messages')
@@ -115,91 +131,52 @@ export async function POST(request: NextRequest) {
         history = []
       }
 
-      // C. Delegate reasoning and tool execution to Unified Agent Runtime
-      const turnResult = await runAgentTurn({
-        employeeSlug: 'real-estate-lead-receptionist',
+      // E. Delegate to Live Deployment Runtime Runner (Server-Controlled Security Boundary)
+      const turnResult = await executeLiveDeploymentTurn({
+        deploymentId: deployment.id,
         message: messageText,
-        history: history as any,
-        channel: 'whatsapp',
+        history,
         customerContext: {
           phone: customerPhone,
-          name: customerName,
+          name: customerName || undefined,
         },
+        channel: 'whatsapp',
       })
 
-      let aiResponse = turnResult.replyText
-      let capturedLeadResult = turnResult.leadResult
-      let capturedWorkflowResult = turnResult.workflowResult
+      if (!turnResult.success && turnResult.error) {
+        throw new Error(turnResult.error)
+      }
 
-      // D. Vertical Safety Net: Passive Extractor Fallback (ONLY if NO tool was executed on qualified lead)
-      if (turnResult.executedTools.length === 0) {
+      const aiResponse = turnResult.replyText
+
+      // F. Log assistant response to database (tenant-scoped)
+      if (aiResponse) {
         try {
-          const turnHistory = [
-            ...history,
-            { role: 'user', content: messageText },
-            { role: 'assistant', content: aiResponse },
-          ]
-          const extractedLead = await extractRealEstateLead(turnHistory)
-          if (extractedLead.qualification_status === 'qualified' || extractedLead.site_visit_requested) {
-            const leadRecord = {
-              name: extractedLead.name || customerName || 'WhatsApp Customer',
-              phone: customerPhone,
-              email: extractedLead.email || undefined,
-              property_type: extractedLead.property_type || 'villa',
-              location: extractedLead.location || 'Tirupati',
-              budget: extractedLead.budget || '1.2 Cr',
-              timeline: extractedLead.timeline || 'Immediate',
-              site_visit_requested: extractedLead.site_visit_requested,
-              site_visit_date: extractedLead.site_visit_date || undefined,
-              site_visit_time: extractedLead.site_visit_time || undefined,
-              lead_score: (extractedLead.site_visit_requested ? 'hot' : 'warm') as any,
-              lead_status: (extractedLead.site_visit_requested ? 'site_visit' : 'qualified') as any,
-              notes: `Inbound WhatsApp lead qualified by AI Receptionist. Message ID: ${messageId}. Score: ${extractedLead.qualification_score}/100.`,
-              source: 'whatsapp' as const,
-            }
-            const saveRes = await createLead(leadRecord)
-            if (saveRes.success && saveRes.data) {
-              capturedLeadResult = saveRes.data
-              const wfRes = await executeRealEstateWorkflow({
-                leadId: saveRes.data.id,
-                conversationId: chatId,
-                lead: extractedLead,
-              })
-              capturedWorkflowResult = wfRes
-              if (!wfRes.customerConfirmationAllowed) {
-                aiResponse = getSiteVisitCustomerMessage(wfRes)
-              }
-            }
-          }
-        } catch (fallbackErr) {
-          console.warn('[WhatsApp Webhook] Passive extraction fallback notice:', fallbackErr)
+          await supabase.from('messages').insert({
+            chat_id: chatId,
+            role: 'assistant',
+            content: aiResponse,
+          })
+        } catch (aiLogErr) {
+          console.warn('[WhatsApp Webhook] Assistant log notice:', aiLogErr)
         }
       }
 
-      // E. Log assistant response to database
-      try {
-        await supabase.from('messages').insert({
-          chat_id: chatId,
-          role: 'assistant',
-          content: aiResponse,
-        })
-      } catch (aiLogErr) {
-        console.warn('[WhatsApp Webhook] Assistant log notice:', aiLogErr)
-      }
-
-      // F. Dispatch Outbound WhatsApp Reply
+      // G. Dispatch Outbound WhatsApp Reply
       const outboundResult = await sendWhatsAppTextMessage({
         to: customerPhone,
-        text: aiResponse,
+        text: aiResponse || 'Thank you for reaching out. We have received your message.',
         replyToMessageId: messageId,
       })
 
       results.push({
         messageId,
+        deploymentId: deployment.id,
+        clientId: deployment.client_id,
         from: customerPhone,
-        lead: capturedLeadResult,
-        leadSaved: !!capturedLeadResult,
-        workflow: capturedWorkflowResult?.workflowId || capturedWorkflowResult?.executionId || null,
+        lead: turnResult.leadResult || null,
+        leadSaved: !!turnResult.leadResult,
+        workflow: turnResult.workflowResult?.workflowId || null,
         toolResults: turnResult.executedTools.length > 0 ? turnResult.executedTools : undefined,
         outbound: outboundResult.status,
       })

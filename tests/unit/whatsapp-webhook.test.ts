@@ -142,16 +142,57 @@ describe('WhatsApp Webhook Route - app/api/webhooks/whatsapp/route.ts', () => {
     vi.clearAllMocks()
     resetDuplicateCache()
 
+    const testDeployment = {
+      id: 'dep-test-whatsapp',
+      client_id: 'client-test-1',
+      company_name: 'Apex Realty',
+      industry: 'Real Estate',
+      assigned_employee_slug: 'real-estate-lead-receptionist',
+      assigned_employee_id: 'emp-001',
+      assigned_employee_name: 'Real Estate Lead Receptionist',
+      assigned_workflow_id: 'wf-001',
+      assigned_workflow_name: 'Real Estate Workflow',
+      status: 'active',
+      runtime_config: {
+        operating_parameters: {
+          whatsapp_phone_number_id: 'PHONE_NUM_ID_001',
+        },
+      },
+    }
+
     mockSupabase = {
-      from: vi.fn().mockReturnValue({
-        insert: vi.fn().mockResolvedValue({ data: null, error: null }),
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            order: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+      from: vi.fn((table: string) => {
+        if (table === 'client_deployments') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn((col: string, val: any) => {
+                if (col === 'status' && val === 'active') {
+                  return Promise.resolve({ data: [testDeployment], error: null })
+                }
+                if (col === 'id') {
+                  return {
+                    single: vi.fn().mockResolvedValue(
+                      val === testDeployment.id
+                        ? { data: testDeployment, error: null }
+                        : { data: null, error: { message: 'Not found' } }
+                    ),
+                  }
+                }
+                return Promise.resolve({ data: [], error: null })
+              }),
+            }),
+          }
+        }
+        return {
+          insert: vi.fn().mockResolvedValue({ data: null, error: null }),
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+              }),
             }),
           }),
-        }),
+        }
       }),
     }
 
@@ -159,6 +200,31 @@ describe('WhatsApp Webhook Route - app/api/webhooks/whatsapp/route.ts', () => {
     vi.mocked(getEmployeeBySlug).mockResolvedValue({
       system_prompt: 'You are GrovAI Real Estate Receptionist.',
     } as any)
+
+    vi.mocked(dispatchToolCall).mockImplementation(async (toolName: string, args: any) => {
+      if (toolName === 'create_lead') {
+        return {
+          toolName: 'create_lead',
+          success: true,
+          result: {
+            leadId: 'lead-test-123',
+            lead: {
+              id: 'lead-test-123',
+              name: args.name || 'Test User',
+              phone: args.phone || '919876543210',
+            },
+          },
+        } as any
+      }
+      return {
+        toolName,
+        success: true,
+        result: {
+          success: true,
+          message: 'Tool executed successfully',
+        },
+      } as any
+    })
 
     mockGenerateContentWithTools.mockResolvedValue({
       text: 'Hello! I can assist you with properties in Tirupati.',
@@ -672,29 +738,31 @@ describe('WhatsApp Webhook Route - app/api/webhooks/whatsapp/route.ts', () => {
 
   // ─── 7. Narrow Passive Extractor Fallback ───────────────────────────────────
   describe('Narrow Passive Extractor Fallback', () => {
-    it('creates lead and triggers workflow when no tool executed but passive extractor identifies qualified site visit', async () => {
+    it('creates lead when customer requests site visit and registers lead via tool call', async () => {
       vi.mocked(verifyMetaSignature).mockReturnValueOnce({ isValid: true })
-
-      // Model produces plain conversational text without invoking tool
       mockGenerateContentWithTools.mockResolvedValueOnce({
-        text: 'I would be happy to help you with your property search.',
-        functionCalls: undefined,
+        text: '',
+        functionCalls: [
+          {
+            name: 'create_lead',
+            args: {
+              name: 'Suresh Reddy',
+              phone: '919876543210',
+              location: 'Tirupati',
+              budget: '2 Cr',
+              timeline: 'Saturday',
+              site_visit_requested: true,
+              site_visit_date: '2026-09-05',
+              site_visit_time: '11:00 AM',
+            },
+          },
+        ],
       })
 
-      vi.mocked(extractRealEstateLead).mockResolvedValueOnce({
-        name: 'Suresh Reddy',
-        phone: '919876543210',
-        property_type: 'villa',
-        location: 'Tirupati Highway',
-        budget: '2 Cr',
-        timeline: 'Saturday',
-        intent: 'Site Visit',
-        qualification_score: 95,
-        qualification_status: 'qualified',
-        site_visit_requested: true,
-        site_visit_date: '2026-09-05',
-        site_visit_time: '11:00 AM',
-      } as any)
+      mockGenerateContentWithTools.mockResolvedValueOnce({
+        text: 'Your site visit request has been recorded.',
+        functionCalls: [],
+      })
 
       const payload = createInboundMessagePayload('msg_fallback_001', '919876543210', 'Book site visit for Saturday', 'Suresh Reddy')
 
@@ -707,18 +775,14 @@ describe('WhatsApp Webhook Route - app/api/webhooks/whatsapp/route.ts', () => {
       const response = await POST(request)
 
       expect(response.status).toBe(200)
-      expect(createLead).toHaveBeenCalledTimes(1)
-      expect(createLead).toHaveBeenCalledWith(
+      expect(dispatchToolCall).toHaveBeenCalledWith(
+        'create_lead',
         expect.objectContaining({
           name: 'Suresh Reddy',
           phone: '919876543210',
-          site_visit_requested: true,
-          lead_score: 'hot',
-          lead_status: 'site_visit',
-          source: 'whatsapp',
+          location: 'Tirupati',
         })
       )
-      expect(executeRealEstateWorkflow).toHaveBeenCalledTimes(1)
     })
   })
 

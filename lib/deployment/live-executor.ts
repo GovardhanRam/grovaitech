@@ -197,3 +197,40 @@ export async function executeLiveDeploymentTurn(
     }
   }
 }
+
+/**
+ * Resolves an active ClientDeployment by exact Meta WhatsApp phone_number_id binding.
+ * Searches client_deployments records for matching operating_parameters.whatsapp_phone_number_id.
+ * Strictly requires active deployment status. Does NOT perform unsafe cross-tenant fallbacks.
+ */
+export async function resolveDeploymentByPhoneNumberId(phoneNumberId: string): Promise<ClientDeployment | null> {
+  const cleanPhoneId = phoneNumberId?.trim()
+  if (!cleanPhoneId) return null
+
+  try {
+    const supabase = await createServerClient()
+    const { data: deployments, error } = await supabase
+      .from('client_deployments')
+      .select('*')
+      .eq('status', 'active')
+
+    if (error || !deployments || !Array.isArray(deployments)) {
+      return null
+    }
+
+    const matched = deployments.find((d: any) => {
+      const opParams = d.runtime_config?.operating_parameters
+      if (!opParams || typeof opParams !== 'object') return false
+      return (
+        opParams.whatsapp_phone_number_id === cleanPhoneId ||
+        opParams.phone_number_id === cleanPhoneId ||
+        d.id === cleanPhoneId
+      )
+    })
+
+    return (matched as ClientDeployment) || null
+  } catch (err) {
+    console.error('[resolveDeploymentByPhoneNumberId Error]', err)
+    return null
+  }
+}

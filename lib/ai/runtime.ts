@@ -302,7 +302,7 @@ export function extractWorkflowOutcome(toolResult: ToolExecutionResult): {
   leadResult?: Record<string, unknown> | null
   bookingResult?: Record<string, unknown> | null
 } {
-  if (!toolResult.result) return {}
+  if (!toolResult || !toolResult.result) return {}
 
   if (toolResult.toolName === 'create_lead') {
     return {

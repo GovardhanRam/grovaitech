@@ -77,6 +77,18 @@ export async function sendWhatsAppTextMessage({
 
   // 1. Check if real Meta Cloud API credentials are configured
   if (!isWhatsAppConfigured()) {
+    if (process.env.NODE_ENV === 'production') {
+      const durationMs = Date.now() - startTime
+      console.error('[WhatsApp Production Error] Outbound message aborted: Meta WhatsApp credentials not configured.')
+      return {
+        success: false,
+        status: 'failed',
+        recipient: cleanRecipient,
+        error: 'Meta WhatsApp API credentials not configured in production environment.',
+        durationMs,
+      }
+    }
+
     const durationMs = Date.now() - startTime + 25
     console.log(`[WhatsApp Sandbox] Simulated text dispatched to ${cleanRecipient}: "${text.slice(0, 60)}..."`)
 
