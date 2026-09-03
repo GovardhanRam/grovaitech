@@ -19,9 +19,9 @@ export interface WhatsAppSendResult {
 /**
  * Checks whether Meta WhatsApp Cloud API is configured with real credentials
  */
-export function isWhatsAppConfigured(): boolean {
+export function isWhatsAppConfigured(explicitPhoneId?: string): boolean {
   const token = process.env.WHATSAPP_ACCESS_TOKEN || process.env.META_WHATSAPP_TOKEN
-  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.META_PHONE_NUMBER_ID
+  const phoneId = explicitPhoneId?.trim() || process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.META_PHONE_NUMBER_ID
 
   const hasValidToken = !!token && !token.includes('placeholder') && token.trim().length > 10
   const hasValidPhoneId = !!phoneId && !phoneId.includes('placeholder') && phoneId.trim().length > 5
@@ -51,10 +51,12 @@ export function getWhatsAppIntegrationStatus(): 'connected' | 'needs_setup' | 'd
 export async function sendWhatsAppTextMessage({
   to,
   text,
+  fromPhoneNumberId,
   replyToMessageId,
 }: {
   to: string
   text: string
+  fromPhoneNumberId?: string
   replyToMessageId?: string
 }): Promise<WhatsAppSendResult> {
   const startTime = Date.now()
@@ -75,8 +77,10 @@ export async function sendWhatsAppTextMessage({
     payload.context = { message_id: replyToMessageId }
   }
 
+  const effectivePhoneId = fromPhoneNumberId?.trim() || process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.META_PHONE_NUMBER_ID
+
   // 1. Check if real Meta Cloud API credentials are configured
-  if (!isWhatsAppConfigured()) {
+  if (!isWhatsAppConfigured(effectivePhoneId)) {
     if (process.env.NODE_ENV === 'production') {
       const durationMs = Date.now() - startTime
       console.error('[WhatsApp Production Error] Outbound message aborted: Meta WhatsApp credentials not configured.')
@@ -104,7 +108,7 @@ export async function sendWhatsAppTextMessage({
 
   // 2. Live Meta Cloud API Dispatch
   const token = (process.env.WHATSAPP_ACCESS_TOKEN || process.env.META_WHATSAPP_TOKEN)!.trim()
-  const phoneId = (process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.META_PHONE_NUMBER_ID)!.trim()
+  const phoneId = effectivePhoneId!.trim()
   const apiUrl = `https://graph.facebook.com/v20.0/${phoneId}/messages`
 
   try {
@@ -170,11 +174,13 @@ export async function sendWhatsAppTemplateMessage({
   templateName,
   languageCode = 'en_US',
   parameters = [],
+  fromPhoneNumberId,
 }: {
   to: string
   templateName: string
   languageCode?: string
   parameters?: string[]
+  fromPhoneNumberId?: string
 }): Promise<WhatsAppSendResult> {
   const startTime = Date.now()
   const cleanRecipient = to.replace(/[^0-9+]/g, '')
@@ -195,7 +201,9 @@ export async function sendWhatsAppTemplateMessage({
     }
   }
 
-  if (!isWhatsAppConfigured()) {
+  const effectivePhoneId = fromPhoneNumberId?.trim() || process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.META_PHONE_NUMBER_ID
+
+  if (!isWhatsAppConfigured(effectivePhoneId)) {
     return {
       success: true,
       status: 'simulated',
@@ -207,7 +215,7 @@ export async function sendWhatsAppTemplateMessage({
   }
 
   const token = (process.env.WHATSAPP_ACCESS_TOKEN || process.env.META_WHATSAPP_TOKEN)!.trim()
-  const phoneId = (process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.META_PHONE_NUMBER_ID)!.trim()
+  const phoneId = effectivePhoneId!.trim()
   const apiUrl = `https://graph.facebook.com/v20.0/${phoneId}/messages`
 
   try {

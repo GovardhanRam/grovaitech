@@ -169,6 +169,7 @@ export interface ProvisionClientOptions {
   leadId?: string
   employeeSlug?: string
   workflowId?: string
+  whatsappPhoneNumberId?: string
 }
 
 export interface ProvisionClientResult {

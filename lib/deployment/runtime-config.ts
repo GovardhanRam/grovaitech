@@ -18,6 +18,7 @@ export interface BuildClientRuntimeConfigParams {
   workflowId: string
   employeeName?: string
   workflowName?: string
+  whatsappPhoneNumberId?: string
 }
 
 /**
@@ -35,6 +36,7 @@ export function buildClientRuntimeConfig(
     workflowId,
     employeeName = 'AI Employee',
     workflowName = 'Autonomous Workflow',
+    whatsappPhoneNumberId,
   } = params
 
   const companyName = prospect.company_name?.trim() || 'Client Business'
@@ -72,6 +74,7 @@ export function buildClientRuntimeConfig(
       timeline: prospect.timeline?.trim() || undefined,
       contact_name: prospect.contact_name?.trim() || undefined,
       contact_phone: prospect.phone?.trim() || undefined,
+      whatsapp_phone_number_id: whatsappPhoneNumberId?.trim() || undefined,
     },
     assigned_employee_slug: employeeSlug,
     assigned_workflow_id: workflowId,

@@ -162,10 +162,11 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // G. Dispatch Outbound WhatsApp Reply
+      // G. Dispatch Outbound WhatsApp Reply (explicitly bound to received Meta channel)
       const outboundResult = await sendWhatsAppTextMessage({
         to: customerPhone,
         text: aiResponse || 'Thank you for reaching out. We have received your message.',
+        fromPhoneNumberId: phoneNumberId,
         replyToMessageId: messageId,
       })
 

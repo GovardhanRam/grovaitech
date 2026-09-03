@@ -431,6 +431,7 @@ describe('WhatsApp Webhook Route - app/api/webhooks/whatsapp/route.ts', () => {
       expect(sendWhatsAppTextMessage).toHaveBeenCalledWith({
         to: '919876543210',
         text: 'We have luxury 3 BHK villas in Tirupati starting at 1.2 Cr.',
+        fromPhoneNumberId: 'PHONE_NUM_ID_001',
         replyToMessageId: 'msg_normal_001',
       })
     })
@@ -550,6 +551,7 @@ describe('WhatsApp Webhook Route - app/api/webhooks/whatsapp/route.ts', () => {
       expect(sendWhatsAppTextMessage).toHaveBeenCalledWith({
         to: '919876543210',
         text: 'Your site visit for Sunday at 11:00 AM is confirmed!',
+        fromPhoneNumberId: 'PHONE_NUM_ID_001',
         replyToMessageId: 'msg_tool_001',
       })
     })

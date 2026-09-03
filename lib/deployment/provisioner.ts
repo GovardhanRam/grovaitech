@@ -189,6 +189,7 @@ export async function provisionClientDeployment(
       workflowId: resolvedWorkflowId,
       employeeName: assignedEmployee.name,
       workflowName: assignedWorkflowName,
+      whatsappPhoneNumberId: options.whatsappPhoneNumberId,
     })
 
     // 7. Construct Durable Deployment Entity

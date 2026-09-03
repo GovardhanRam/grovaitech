@@ -23,6 +23,7 @@ import { executeLiveDeploymentTurn, resolveDeploymentByPhoneNumberId } from '@/l
 import { sendWhatsAppTextMessage } from '@/lib/whatsapp/client'
 import { resetDuplicateCache } from '@/lib/whatsapp/security'
 import { createServerClient } from '@/lib/supabase/server'
+import { buildClientRuntimeConfig } from '@/lib/deployment/runtime-config'
 import { NextRequest } from 'next/server'
 
 vi.mock('@/lib/deployment/live-executor', async () => {
@@ -205,6 +206,7 @@ describe('PHASE 5B: WhatsApp Channel Adapter (Meta Cloud API Ingress)', () => {
       expect.objectContaining({
         to: '919777766666',
         text: expect.stringContaining('Apex Horizon Realty'),
+        fromPhoneNumberId: 'meta-phone-apex-101',
       })
     )
   })
@@ -492,5 +494,206 @@ describe('PHASE 5B: WhatsApp Channel Adapter (Meta Cloud API Ingress)', () => {
     expect(prodRes.error).toContain('Meta WhatsApp API credentials not configured in production')
 
     ;(process.env as any).NODE_ENV = originalEnv
+  })
+
+  // L. Explicit outbound phone_number_id uses /{fromPhoneNumberId}/messages
+  it('L. uses explicit fromPhoneNumberId to construct outbound API endpoint when provided', async () => {
+    const { sendWhatsAppTextMessage: realSend } = await vi.importActual<any>('@/lib/whatsapp/client')
+
+    const originalFetch = global.fetch
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ messages: [{ id: 'wamid.outbound-123' }] }),
+    })
+    global.fetch = mockFetch
+
+    process.env.WHATSAPP_ACCESS_TOKEN = 'test_access_token_super_secret_123'
+    process.env.WHATSAPP_PHONE_NUMBER_ID = 'global-env-fallback-id'
+
+    const result = await realSend({
+      to: '+919777766666',
+      text: 'Explicit channel reply',
+      fromPhoneNumberId: 'meta-phone-apex-101',
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.status).toBe('sent')
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://graph.facebook.com/v20.0/meta-phone-apex-101/messages',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Authorization': 'Bearer test_access_token_super_secret_123',
+        }),
+      })
+    )
+
+    delete process.env.WHATSAPP_ACCESS_TOKEN
+    delete process.env.WHATSAPP_PHONE_NUMBER_ID
+    global.fetch = originalFetch
+  })
+
+  // M. Backward-compatible fallback: when fromPhoneNumberId is omitted, uses env fallback
+  it('M. falls back to environment phone_number_id when fromPhoneNumberId is omitted', async () => {
+    const { sendWhatsAppTextMessage: realSend } = await vi.importActual<any>('@/lib/whatsapp/client')
+
+    const originalFetch = global.fetch
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ messages: [{ id: 'wamid.outbound-fallback' }] }),
+    })
+    global.fetch = mockFetch
+
+    process.env.WHATSAPP_ACCESS_TOKEN = 'test_access_token_super_secret_123'
+    process.env.WHATSAPP_PHONE_NUMBER_ID = 'global-env-phone-id-999'
+
+    const result = await realSend({
+      to: '+919777766666',
+      text: 'Fallback message',
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.status).toBe('sent')
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://graph.facebook.com/v20.0/global-env-phone-id-999/messages',
+      expect.anything()
+    )
+
+    delete process.env.WHATSAPP_ACCESS_TOKEN
+    delete process.env.WHATSAPP_PHONE_NUMBER_ID
+    global.fetch = originalFetch
+  })
+
+  // N. Customer phone separation: customerPhone is NEVER passed as fromPhoneNumberId
+  it('N. guarantees customer phone number is recipient only and never used as fromPhoneNumberId', async () => {
+    vi.mocked(resolveDeploymentByPhoneNumberId).mockResolvedValueOnce({
+      id: 'dep-client-apex-101',
+      client_id: 'client-apex-101',
+      company_name: 'Apex Realty',
+      status: 'active',
+    } as any)
+
+    vi.mocked(executeLiveDeploymentTurn).mockResolvedValueOnce({
+      success: true,
+      deploymentId: 'dep-client-apex-101',
+      clientId: 'client-apex-101',
+      employeeSlug: 'real-estate-lead-receptionist',
+      employeeName: 'Real Estate Lead Receptionist',
+      replyText: 'Reply message',
+      executedTools: [],
+    })
+
+    const payload = createMetaWebhookPayload({
+      phoneNumberId: 'meta-phone-apex-101',
+      from: '+91 9777766666', // Customer phone
+    })
+
+    await POST(createMockRequest(payload))
+
+    expect(sendWhatsAppTextMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: '919777766666',
+        fromPhoneNumberId: 'meta-phone-apex-101',
+      })
+    )
+
+    // Explicitly verify fromPhoneNumberId is NOT the customer phone
+    const sendArgs = vi.mocked(sendWhatsAppTextMessage).mock.calls[0][0]
+    expect(sendArgs.fromPhoneNumberId).not.toBe('919777766666')
+    expect(sendArgs.fromPhoneNumberId).not.toBe('+91 9777766666')
+    expect(sendArgs.fromPhoneNumberId).toBe('meta-phone-apex-101')
+  })
+
+  // O. Multi-tenant outbound isolation across different received phone_number_ids
+  it('O. routes outbound replies to the exact received business channel across multiple tenants', async () => {
+    vi.mocked(resolveDeploymentByPhoneNumberId)
+      .mockResolvedValueOnce({
+        id: 'dep-apex-101',
+        client_id: 'client-apex-101',
+        status: 'active',
+      } as any)
+      .mockResolvedValueOnce({
+        id: 'dep-zenith-202',
+        client_id: 'client-zenith-202',
+        status: 'active',
+      } as any)
+
+    vi.mocked(executeLiveDeploymentTurn).mockResolvedValue({
+      success: true,
+      deploymentId: 'dep-test',
+      clientId: 'client-test',
+      employeeSlug: 'real-estate-lead-receptionist',
+      employeeName: 'Real Estate Lead Receptionist',
+      replyText: 'Reply',
+      executedTools: [],
+    })
+
+    // Tenant A message
+    const payloadA = createMetaWebhookPayload({
+      phoneNumberId: 'meta-phone-apex-101',
+      from: '+91 9111111111',
+      messageId: 'msg-a',
+    })
+    await POST(createMockRequest(payloadA))
+
+    // Tenant B message
+    const payloadB = createMetaWebhookPayload({
+      phoneNumberId: 'meta-phone-zenith-202',
+      from: '+91 9222222222',
+      messageId: 'msg-b',
+    })
+    await POST(createMockRequest(payloadB))
+
+    expect(sendWhatsAppTextMessage).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        to: '919111111111',
+        fromPhoneNumberId: 'meta-phone-apex-101',
+      })
+    )
+    expect(sendWhatsAppTextMessage).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        to: '919222222222',
+        fromPhoneNumberId: 'meta-phone-zenith-202',
+      })
+    )
+  })
+
+  // P. Provisioning: explicit whatsappPhoneNumberId is set, omitted leaves it unset (never copying contact phone)
+  it('P. persists explicit whatsappPhoneNumberId during runtime config building and does NOT copy contact phone when omitted', () => {
+    // 1. With explicit WhatsApp channel
+    const configWithWhatsApp = buildClientRuntimeConfig({
+      deploymentId: 'dep-test-1',
+      clientId: 'client-1',
+      prospect: {
+        company_name: 'Apex Realty',
+        industry: 'Real Estate',
+        phone: '+91 9876543210', // Contact phone
+      },
+      employeeSlug: 'real-estate-lead-receptionist',
+      workflowId: 'wf-001',
+      whatsappPhoneNumberId: 'meta-phone-apex-101',
+    })
+
+    expect(configWithWhatsApp.operating_parameters?.whatsapp_phone_number_id).toBe('meta-phone-apex-101')
+    expect(configWithWhatsApp.operating_parameters?.contact_phone).toBe('+91 9876543210')
+
+    // 2. Without explicit WhatsApp channel
+    const configWithoutWhatsApp = buildClientRuntimeConfig({
+      deploymentId: 'dep-test-2',
+      clientId: 'client-2',
+      prospect: {
+        company_name: 'Zenith Realty',
+        industry: 'Real Estate',
+        phone: '+91 9876543210', // Contact phone
+      },
+      employeeSlug: 'real-estate-lead-receptionist',
+      workflowId: 'wf-001',
+    })
+
+    // whatsapp_phone_number_id must remain undefined / unset
+    expect(configWithoutWhatsApp.operating_parameters?.whatsapp_phone_number_id).toBeUndefined()
+    expect(configWithoutWhatsApp.operating_parameters?.contact_phone).toBe('+91 9876543210')
   })
 })
