@@ -19,6 +19,7 @@ export * from './demo-planner'
 export * from './demo-executor'
 export * from './runtime-config'
 export * from './provisioner'
+export * from './live-executor'
 
 /**
  * Evaluates CRM readiness according to Grovaitech LeadData strict specifications.

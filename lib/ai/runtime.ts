@@ -39,6 +39,8 @@ export interface CustomerContext {
   phone?: string | null
   email?: string | null
   userId?: string | null
+  clientId?: string | null
+  deploymentId?: string | null
 }
 
 export interface ConversationTurn {
@@ -56,6 +58,7 @@ export interface RunAgentTurnOptions {
   tools?: GeminiFunctionDeclaration[]
   maxIterations?: number
   onToolExecuted?: (result: ToolExecutionResult) => void
+  executionMode?: 'sandbox' | 'live'
 }
 
 export interface AgentTurnResult {
@@ -464,6 +467,17 @@ export async function runAgentTurn(options: RunAgentTurnOptions): Promise<AgentT
           callArgs.name = customerContext.name
           callArgs.customer_name = customerContext.name
           callArgs.patient_name = customerContext.name
+        }
+
+        // Attach trusted server-provided tenant identity (cannot be overwritten by model args)
+        if (customerContext.clientId) {
+          callArgs.clientId = customerContext.clientId
+        }
+        if (customerContext.deploymentId) {
+          callArgs.deploymentId = customerContext.deploymentId
+        }
+        if (options.executionMode) {
+          callArgs.executionMode = options.executionMode
         }
 
         // Execute tool call via server dispatcher

@@ -234,6 +234,10 @@ async function handleCreateLead(rawArgs: Record<string, any>): Promise<any> {
   const isWhatsApp = rawArgs.source === 'whatsapp' || rawArgs.channel === 'whatsapp'
   const source = isWhatsApp ? ('whatsapp' as const) : ('ai_demo' as const)
 
+  // Extract trusted server-provided tenant identity (never from untrusted model arguments)
+  const clientId = sanitizeString(rawArgs.clientId || rawArgs.customerContext?.clientId || '') || undefined
+  const deploymentId = sanitizeString(rawArgs.deploymentId || rawArgs.customerContext?.deploymentId || '') || undefined
+
   const leadPayload: LeadData = {
     name: p.name,
     phone: p.phone,
@@ -246,6 +250,19 @@ async function handleCreateLead(rawArgs: Record<string, any>): Promise<any> {
     lead_status: 'qualified',
     notes: p.notes ? `[Gemini Tool] ${p.notes}` : '[Gemini Tool] Lead registered via AI tool call',
     source,
+    client_id: clientId,
+    deployment_id: deploymentId,
+  }
+
+  // Enforce executionMode sandbox guardrail: sandbox execution MUST NEVER write to database
+  if (rawArgs.executionMode === 'sandbox') {
+    return {
+      leadId: `mock-lead-${Date.now()}`,
+      lead: { ...leadPayload, id: `mock-lead-${Date.now()}` },
+      isUpdate: false,
+      message: `[Sandbox] Simulated lead registration for ${p.name} (${p.phone}). No database write performed.`,
+      isSimulated: true,
+    }
   }
 
   const result = await createLead(leadPayload)
@@ -305,6 +322,9 @@ async function handleScheduleSiteVisit(rawArgs: Record<string, any>): Promise<an
   })
 
   // 1. Ensure lead record is registered / updated in Supabase with site visit flag
+  const clientId = sanitizeString(rawArgs.clientId || rawArgs.customerContext?.clientId || '') || undefined
+  const deploymentId = sanitizeString(rawArgs.deploymentId || rawArgs.customerContext?.deploymentId || '') || undefined
+
   const leadPayload: LeadData = {
     name: p.customer_name,
     phone: p.phone,
@@ -318,6 +338,8 @@ async function handleScheduleSiteVisit(rawArgs: Record<string, any>): Promise<an
     lead_status: 'site_visit',
     notes: p.notes ? `[Site Visit Tool] ${p.notes}` : `[Site Visit Tool] Site visit requested for ${p.preferred_date} at ${p.preferred_time}`,
     source: 'ai_demo',
+    client_id: clientId,
+    deployment_id: deploymentId,
   }
 
   const leadSaveResult = await createLead(leadPayload)

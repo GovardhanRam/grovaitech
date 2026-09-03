@@ -14,6 +14,7 @@ import {
   evaluateCrmReadiness,
   executeDeploymentDemo,
   provisionClientDeployment,
+  executeLiveDeploymentTurn,
   type Prospect,
   type DeploymentAnalysis,
   type ExecuteDeploymentDemoOptions,
@@ -21,6 +22,8 @@ import {
   type ProvisionClientOptions,
   type ProvisionClientResult,
   type ClientDeployment,
+  type ExecuteLiveDeploymentTurnOptions,
+  type LiveDeploymentTurnResult,
 } from '@/lib/deployment'
 import { createLead, type LeadData } from '@/app/actions/leads'
 
@@ -200,6 +203,44 @@ export async function provisionClientDeploymentFromLead(
     return {
       success: false,
       error: err?.message || 'An unexpected error occurred during client workspace provisioning.',
+    }
+  }
+}
+
+/**
+ * Server action to execute an authorized live customer conversation turn
+ * for an activated Client Deployment.
+ * Enforces server-side deployment resolution and tenant-scoped lead creation.
+ */
+export async function runLiveDeploymentTurnAction(
+  options: ExecuteLiveDeploymentTurnOptions
+): Promise<LiveDeploymentTurnResult> {
+  try {
+    if (!options || typeof options !== 'object' || !options.deploymentId || !options.message) {
+      return {
+        success: false,
+        deploymentId: options?.deploymentId || '',
+        clientId: '',
+        employeeSlug: '',
+        employeeName: '',
+        replyText: '',
+        executedTools: [],
+        error: 'Invalid input: options with deploymentId and message are required.',
+      }
+    }
+
+    return await executeLiveDeploymentTurn(options)
+  } catch (err: any) {
+    console.error('[Run Live Deployment Turn Action Exception]', err)
+    return {
+      success: false,
+      deploymentId: options?.deploymentId || '',
+      clientId: '',
+      employeeSlug: '',
+      employeeName: '',
+      replyText: '',
+      executedTools: [],
+      error: err?.message || 'An unexpected error occurred during live turn execution.',
     }
   }
 }

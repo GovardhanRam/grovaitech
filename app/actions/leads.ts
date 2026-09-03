@@ -19,6 +19,8 @@ export interface LeadData {
   notes?: string
   source?: 'ai_demo' | 'whatsapp' | 'website' | 'manual'
   user_id?: string
+  client_id?: string
+  deployment_id?: string
 }
 
 const ALLOWED_STATUSES = ['new', 'contacted', 'qualified', 'site_visit', 'converted', 'lost']
@@ -73,12 +75,28 @@ export async function createLead(lead: LeadData) {
     const supabase = await getAdminClient()
     const cleanPhone = lead.phone.trim()
 
-    // ── Idempotency Check: Prevent duplicate lead creation for same phone ──
-    const { data: existingLeads } = await supabase
+    const targetClientId = lead.client_id?.trim() || null
+
+    // ── Idempotency Check: Prevent duplicate lead creation for same phone within the same tenant ──
+    const { data: allLeadsMatchingPhone } = await supabase
       .from('real_estate_leads')
       .select('*')
       .eq('phone', cleanPhone)
-      .limit(1)
+
+    let existingLead: any = null
+    if (Array.isArray(allLeadsMatchingPhone) && allLeadsMatchingPhone.length > 0) {
+      if (targetClientId) {
+        // Tenant-scoped deduplication: Match phone AND client_id
+        existingLead = allLeadsMatchingPhone.find(
+          (l: any) => l.client_id === targetClientId
+        )
+      } else {
+        // Unscoped / Legacy deduplication: Match phone when client_id is absent/null
+        existingLead = allLeadsMatchingPhone.find(
+          (l: any) => !l.client_id
+        ) || allLeadsMatchingPhone[0]
+      }
+    }
 
     const payload = {
       name: lead.name.trim(),
@@ -95,12 +113,14 @@ export async function createLead(lead: LeadData) {
       lead_status: lead.lead_status || (lead.site_visit_requested ? 'site_visit' : 'qualified'),
       notes: lead.notes || null,
       source: lead.source || 'ai_demo',
-      user_id: lead.user_id || null
+      user_id: lead.user_id || null,
+      client_id: targetClientId,
+      deployment_id: lead.deployment_id?.trim() || null,
     }
 
-    if (existingLeads && existingLeads.length > 0) {
-      const existingId = existingLeads[0].id
-      console.log(`Updating existing lead ${existingId} for phone ${cleanPhone}`)
+    if (existingLead) {
+      const existingId = existingLead.id
+      console.log(`Updating existing lead ${existingId} for phone ${cleanPhone} (tenant: ${targetClientId || 'unscoped'})`)
       const { data: updated, error: updateError } = await supabase
         .from('real_estate_leads')
         .update(payload)
@@ -112,7 +132,7 @@ export async function createLead(lead: LeadData) {
         console.error('Database update error:', updateError)
         return { success: false, error: 'Failed to update lead: ' + updateError.message }
       }
-      return { success: true, data: updated || existingLeads[0], isUpdate: true }
+      return { success: true, data: updated || existingLead, isUpdate: true }
     }
 
     // New lead creation
