@@ -13,10 +13,14 @@ import {
   analyzeProspect,
   evaluateCrmReadiness,
   executeDeploymentDemo,
+  provisionClientDeployment,
   type Prospect,
   type DeploymentAnalysis,
   type ExecuteDeploymentDemoOptions,
   type DeploymentDemoResult,
+  type ProvisionClientOptions,
+  type ProvisionClientResult,
+  type ClientDeployment,
 } from '@/lib/deployment'
 import { createLead, type LeadData } from '@/app/actions/leads'
 
@@ -173,3 +177,30 @@ export async function saveQualifiedProspectToCrm(
     }
   }
 }
+
+/**
+ * Server action to provision an active Client Workspace and AI Employee Deployment record.
+ * Re-validates prospect and CRM readiness server-side, resolves canonical employee and workflow,
+ * and creates/updates the client account and deployment configuration idempotently.
+ */
+export async function provisionClientDeploymentFromLead(
+  options: ProvisionClientOptions
+): Promise<ProvisionClientResult> {
+  try {
+    if (!options || typeof options !== 'object' || !options.prospect) {
+      return {
+        success: false,
+        error: 'Invalid input: options with a valid prospect object are required.',
+      }
+    }
+
+    return await provisionClientDeployment(options)
+  } catch (err: any) {
+    console.error('[Provision Client Deployment Server Action Exception]', err)
+    return {
+      success: false,
+      error: err?.message || 'An unexpected error occurred during client workspace provisioning.',
+    }
+  }
+}
+

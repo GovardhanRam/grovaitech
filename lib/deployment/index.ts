@@ -17,6 +17,8 @@ export * from './revenue-leaks'
 export * from './matcher'
 export * from './demo-planner'
 export * from './demo-executor'
+export * from './runtime-config'
+export * from './provisioner'
 
 /**
  * Evaluates CRM readiness according to Grovaitech LeadData strict specifications.

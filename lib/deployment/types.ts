@@ -129,3 +129,53 @@ export interface DeploymentDemoResult {
   hasRealSideEffects: false
   error?: string
 }
+
+export type DeploymentStatus = 'provisioned' | 'configured' | 'active' | 'failed'
+
+export interface ClientRuntimeConfig {
+  deployment_id: string
+  client_id: string
+  company_name: string
+  industry: string
+  location?: string
+  operating_parameters?: Record<string, any>
+  assigned_employee_slug: string
+  assigned_workflow_id: string
+  system_context_instruction: string
+  created_at: string
+}
+
+export interface ClientDeployment {
+  id: string
+  client_id: string
+  company_name: string
+  industry: string
+  contact_name: string
+  contact_phone: string
+  contact_email?: string
+  assigned_employee_id: string
+  assigned_employee_name: string
+  assigned_employee_slug: string
+  assigned_workflow_id: string
+  assigned_workflow_name: string
+  status: DeploymentStatus
+  runtime_config: ClientRuntimeConfig
+  created_at: string
+  updated_at: string
+}
+
+export interface ProvisionClientOptions {
+  prospect: Prospect
+  leadId?: string
+  employeeSlug?: string
+  workflowId?: string
+}
+
+export interface ProvisionClientResult {
+  success: boolean
+  deployment?: ClientDeployment
+  client?: any
+  isExisting?: boolean
+  error?: string
+}
+

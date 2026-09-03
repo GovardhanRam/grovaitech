@@ -21,6 +21,13 @@ interface ClientContract {
   status: 'Active' | 'Onboarding' | 'Inactive'
   services: string[]
   created_at: string
+  phone?: string
+  assigned_employee_slug?: string
+  assigned_employee_name?: string
+  assigned_workflow_id?: string
+  deployment_id?: string
+  deployment_status?: string
+  deployed_at?: string
 }
 
 export default function ClientsPage() {
@@ -206,6 +213,24 @@ export default function ClientsPage() {
                     <Briefcase className="w-3.5 h-3.5 text-slate-600 shrink-0" />
                     <span>Contract: {new Date(client.created_at).toLocaleDateString()}</span>
                   </div>
+                  {client.deployment_id && (
+                    <div className="flex items-center gap-2 text-[10px] font-mono text-slate-500">
+                      <span className="px-1.5 py-0.5 bg-[#0F172A] border border-[#1E293B] rounded text-slate-400">
+                        {client.deployment_id}
+                      </span>
+                    </div>
+                  )}
+                  {client.assigned_employee_name && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-blue-400 font-semibold bg-blue-950/30 border border-blue-900/40 px-2 py-1 rounded-lg">
+                      <Bot className="w-3.5 h-3.5 shrink-0 text-blue-400" />
+                      <span>{client.assigned_employee_name}</span>
+                      {client.assigned_workflow_id && (
+                        <span className="text-[9px] text-slate-400 font-mono ml-auto">
+                          [{client.assigned_workflow_id}]
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Services list */}

@@ -18,11 +18,13 @@ import {
   analyzeProspectForDeployment,
   executeDeploymentDemoAction,
   saveQualifiedProspectToCrm,
+  provisionClientDeploymentFromLead,
 } from '@/app/actions/deployment'
 import type {
   Prospect,
   DeploymentAnalysis,
   DeploymentDemoResult,
+  ClientDeployment,
   RevenueLeak,
   EmployeeMatch,
 } from '@/lib/deployment'
@@ -122,6 +124,16 @@ export default function DeploymentEngineWorkspace() {
     error?: string
   } | null>(null)
 
+  // Client Workspace Provisioning State
+  const [isProvisioning, setIsProvisioning] = useState(false)
+  const [provisionResult, setProvisionResult] = useState<{
+    success: boolean
+    deployment?: ClientDeployment
+    client?: any
+    isExisting?: boolean
+    error?: string
+  } | null>(null)
+
   // Toggle challenge tags
   const toggleChallenge = (item: string) => {
     setSelectedChallenges((prev) =>
@@ -171,6 +183,7 @@ export default function DeploymentEngineWorkspace() {
     setAnalysisError(null)
     setDemoError(null)
     setCrmSaveResult(null)
+    setProvisionResult(null)
 
     if (!companyName.trim()) {
       setAnalysisError('Please enter your Company Name.')
@@ -203,6 +216,7 @@ export default function DeploymentEngineWorkspace() {
     setLatestDemoResult(null)
     setDemoError(null)
     setCrmSaveResult(null)
+    setProvisionResult(null)
   }
 
   // Step 4: Explicitly Save Qualified Prospect to CRM
@@ -235,6 +249,45 @@ export default function DeploymentEngineWorkspace() {
       })
     } finally {
       setIsSavingToCrm(false)
+    }
+  }
+
+  // Step 4 (Phase 3): Explicitly Provision Client Workspace and Activate AI Employee
+  const handleProvisionClient = async () => {
+    if (!analysisResult?.prospect || isProvisioning) {
+      return
+    }
+
+    setIsProvisioning(true)
+    setProvisionResult(null)
+
+    try {
+      const res = await provisionClientDeploymentFromLead({
+        prospect: analysisResult.prospect,
+        employeeSlug: analysisResult.recommended_employee?.employee_slug,
+        leadId: crmSaveResult?.leadId,
+      })
+
+      if (res.success) {
+        setProvisionResult({
+          success: true,
+          deployment: res.deployment,
+          client: res.client,
+          isExisting: res.isExisting,
+        })
+      } else {
+        setProvisionResult({
+          success: false,
+          error: res.error || 'Failed to activate and provision client workspace.',
+        })
+      }
+    } catch (err: any) {
+      setProvisionResult({
+        success: false,
+        error: err?.message || 'An unexpected error occurred during workspace activation.',
+      })
+    } finally {
+      setIsProvisioning(false)
     }
   }
 
@@ -975,6 +1028,105 @@ export default function DeploymentEngineWorkspace() {
                         <span>View in Leads CRM</span>
                         <ExternalLink className="w-3.5 h-3.5" />
                       </Link>
+                    </div>
+
+                    {/* Activate & Provision AI Employee Workspace Block */}
+                    <div className="mt-3 pt-3 border-t border-emerald-200/80 space-y-3">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <div>
+                          <h4 className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                            <Bot className="w-4 h-4 text-emerald-600" />
+                            <span>AI Employee Workspace Activation</span>
+                          </h4>
+                          <p className="text-[11px] text-emerald-800 mt-0.5">
+                            Provision a client account and bind <strong>{analysisResult.recommended_employee?.employee_name || 'AI Employee'}</strong> with workflow <strong>{analysisResult.demo?.workflow_id || 'wf-001'}</strong> in the Grovaitech Control Plane.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleProvisionClient}
+                          disabled={isProvisioning || provisionResult?.success}
+                          className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold text-xs rounded-xl shadow-xs transition cursor-pointer disabled:cursor-not-allowed whitespace-nowrap"
+                        >
+                          {isProvisioning ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <span>Activating & Provisioning...</span>
+                            </>
+                          ) : provisionResult?.success ? (
+                            <>
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span>Workspace Activated</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-4 h-4" />
+                              <span>Activate & Deploy AI Employee</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Provision Success Card */}
+                      {provisionResult?.success && provisionResult.deployment && (
+                        <div className="p-4 bg-slate-900 text-white rounded-xl border border-blue-500/30 shadow-md space-y-3">
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <div className="flex items-center gap-2 text-blue-400 font-bold text-xs">
+                              <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0" />
+                              <span>Client Workspace & AI Employee Successfully Activated!</span>
+                            </div>
+                            <span className="text-[11px] font-mono text-blue-300 bg-blue-950/60 px-2 py-0.5 rounded border border-blue-800">
+                              ID: {provisionResult.deployment.id}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+                            <div className="p-2.5 bg-slate-800/80 rounded-lg border border-slate-700/80">
+                              <span className="text-[10px] text-slate-400 uppercase font-bold block">Client Account</span>
+                              <span className="font-semibold text-slate-100">{provisionResult.deployment.company_name}</span>
+                            </div>
+                            <div className="p-2.5 bg-slate-800/80 rounded-lg border border-slate-700/80">
+                              <span className="text-[10px] text-slate-400 uppercase font-bold block">Assigned AI Employee</span>
+                              <span className="font-semibold text-slate-100">{provisionResult.deployment.assigned_employee_name}</span>
+                            </div>
+                            <div className="p-2.5 bg-slate-800/80 rounded-lg border border-slate-700/80">
+                              <span className="text-[10px] text-slate-400 uppercase font-bold block">Bound Workflow</span>
+                              <span className="font-semibold text-slate-100">{provisionResult.deployment.assigned_workflow_id} ({provisionResult.deployment.assigned_workflow_name})</span>
+                            </div>
+                            <div className="p-2.5 bg-slate-800/80 rounded-lg border border-slate-700/80">
+                              <span className="text-[10px] text-slate-400 uppercase font-bold block">Status</span>
+                              <span className="font-semibold text-emerald-400 flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                                Active in Control Plane
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-800">
+                            <p className="text-[11px] text-slate-400">
+                              ✓ Provisioned in Grovaitech Control Plane. AI Employee workspace & workflow state are active.
+                            </p>
+                            <Link
+                              href="/dashboard/clients"
+                              className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:text-blue-300 transition"
+                            >
+                              <span>View in Client Command Center</span>
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </Link>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Provision Error Card */}
+                      {provisionResult && !provisionResult.success && (
+                        <div className="p-3.5 bg-red-50 rounded-xl border border-red-200 text-xs text-red-700 flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                          <div>
+                            <strong className="block font-bold">Failed to activate client workspace</strong>
+                            <span>{provisionResult.error}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

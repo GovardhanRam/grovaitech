@@ -139,6 +139,7 @@
   ],
   "real_estate_leads": [],
   "workflow_executions": [],
+  "client_deployments": [],
   "settings": {
     "theme": "dark",
     "notificationEmail": true,
