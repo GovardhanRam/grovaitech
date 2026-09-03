@@ -11,17 +11,27 @@
 
 import {
   analyzeProspect,
+  evaluateCrmReadiness,
   executeDeploymentDemo,
   type Prospect,
   type DeploymentAnalysis,
   type ExecuteDeploymentDemoOptions,
   type DeploymentDemoResult,
 } from '@/lib/deployment'
+import { createLead, type LeadData } from '@/app/actions/leads'
 
 export interface AnalyzeProspectResult {
   success: boolean
   data?: DeploymentAnalysis
   error?: string
+}
+
+export interface SaveQualifiedProspectToCrmResult {
+  success: boolean
+  data?: any
+  isUpdate?: boolean
+  error?: string
+  missingFields?: string[]
 }
 
 export interface ExecuteDeploymentDemoActionResult {
@@ -111,6 +121,55 @@ export async function executeDeploymentDemoAction(
     return {
       success: false,
       error: err?.message || 'An unexpected error occurred during demo execution.',
+    }
+  }
+}
+
+/**
+ * Server action to save a CRM-ready qualified prospect to the CRM/database.
+ * Strictly re-verifies CRM readiness server-side and forwards to createLead().
+ */
+export async function saveQualifiedProspectToCrm(
+  prospect: Prospect
+): Promise<SaveQualifiedProspectToCrmResult> {
+  try {
+    if (!prospect || typeof prospect !== 'object') {
+      return {
+        success: false,
+        error: 'Invalid input: prospect must be a valid object.',
+      }
+    }
+
+    const crmReadiness = evaluateCrmReadiness(prospect)
+
+    if (!crmReadiness.ready_for_lead_creation || !crmReadiness.lead_payload) {
+      return {
+        success: false,
+        error: `Prospect is not CRM-ready. Missing required fields: ${crmReadiness.missing_fields.join(', ')}`,
+        missingFields: crmReadiness.missing_fields,
+      }
+    }
+
+    // Explicitly call createLead with the prepared lead_payload
+    const result = await createLead(crmReadiness.lead_payload as LeadData)
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || 'Failed to save qualified prospect to CRM.',
+      }
+    }
+
+    return {
+      success: true,
+      data: result.data,
+      isUpdate: !!result.isUpdate,
+    }
+  } catch (err: any) {
+    console.error('[Save Prospect To CRM Error]', err)
+    return {
+      success: false,
+      error: err?.message || 'An unexpected error occurred while saving to CRM.',
     }
   }
 }

@@ -13,9 +13,11 @@
  */
 
 import { useState, useTransition } from 'react'
+import Link from 'next/link'
 import {
   analyzeProspectForDeployment,
   executeDeploymentDemoAction,
+  saveQualifiedProspectToCrm,
 } from '@/app/actions/deployment'
 import type {
   Prospect,
@@ -49,6 +51,8 @@ import {
   Check,
   AlertTriangle,
   Info,
+  Database,
+  ExternalLink,
 } from 'lucide-react'
 
 // Suggested quick-select presets for fast demonstration
@@ -109,6 +113,15 @@ export default function DeploymentEngineWorkspace() {
   const [demoInputMessage, setDemoInputMessage] = useState('')
   const [demoError, setDemoError] = useState<string | null>(null)
 
+  // CRM Lead Creation State
+  const [isSavingToCrm, setIsSavingToCrm] = useState(false)
+  const [crmSaveResult, setCrmSaveResult] = useState<{
+    success: boolean
+    isUpdate?: boolean
+    leadId?: string
+    error?: string
+  } | null>(null)
+
   // Toggle challenge tags
   const toggleChallenge = (item: string) => {
     setSelectedChallenges((prev) =>
@@ -157,6 +170,7 @@ export default function DeploymentEngineWorkspace() {
   const handleAnalyze = () => {
     setAnalysisError(null)
     setDemoError(null)
+    setCrmSaveResult(null)
 
     if (!companyName.trim()) {
       setAnalysisError('Please enter your Company Name.')
@@ -188,6 +202,40 @@ export default function DeploymentEngineWorkspace() {
     setDemoHistory([])
     setLatestDemoResult(null)
     setDemoError(null)
+    setCrmSaveResult(null)
+  }
+
+  // Step 4: Explicitly Save Qualified Prospect to CRM
+  const handleSaveToCrm = async () => {
+    if (!analysisResult?.crm.ready_for_lead_creation || isSavingToCrm) {
+      return
+    }
+
+    setIsSavingToCrm(true)
+    setCrmSaveResult(null)
+
+    try {
+      const res = await saveQualifiedProspectToCrm(analysisResult.prospect)
+      if (res.success) {
+        setCrmSaveResult({
+          success: true,
+          isUpdate: res.isUpdate,
+          leadId: res.data?.id,
+        })
+      } else {
+        setCrmSaveResult({
+          success: false,
+          error: res.error || 'Failed to save qualified prospect to CRM.',
+        })
+      }
+    } catch (err: any) {
+      setCrmSaveResult({
+        success: false,
+        error: err?.message || 'An unexpected error occurred while saving to CRM.',
+      })
+    } finally {
+      setIsSavingToCrm(false)
+    }
   }
 
   // Step 3: Run Safe Sandbox Demo Turn
@@ -844,7 +892,7 @@ export default function DeploymentEngineWorkspace() {
             </div>
 
             {analysisResult.crm.ready_for_lead_creation ? (
-              <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-200 space-y-3">
+              <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-200 space-y-4">
                 <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   <span>All 5 mandatory CRM qualification fields are satisfied:</span>
@@ -873,9 +921,74 @@ export default function DeploymentEngineWorkspace() {
                   </div>
                 </div>
 
-                <p className="text-[11px] text-emerald-800 pt-1">
-                  ✓ <strong>No Database Record Written:</strong> In live production, this lead payload is synced to your CRM/database by the AI Employee upon full qualification.
-                </p>
+                {/* Save to CRM Action Bar */}
+                <div className="pt-3 border-t border-emerald-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <p className="text-[11px] text-emerald-800">
+                    ✓ <strong>Explicit Conversion:</strong> Click below to explicitly create or update this qualified prospect record in your CRM.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleSaveToCrm}
+                    disabled={isSavingToCrm}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-semibold text-xs rounded-xl shadow-xs transition cursor-pointer disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    {isSavingToCrm ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Saving to CRM...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Database className="w-4 h-4" />
+                        <span>Save Qualified Lead to CRM</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Success Feedback */}
+                {crmSaveResult?.success && (
+                  <div className="p-4 bg-white rounded-xl border border-emerald-300 shadow-xs space-y-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>
+                          {crmSaveResult.isUpdate
+                            ? 'Lead Record Successfully Updated in CRM!'
+                            : 'Lead Record Successfully Created in CRM!'}
+                        </span>
+                      </div>
+                      {crmSaveResult.leadId && (
+                        <span className="text-[11px] font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                          ID: {crmSaveResult.leadId}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-600">
+                      The prospect has been synchronized to the CRM pipeline with status <strong className="text-slate-800">qualified</strong>.
+                    </p>
+                    <div className="pt-1">
+                      <Link
+                        href="/leads"
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 transition"
+                      >
+                        <span>View in Leads CRM</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+                  </div>
+                )}
+
+                {/* Error Feedback */}
+                {crmSaveResult && !crmSaveResult.success && (
+                  <div className="p-3.5 bg-red-50 rounded-xl border border-red-200 text-xs text-red-700 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="block font-bold">Failed to save lead to CRM</strong>
+                      <span>{crmSaveResult.error}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="p-4 rounded-xl bg-amber-50/60 border border-amber-200 space-y-3">
