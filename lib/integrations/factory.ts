@@ -22,6 +22,7 @@ import {
   resolveGoogleCalendarCredentials,
   resolveN8nCredentials,
 } from './credentials'
+import { claimExternalOperation } from './idempotency'
 
 export interface ResolveAdaptersOptions {
   clientId?: string
@@ -66,8 +67,8 @@ export function resolveExternalAdapters(
   const calCreds = resolveGoogleCalendarCredentials({ clientId, deploymentId })
   const n8nCreds = resolveN8nCredentials({ clientId, deploymentId })
 
-  // In Phase 5T-A Foundation, real external providers remain unverified and disabled
-  // Real adapters will be plugged into this factory in future certification phases
+  // In Phase 5T-A/B Foundation, real external providers remain unverified and disabled
+  // Durable idempotency claim guards against duplicate execution across workers
   return {
     dispatchWhatsAppTemplate: async (payload: any, ctx: ExternalAdapterContext) => {
       const validation = validateLiveAdapterContext(ctx)
@@ -75,6 +76,40 @@ export function resolveExternalAdapters(
         return {
           status: 'simulated',
           detail: `[SIMULATED:invalid_context] ${validation.reason || 'Context invalid for live execution.'}`,
+        }
+      }
+
+      const claim = await claimExternalOperation({
+        context: ctx,
+        payload,
+        provider: 'meta_whatsapp',
+        operationName: 'whatsapp_template',
+      })
+
+      if (!claim.hasExecutionPermission) {
+        if (claim.cached && claim.status === 'succeeded') {
+          return {
+            status: 'simulated',
+            detail: `[DURABLE_REPLAY:succeeded] Replaying previously succeeded WhatsApp operation (Idempotency: ${ctx.idempotencyKey}).`,
+          }
+        }
+        if (claim.cached && claim.status === 'failed') {
+          return {
+            status: 'failed',
+            detail: `[DURABLE_REPLAY:failed] Replaying previously failed WhatsApp operation: ${claim.errorMessage || 'prior failure'}`,
+          }
+        }
+        if (claim.inFlight) {
+          return {
+            status: 'simulated',
+            detail: `[DURABLE_IN_FLIGHT] WhatsApp operation is already in-flight by another worker (Idempotency: ${ctx.idempotencyKey}).`,
+          }
+        }
+        if (claim.reconciliationRequired) {
+          return {
+            status: 'failed',
+            detail: `[DURABLE_UNKNOWN] WhatsApp operation is in an unverified state; automatic retry is blocked.`,
+          }
         }
       }
 
@@ -93,6 +128,40 @@ export function resolveExternalAdapters(
         }
       }
 
+      const claim = await claimExternalOperation({
+        context: ctx,
+        payload,
+        provider: 'google_calendar',
+        operationName: 'calendar_event',
+      })
+
+      if (!claim.hasExecutionPermission) {
+        if (claim.cached && claim.status === 'succeeded') {
+          return {
+            status: 'simulated',
+            detail: `[DURABLE_REPLAY:succeeded] Replaying previously succeeded Calendar event (Idempotency: ${ctx.idempotencyKey}).`,
+          }
+        }
+        if (claim.cached && claim.status === 'failed') {
+          return {
+            status: 'failed',
+            detail: `[DURABLE_REPLAY:failed] Replaying previously failed Calendar event: ${claim.errorMessage || 'prior failure'}`,
+          }
+        }
+        if (claim.inFlight) {
+          return {
+            status: 'simulated',
+            detail: `[DURABLE_IN_FLIGHT] Calendar event is already in-flight by another worker (Idempotency: ${ctx.idempotencyKey}).`,
+          }
+        }
+        if (claim.reconciliationRequired) {
+          return {
+            status: 'failed',
+            detail: `[DURABLE_UNKNOWN] Calendar operation is in an unverified state; automatic retry is blocked.`,
+          }
+        }
+      }
+
       const date = payload?.date || 'requested slot'
       return {
         status: 'simulated',
@@ -105,6 +174,28 @@ export function resolveExternalAdapters(
         return {
           status: 'simulated',
           detail: `[SIMULATED:invalid_context] ${validation.reason || 'Context invalid for live execution.'}`,
+        }
+      }
+
+      const claim = await claimExternalOperation({
+        context: ctx,
+        payload,
+        provider: 'n8n',
+        operationName: 'n8n_webhook',
+      })
+
+      if (!claim.hasExecutionPermission) {
+        if (claim.cached && claim.status === 'succeeded') {
+          return {
+            status: 'simulated',
+            detail: `[DURABLE_REPLAY:succeeded] Replaying previously succeeded n8n dispatch (Idempotency: ${ctx.idempotencyKey}).`,
+          }
+        }
+        if (claim.inFlight) {
+          return {
+            status: 'simulated',
+            detail: `[DURABLE_IN_FLIGHT] n8n dispatch is already in-flight (Idempotency: ${ctx.idempotencyKey}).`,
+          }
         }
       }
 
