@@ -8,6 +8,7 @@
 
 import type { ExtractedRealEstateLead } from '@/lib/leads/extractor'
 import { createServerClient } from '@/lib/supabase/server'
+import { generateOperationIdempotencyKey, type ExternalAdapterContext } from '@/lib/integrations/types'
 
 export async function saveWorkflowExecution(
   result: WorkflowExecutionResult,
@@ -84,8 +85,8 @@ export interface WorkflowExecutionAdapters {
    * provide WhatsApp or Calendar adapters, so omitting these produces an
    * explicit simulation result rather than a false success.
    */
-  dispatchWhatsAppTemplate?: (payload: any) => Promise<Omit<WorkflowStepResult, 'stepId' | 'stepName' | 'type' | 'target' | 'durationMs'>>
-  createCalendarEvent?: (payload: any) => Promise<Omit<WorkflowStepResult, 'stepId' | 'stepName' | 'type' | 'target' | 'durationMs'>>
+  dispatchWhatsAppTemplate?: (payload: any, context?: any) => Promise<Omit<WorkflowStepResult, 'stepId' | 'stepName' | 'type' | 'target' | 'durationMs'>>
+  createCalendarEvent?: (payload: any, context?: any) => Promise<Omit<WorkflowStepResult, 'stepId' | 'stepName' | 'type' | 'target' | 'durationMs'>>
 }
 
 // ─── Shared Workflow Engine Helpers ─────────────────────────────────────────
@@ -321,19 +322,46 @@ export function getSiteVisitCustomerMessage(
   return `Your site visit${when ? ` for ${when}` : ''} has been confirmed${details?.customerName ? `, ${details.customerName}` : ''}.`
 }
 
+export interface RealEstateWorkflowTenantContext {
+  clientId?: string
+  deploymentId?: string
+  executionMode?: 'sandbox' | 'live'
+  channel?: 'web_chat' | 'whatsapp' | 'api'
+  /** Stable business operation ID across retries (e.g. appointment request ID or lead site-visit operation key) */
+  businessOperationId?: string
+}
+
 export async function executeRealEstateWorkflow({
   leadId,
   conversationId,
   lead,
   adapters = {},
+  tenantContext,
+  executionId: explicitExecutionId,
+  businessOperationId: explicitBusinessOperationId,
 }: {
   leadId: string
   conversationId: string
   lead: ExtractedRealEstateLead
   adapters?: WorkflowExecutionAdapters
+  tenantContext?: RealEstateWorkflowTenantContext
+  executionId?: string
+  businessOperationId?: string
 }): Promise<WorkflowExecutionResult> {
   const startTime = Date.now()
-  const executionId = `exec-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+  // Stable business operation identity survives re-invocations/retries of the same business request
+  const businessOperationId = (
+    explicitBusinessOperationId ||
+    tenantContext?.businessOperationId ||
+    `biz_op_wf001_${leadId}`
+  ).trim()
+
+  // Transient execution attempt identity
+  const executionId = (
+    explicitExecutionId ||
+    `exec-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+  ).trim()
+
   const startedAt = new Date().toISOString()
   const steps: WorkflowStepResult[] = []
 
@@ -365,9 +393,26 @@ export async function executeRealEstateWorkflow({
     },
   }
 
+  const s2Context: ExternalAdapterContext = {
+    clientId: tenantContext?.clientId,
+    deploymentId: tenantContext?.deploymentId,
+    businessOperationId,
+    workflowExecutionId: executionId,
+    workflowStepId: 's2',
+    idempotencyKey: generateOperationIdempotencyKey({
+      businessOperationId,
+      workflowStepId: 's2',
+      operationName: 'whatsapp_template',
+      entityId: customerPhone,
+    }),
+    executionMode: tenantContext?.executionMode || 'sandbox',
+    channel: tenantContext?.channel || 'web_chat',
+    timestamp: startedAt,
+  }
+
   if (adapters.dispatchWhatsAppTemplate) {
     try {
-      const outcome = await adapters.dispatchWhatsAppTemplate(waPayload)
+      const outcome = await adapters.dispatchWhatsAppTemplate(waPayload, s2Context)
       steps.push({ stepId: 's2', stepName: 'Dispatch WhatsApp Template', type: 'whatsapp', target: customerPhone, durationMs: Date.now() - s2Start, payload: waPayload, ...outcome })
     } catch (err: any) {
       steps.push({ stepId: 's2', stepName: 'Dispatch WhatsApp Template', type: 'whatsapp', status: 'failed', target: customerPhone, durationMs: Date.now() - s2Start, detail: `WhatsApp dispatch failed: ${err.message || 'unknown error'}.`, payload: waPayload })
@@ -385,9 +430,26 @@ export async function executeRealEstateWorkflow({
     status: 'tentative',
   }
 
+  const s3Context: ExternalAdapterContext = {
+    clientId: tenantContext?.clientId,
+    deploymentId: tenantContext?.deploymentId,
+    businessOperationId,
+    workflowExecutionId: executionId,
+    workflowStepId: 's3',
+    idempotencyKey: generateOperationIdempotencyKey({
+      businessOperationId,
+      workflowStepId: 's3',
+      operationName: 'calendar_event',
+      entityId: leadId,
+    }),
+    executionMode: tenantContext?.executionMode || 'sandbox',
+    channel: tenantContext?.channel || 'web_chat',
+    timestamp: startedAt,
+  }
+
   if (adapters.createCalendarEvent) {
     try {
-      const outcome = await adapters.createCalendarEvent(calPayload)
+      const outcome = await adapters.createCalendarEvent(calPayload, s3Context)
       steps.push({ stepId: 's3', stepName: 'Create Calendar Event', type: 'calendar', target: 'Primary Agent Google Calendar', durationMs: Date.now() - s3Start, payload: calPayload, ...outcome })
     } catch (err: any) {
       steps.push({ stepId: 's3', stepName: 'Create Calendar Event', type: 'calendar', status: 'failed', target: 'Primary Agent Google Calendar', durationMs: Date.now() - s3Start, detail: `Calendar event creation failed: ${err.message || 'unknown error'}.`, payload: calPayload })
