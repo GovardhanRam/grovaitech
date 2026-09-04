@@ -12,6 +12,34 @@ import type { WorkflowStepResult } from '@/lib/workflows/executor'
 
 export type ExecutionMode = 'sandbox' | 'live'
 
+export type IntegrationProvider = 'meta_whatsapp' | 'google_calendar' | 'n8n'
+export type IntegrationCapability = 'messaging' | 'scheduling' | 'pipeline'
+
+export type CredentialLifecycleStatus = 'active' | 'revoked' | 'expired' | 'suspended'
+export type ProviderCertificationStatus =
+  | 'NOT_CONFIGURED'
+  | 'CONFIGURED'
+  | 'CERTIFIED'
+  | 'REVOKED'
+  | 'ERROR'
+
+export interface IntegrationCredentialRecord {
+  id: string
+  client_id: string
+  deployment_id: string
+  provider: IntegrationProvider
+  credential_type: string
+  encrypted_secret: string
+  key_version: number
+  metadata: Record<string, any>
+  status: CredentialLifecycleStatus
+  certification_status: ProviderCertificationStatus
+  created_at: string
+  updated_at: string
+  expires_at?: string | null
+  last_verified_at?: string | null
+}
+
 /**
  * Reusable server-controlled Adapter Context for external side-effect operations.
  * Strictly guarantees that tenant identity is server-derived, never model-derived.
@@ -113,9 +141,10 @@ export function validateLiveAdapterContext(context: ExternalAdapterContext): Val
 }
 
 export interface CredentialResolutionResult<T = Record<string, any>> {
-  status: 'CONFIGURED' | 'NOT_CONFIGURED' | 'RESTRICTED'
+  status: ProviderCertificationStatus | 'RESTRICTED' | 'EXPIRED'
   source: 'deployment' | 'global' | 'none'
   credentials?: T
+  metadata?: Record<string, any>
   reason?: string
 }
 
@@ -127,12 +156,15 @@ export interface WhatsAppAdapterCredentials {
 
 export interface GoogleCalendarAdapterCredentials {
   serviceAccountEmail?: string
+  accessToken?: string
+  refreshToken?: string
   calendarId: string
 }
 
 export interface N8nAdapterCredentials {
   webhookUrl: string
   apiKey?: string
+  secretKey?: string
 }
 
 export interface ResolvedExternalAdapters {

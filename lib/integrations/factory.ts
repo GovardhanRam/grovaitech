@@ -3,11 +3,12 @@
  * lib/integrations/factory.ts
  *
  * Central External Adapter Resolution Factory.
- * Enforces lifecycle and sandbox boundaries:
+ * Enforces lifecycle, certification, and sandbox boundaries:
  * 1. Sandbox execution ALWAYS resolves to simulated adapters.
  * 2. Inactive / paused / suspended deployments NEVER resolve real adapters.
- * 3. Unconfigured adapters ALWAYS remain simulated.
- * 4. Passes authoritative ExternalAdapterContext with deterministic idempotency keys.
+ * 3. Uncertified adapters ALWAYS remain simulated.
+ * 4. Durable idempotency claim guards against duplicate execution across workers.
+ * 5. Passes authoritative ExternalAdapterContext with deterministic idempotency keys.
  */
 
 import type { DeploymentStatus } from '@/lib/deployment/types'
@@ -21,6 +22,7 @@ import {
   resolveWhatsAppCredentials,
   resolveGoogleCalendarCredentials,
   resolveN8nCredentials,
+  resolveIntegrationCredential,
 } from './credentials'
 import { claimExternalOperation } from './idempotency'
 
@@ -34,7 +36,7 @@ export interface ResolveAdaptersOptions {
 
 /**
  * Resolves external adapters strictly enforcing lifecycle, tenant context, and sandbox rules.
- * Does NOT activate real external providers in Phase 5T-A.
+ * Does NOT activate real external providers in Phase 5T-C2 foundation.
  */
 export function resolveExternalAdapters(
   options: ResolveAdaptersOptions
@@ -62,13 +64,13 @@ export function resolveExternalAdapters(
     return createSimulatedAdapters('missing_tenant_context')
   }
 
-  // Boundary 4: Credential check for live execution
+  // Boundary 4: Credential & Certification check for live execution
   const waCreds = resolveWhatsAppCredentials({ clientId, deploymentId, phoneNumberId })
   const calCreds = resolveGoogleCalendarCredentials({ clientId, deploymentId })
   const n8nCreds = resolveN8nCredentials({ clientId, deploymentId })
 
-  // In Phase 5T-A/B Foundation, real external providers remain unverified and disabled
-  // Durable idempotency claim guards against duplicate execution across workers
+  // Real external adapters remain unverified and disabled in foundation phases.
+  // Adapters require certification checks and durable idempotency claims before live execution.
   return {
     dispatchWhatsAppTemplate: async (payload: any, ctx: ExternalAdapterContext) => {
       const validation = validateLiveAdapterContext(ctx)
@@ -76,6 +78,23 @@ export function resolveExternalAdapters(
         return {
           status: 'simulated',
           detail: `[SIMULATED:invalid_context] ${validation.reason || 'Context invalid for live execution.'}`,
+        }
+      }
+
+      // Check tenant credential authorization & certification status
+      const authResult = await resolveIntegrationCredential({
+        clientId: ctx.clientId,
+        deploymentId: ctx.deploymentId,
+        provider: 'meta_whatsapp',
+        requiredCapability: 'messaging',
+        executionMode: ctx.executionMode,
+        phoneNumberId,
+      })
+
+      if (authResult.status !== 'CERTIFIED' && authResult.status !== 'CONFIGURED') {
+        return {
+          status: 'simulated',
+          detail: `[SIMULATED:uncertified] WhatsApp adapter not certified (Status: ${authResult.status}). Reason: ${authResult.reason || 'Certification required'}.`,
         }
       }
 
@@ -128,6 +147,21 @@ export function resolveExternalAdapters(
         }
       }
 
+      const authResult = await resolveIntegrationCredential({
+        clientId: ctx.clientId,
+        deploymentId: ctx.deploymentId,
+        provider: 'google_calendar',
+        requiredCapability: 'scheduling',
+        executionMode: ctx.executionMode,
+      })
+
+      if (authResult.status !== 'CERTIFIED') {
+        return {
+          status: 'simulated',
+          detail: `[SIMULATED:uncertified] Calendar adapter not certified (Status: ${authResult.status}). Reason: ${authResult.reason || 'Certification required'}.`,
+        }
+      }
+
       const claim = await claimExternalOperation({
         context: ctx,
         payload,
@@ -174,6 +208,21 @@ export function resolveExternalAdapters(
         return {
           status: 'simulated',
           detail: `[SIMULATED:invalid_context] ${validation.reason || 'Context invalid for live execution.'}`,
+        }
+      }
+
+      const authResult = await resolveIntegrationCredential({
+        clientId: ctx.clientId,
+        deploymentId: ctx.deploymentId,
+        provider: 'n8n',
+        requiredCapability: 'pipeline',
+        executionMode: ctx.executionMode,
+      })
+
+      if (authResult.status !== 'CERTIFIED') {
+        return {
+          status: 'simulated',
+          detail: `[SIMULATED:uncertified] n8n pipeline not certified (Status: ${authResult.status}). Reason: ${authResult.reason || 'Certification required'}.`,
         }
       }
 
