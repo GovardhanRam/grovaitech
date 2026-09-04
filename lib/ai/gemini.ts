@@ -9,11 +9,13 @@
 
 import { GoogleGenerativeAI, type FunctionDeclaration } from "@google/generative-ai"
 
-// Model resolution order: GEMINI_MODEL -> MODEL_NAME -> gemini-1.5-flash
+// Model resolution order: GEMINI_MODEL -> MODEL_NAME (ignoring obsolete models) -> gemini-3.6-flash
+const envModel = process.env.GEMINI_MODEL || process.env.MODEL_NAME
+const OBSOLETE_MODELS = new Set(['gemini-1.5-flash', 'gemini-2.5-flash'])
 export const DEFAULT_GEMINI_MODEL =
-  process.env.GEMINI_MODEL ||
-  process.env.MODEL_NAME ||
-  "gemini-1.5-flash"
+  envModel && !OBSOLETE_MODELS.has(envModel)
+    ? envModel
+    : 'gemini-3.6-flash'
 
 // Default network request timeout (15 seconds)
 export const DEFAULT_GEMINI_TIMEOUT_MS =
@@ -366,7 +368,8 @@ export class Gemini {
    * Generates text content using Gemini with detailed logging and graceful fallback
    */
   async generateText(options: GenerateTextOptions): Promise<GenerateTextResponse> {
-    const modelName = options.model || DEFAULT_GEMINI_MODEL
+    const rawModel = options.model || DEFAULT_GEMINI_MODEL
+    const modelName = OBSOLETE_MODELS.has(rawModel) ? DEFAULT_GEMINI_MODEL : rawModel
     const temperature = options.temperature ?? 0.7
     const timeoutMs = options.timeoutMs ?? DEFAULT_GEMINI_TIMEOUT_MS
 
@@ -419,7 +422,8 @@ export class Gemini {
    * Generates content with tool/function declarations for structured calling
    */
   async generateContentWithTools(options: GenerateWithToolsOptions): Promise<GenerateWithToolsResponse> {
-    const modelName = options.model || DEFAULT_GEMINI_MODEL
+    const rawModel = options.model || DEFAULT_GEMINI_MODEL
+    const modelName = OBSOLETE_MODELS.has(rawModel) ? DEFAULT_GEMINI_MODEL : rawModel
     const temperature = options.temperature ?? 0.2
     const timeoutMs = options.timeoutMs ?? DEFAULT_GEMINI_TIMEOUT_MS
 
