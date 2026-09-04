@@ -130,7 +130,14 @@ export interface DeploymentDemoResult {
   error?: string
 }
 
-export type DeploymentStatus = 'provisioned' | 'configured' | 'active' | 'failed'
+export type DeploymentStatus =
+  | 'provisioned'
+  | 'configured'
+  | 'active'
+  | 'inactive'
+  | 'paused'
+  | 'suspended'
+  | 'failed'
 
 export interface ClientRuntimeConfig {
   deployment_id: string
