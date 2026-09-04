@@ -16,7 +16,9 @@ import {
   type ExecutionMode,
   type ExternalAdapterContext,
   type ResolvedExternalAdapters,
+  type ProviderExecutionResult,
   validateLiveAdapterContext,
+  assertLiveExternalExecutionAllowed,
 } from './types'
 import {
   resolveWhatsAppCredentials,
@@ -24,7 +26,12 @@ import {
   resolveN8nCredentials,
   resolveIntegrationCredential,
 } from './credentials'
-import { claimExternalOperation } from './idempotency'
+import {
+  claimExternalOperation,
+  transitionToProcessing,
+  completeExternalOperation,
+} from './idempotency'
+import { sanitizeResultPayload } from './fingerprint'
 
 export interface ResolveAdaptersOptions {
   clientId?: string
@@ -36,7 +43,7 @@ export interface ResolveAdaptersOptions {
 
 /**
  * Resolves external adapters strictly enforcing lifecycle, tenant context, and sandbox rules.
- * Does NOT activate real external providers in Phase 5T-C2 foundation.
+ * Does NOT activate real external providers in Phase 5T-C2 / 5T-E1 foundation.
  */
 export function resolveExternalAdapters(
   options: ResolveAdaptersOptions
@@ -132,6 +139,36 @@ export function resolveExternalAdapters(
         }
       }
 
+      // Check strict live execution gate
+      const gateCheck = assertLiveExternalExecutionAllowed({
+        context: ctx,
+        deploymentStatus,
+        credentialStatus: authResult.metadata?.status || 'active',
+        credentialExpiresAt: authResult.metadata?.expires_at,
+        certificationStatus: authResult.status,
+        hasExecutionPermission: claim.hasExecutionPermission,
+        claimStatus: claim.status,
+      })
+
+      // If live execution gate blocks (e.g. ENABLE_LIVE_EXTERNAL_ADAPTERS !== 'true'),
+      // or in foundation phase, complete durable simulated lifecycle deterministically:
+      // claimed -> processing -> succeeded (simulated)
+      if (claim.operationId && claim.status === 'claimed') {
+        await transitionToProcessing(claim.operationId, ctx)
+        await completeExternalOperation(
+          claim.operationId,
+          {
+            providerOperationId: `sim-wa-${ctx.idempotencyKey.substring(0, 16)}`,
+            resultPayload: sanitizeResultPayload({
+              recipient: payload?.recipient || 'customer',
+              simulated: true,
+              gateAllowed: gateCheck.allowed,
+            }),
+          },
+          ctx
+        )
+      }
+
       const recipient = payload?.recipient || 'customer'
       return {
         status: 'simulated',
@@ -196,6 +233,32 @@ export function resolveExternalAdapters(
         }
       }
 
+      const gateCheck = assertLiveExternalExecutionAllowed({
+        context: ctx,
+        deploymentStatus,
+        credentialStatus: authResult.metadata?.status || 'active',
+        credentialExpiresAt: authResult.metadata?.expires_at,
+        certificationStatus: authResult.status,
+        hasExecutionPermission: claim.hasExecutionPermission,
+        claimStatus: claim.status,
+      })
+
+      if (claim.operationId && claim.status === 'claimed') {
+        await transitionToProcessing(claim.operationId, ctx)
+        await completeExternalOperation(
+          claim.operationId,
+          {
+            providerOperationId: `sim-cal-${ctx.idempotencyKey.substring(0, 16)}`,
+            resultPayload: sanitizeResultPayload({
+              date: payload?.date || 'requested slot',
+              simulated: true,
+              gateAllowed: gateCheck.allowed,
+            }),
+          },
+          ctx
+        )
+      }
+
       const date = payload?.date || 'requested slot'
       return {
         status: 'simulated',
@@ -246,6 +309,31 @@ export function resolveExternalAdapters(
             detail: `[DURABLE_IN_FLIGHT] n8n dispatch is already in-flight (Idempotency: ${ctx.idempotencyKey}).`,
           }
         }
+      }
+
+      const gateCheck = assertLiveExternalExecutionAllowed({
+        context: ctx,
+        deploymentStatus,
+        credentialStatus: authResult.metadata?.status || 'active',
+        credentialExpiresAt: authResult.metadata?.expires_at,
+        certificationStatus: authResult.status,
+        hasExecutionPermission: claim.hasExecutionPermission,
+        claimStatus: claim.status,
+      })
+
+      if (claim.operationId && claim.status === 'claimed') {
+        await transitionToProcessing(claim.operationId, ctx)
+        await completeExternalOperation(
+          claim.operationId,
+          {
+            providerOperationId: `sim-n8n-${ctx.idempotencyKey.substring(0, 16)}`,
+            resultPayload: sanitizeResultPayload({
+              simulated: true,
+              gateAllowed: gateCheck.allowed,
+            }),
+          },
+          ctx
+        )
       }
 
       return {

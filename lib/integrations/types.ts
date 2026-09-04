@@ -181,3 +181,134 @@ export interface ResolvedExternalAdapters {
     context: ExternalAdapterContext
   ) => Promise<Omit<WorkflowStepResult, 'stepId' | 'stepName' | 'type' | 'target' | 'durationMs'>>
 }
+
+/**
+ * Normalized provider-neutral execution status.
+ */
+export type ProviderExecutionStatus = 'succeeded' | 'failed' | 'unknown' | 'simulated'
+
+/**
+ * Normalized Provider Execution Result Contract.
+ * Server-only contract returned by provider adapters.
+ * Never includes tokens, secrets, API keys, request headers, or raw provider bodies.
+ */
+export interface ProviderExecutionResult {
+  status: ProviderExecutionStatus
+  provider: IntegrationProvider
+  providerOperationId?: string
+  safeMessage?: string
+  errorCode?: string
+  retryable?: boolean
+  completedAt?: string
+}
+
+export interface LiveExecutionGateParams {
+  context: ExternalAdapterContext
+  deploymentStatus?: string
+  credentialStatus?: string
+  credentialExpiresAt?: string | null
+  certificationStatus?: string
+  hasExecutionPermission?: boolean
+  claimStatus?: string
+}
+
+export interface LiveExecutionGateResult {
+  allowed: boolean
+  reason?: string
+}
+
+/**
+ * Strict Live Execution Gate.
+ * Single reusable server-side authorization check before ANY live external network request.
+ * Enforces all 8 required conditions:
+ * 1. ENABLE_LIVE_EXTERNAL_ADAPTERS === 'true'
+ * 2. context.executionMode === 'live'
+ * 3. deployment.status === 'active'
+ * 4. credential.status === 'active'
+ * 5. credential not expired (expires_at is null or future)
+ * 6. certification_status === 'CERTIFIED'
+ * 7. claim.hasExecutionPermission === true
+ * 8. claim.status === 'claimed'
+ */
+export function assertLiveExternalExecutionAllowed(
+  params: LiveExecutionGateParams
+): LiveExecutionGateResult {
+  const {
+    context,
+    deploymentStatus,
+    credentialStatus,
+    credentialExpiresAt,
+    certificationStatus,
+    hasExecutionPermission,
+    claimStatus,
+  } = params
+
+  // 1. Explicit environment enablement
+  if (process.env.ENABLE_LIVE_EXTERNAL_ADAPTERS !== 'true') {
+    return {
+      allowed: false,
+      reason: 'Live external adapters globally disabled (ENABLE_LIVE_EXTERNAL_ADAPTERS !== true).',
+    }
+  }
+
+  // 2. Execution mode must be live
+  if (context.executionMode !== 'live') {
+    return {
+      allowed: false,
+      reason: `Live execution rejected: context executionMode is "${context.executionMode}", expected "live".`,
+    }
+  }
+
+  // 3. Deployment status must be active
+  if (deploymentStatus !== 'active') {
+    return {
+      allowed: false,
+      reason: `Live execution rejected: deployment status is "${deploymentStatus || 'unknown'}", expected "active".`,
+    }
+  }
+
+  // 4. Credential status must be active
+  if (credentialStatus !== 'active') {
+    return {
+      allowed: false,
+      reason: `Live execution rejected: credential status is "${credentialStatus || 'unknown'}", expected "active".`,
+    }
+  }
+
+  // 5. Credential must not be expired
+  if (credentialExpiresAt) {
+    const expiryTime = new Date(credentialExpiresAt).getTime()
+    if (!isNaN(expiryTime) && expiryTime <= Date.now()) {
+      return {
+        allowed: false,
+        reason: `Live execution rejected: credential expired at ${credentialExpiresAt}.`,
+      }
+    }
+  }
+
+  // 6. Certification status must be CERTIFIED
+  if (certificationStatus !== 'CERTIFIED') {
+    return {
+      allowed: false,
+      reason: `Live execution rejected: provider certification status is "${certificationStatus || 'NOT_CONFIGURED'}", expected "CERTIFIED".`,
+    }
+  }
+
+  // 7. Claim must grant execution permission
+  if (!hasExecutionPermission) {
+    return {
+      allowed: false,
+      reason: 'Live execution rejected: idempotency claim did not grant execution permission.',
+    }
+  }
+
+  // 8. Claim status must be claimed
+  if (claimStatus !== 'claimed') {
+    return {
+      allowed: false,
+      reason: `Live execution rejected: idempotency claim status is "${claimStatus || 'unknown'}", expected "claimed".`,
+    }
+  }
+
+  return { allowed: true }
+}

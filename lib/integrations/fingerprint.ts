@@ -10,7 +10,7 @@
 
 import crypto from 'crypto'
 
-const SENSITIVE_KEY_PATTERN = /^(authorization|token|access_token|refresh_token|secret|api_key|apikey|password|bearer)$/i
+const SENSITIVE_KEY_PATTERN = /^(authorization|token|access_token|refresh_token|secret|api_key|apikey|password|bearer|credential|credentials|private_key|privatekey|certificate)$/i
 
 /**
  * Recursively canonicalizes any JSON-compatible value:
