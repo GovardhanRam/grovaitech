@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { executeLiveDeploymentTurn, resolveDeploymentByPhoneNumberId } from '@/lib/deployment/live-executor'
 import { verifyMetaSignature, parseWhatsAppWebhookPayload } from '@/lib/whatsapp/security'
-import { sendWhatsAppTextMessage } from '@/lib/whatsapp/client'
+import { dispatchTenantWhatsAppTextMessage } from '@/lib/integrations/whatsapp-adapter'
 
 export const dynamic = 'force-dynamic'
 
@@ -165,12 +165,18 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // G. Dispatch Outbound WhatsApp Reply (explicitly bound to received Meta channel)
-      const outboundResult = await sendWhatsAppTextMessage({
+      // G. Dispatch Tenant-Safe Outbound WhatsApp Reply (E1/E2 safety plane)
+      const executionMode = process.env.ENABLE_LIVE_EXTERNAL_ADAPTERS === 'true' ? 'live' : 'sandbox'
+      const outboundResult = await dispatchTenantWhatsAppTextMessage({
+        clientId: deployment.client_id,
+        deploymentId: deployment.id,
         to: customerPhone,
         text: aiResponse || 'Thank you for reaching out. We have received your message.',
-        fromPhoneNumberId: phoneNumberId,
+        inboundMessageId: messageId,
         replyToMessageId: messageId,
+        fromPhoneNumberId: phoneNumberId,
+        deployment,
+        executionMode,
       })
 
       results.push({

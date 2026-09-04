@@ -256,10 +256,11 @@ describe('WhatsApp Webhook Route - app/api/webhooks/whatsapp/route.ts', () => {
 
     vi.mocked(sendWhatsAppTextMessage).mockResolvedValue({
       success: true,
+      provider: 'meta_whatsapp',
       messageId: 'outbound_msg_001',
       recipient: '919876543210',
       durationMs: 10,
-      status: 'sent',
+      status: 'succeeded',
     })
   })
 
@@ -454,12 +455,14 @@ describe('WhatsApp Webhook Route - app/api/webhooks/whatsapp/route.ts', () => {
 
       expect(mockGenerateContentWithTools).toHaveBeenCalledTimes(1)
       expect(sendWhatsAppTextMessage).toHaveBeenCalledTimes(1)
-      expect(sendWhatsAppTextMessage).toHaveBeenCalledWith({
-        to: '919876543210',
-        text: 'We have luxury 3 BHK villas in Tirupati starting at 1.2 Cr.',
-        fromPhoneNumberId: 'PHONE_NUM_ID_001',
-        replyToMessageId: 'msg_normal_001',
-      })
+      expect(sendWhatsAppTextMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: '919876543210',
+          text: 'We have luxury 3 BHK villas in Tirupati starting at 1.2 Cr.',
+          fromPhoneNumberId: 'PHONE_NUM_ID_001',
+          replyToMessageId: 'msg_normal_001',
+        })
+      )
     })
 
     it('does NOT create a CRM lead for ordinary conversation just because customerPhone exists', async () => {
@@ -574,12 +577,14 @@ describe('WhatsApp Webhook Route - app/api/webhooks/whatsapp/route.ts', () => {
       )
 
       // Verify outbound WhatsApp response dispatched
-      expect(sendWhatsAppTextMessage).toHaveBeenCalledWith({
-        to: '919876543210',
-        text: 'Your site visit for Sunday at 11:00 AM is confirmed!',
-        fromPhoneNumberId: 'PHONE_NUM_ID_001',
-        replyToMessageId: 'msg_tool_001',
-      })
+      expect(sendWhatsAppTextMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: '919876543210',
+          text: 'Your site visit for Sunday at 11:00 AM is confirmed!',
+          fromPhoneNumberId: 'PHONE_NUM_ID_001',
+          replyToMessageId: 'msg_tool_001',
+        })
+      )
     })
 
     it('overrides Gemini confirmation prose when the workflow is partial', async () => {

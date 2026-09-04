@@ -79,6 +79,7 @@ describe('PHASE 5B: WhatsApp Channel Adapter (Meta Cloud API Ingress)', () => {
     vi.mocked(sendWhatsAppTextMessage).mockResolvedValue({
       success: true,
       status: 'simulated',
+      provider: 'meta_whatsapp',
       recipient: '+919777766666',
       durationMs: 15,
     })
@@ -513,17 +514,17 @@ describe('PHASE 5B: WhatsApp Channel Adapter (Meta Cloud API Ingress)', () => {
     })
     global.fetch = mockFetch
 
-    process.env.WHATSAPP_ACCESS_TOKEN = 'test_access_token_super_secret_123'
-    process.env.WHATSAPP_PHONE_NUMBER_ID = 'global-env-fallback-id'
-
     const result = await realSend({
       to: '+919777766666',
       text: 'Explicit channel reply',
-      fromPhoneNumberId: 'meta-phone-apex-101',
+      credentials: {
+        accessToken: 'test_access_token_super_secret_123',
+        fromPhoneNumberId: 'meta-phone-apex-101',
+      },
     })
 
     expect(result.success).toBe(true)
-    expect(result.status).toBe('sent')
+    expect(result.status).toBe('succeeded')
     expect(mockFetch).toHaveBeenCalledWith(
       'https://graph.facebook.com/v20.0/meta-phone-apex-101/messages',
       expect.objectContaining({
@@ -534,22 +535,15 @@ describe('PHASE 5B: WhatsApp Channel Adapter (Meta Cloud API Ingress)', () => {
       })
     )
 
-    delete process.env.WHATSAPP_ACCESS_TOKEN
-    delete process.env.WHATSAPP_PHONE_NUMBER_ID
     global.fetch = originalFetch
   })
 
-  // M. Backward-compatible fallback: when fromPhoneNumberId is omitted, uses env fallback
-  it('M. falls back to environment phone_number_id when fromPhoneNumberId is omitted', async () => {
+  // M. Reject silent global fallback: credentials cannot come from global env
+  it('M. rejects silent global environment fallback when credentials are not provided', async () => {
     const { sendWhatsAppTextMessage: realSend } = await vi.importActual<any>('@/lib/whatsapp/client')
 
-    const originalFetch = global.fetch
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ messages: [{ id: 'wamid.outbound-fallback' }] }),
-    })
-    global.fetch = mockFetch
-
+    const originalEnv = process.env.NODE_ENV
+    ;(process.env as any).NODE_ENV = 'production'
     process.env.WHATSAPP_ACCESS_TOKEN = 'test_access_token_super_secret_123'
     process.env.WHATSAPP_PHONE_NUMBER_ID = 'global-env-phone-id-999'
 
@@ -558,16 +552,13 @@ describe('PHASE 5B: WhatsApp Channel Adapter (Meta Cloud API Ingress)', () => {
       text: 'Fallback message',
     })
 
-    expect(result.success).toBe(true)
-    expect(result.status).toBe('sent')
-    expect(mockFetch).toHaveBeenCalledWith(
-      'https://graph.facebook.com/v20.0/global-env-phone-id-999/messages',
-      expect.anything()
-    )
+    expect(result.success).toBe(false)
+    expect(result.status).toBe('failed')
+    expect(result.errorCode).toBe('CREDENTIALS_MISSING')
 
     delete process.env.WHATSAPP_ACCESS_TOKEN
     delete process.env.WHATSAPP_PHONE_NUMBER_ID
-    global.fetch = originalFetch
+    ;(process.env as any).NODE_ENV = originalEnv
   })
 
   // N. Customer phone separation: customerPhone is NEVER passed as fromPhoneNumberId
