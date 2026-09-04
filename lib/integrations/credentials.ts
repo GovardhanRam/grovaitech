@@ -47,6 +47,10 @@ export interface CredentialStore {
       certification_status: ProviderCertificationStatus
       last_verified_at: string
       auditMetadata?: Record<string, any>
+    },
+    guards?: {
+      expectedCredentialId?: string
+      expectedUpdatedAt?: string
     }
   ): Promise<boolean>
   saveCredential?(record: IntegrationCredentialRecord): Promise<boolean>
@@ -86,11 +90,30 @@ export class MemoryCredentialStore implements CredentialStore {
       certification_status: ProviderCertificationStatus
       last_verified_at: string
       auditMetadata?: Record<string, any>
+    },
+    guards?: {
+      expectedCredentialId?: string
+      expectedUpdatedAt?: string
     }
   ): Promise<boolean> {
     const key = `${clientId}:${deploymentId}:${provider}`
     const existing = this.credentials.get(key)
     if (!existing) return false
+
+    // Require active status: certification cannot mutate revoked, expired, or suspended credentials
+    if (existing.status !== 'active') {
+      return false
+    }
+
+    // Concurrency guard: expected credential ID must match
+    if (guards?.expectedCredentialId && existing.id !== guards.expectedCredentialId) {
+      return false
+    }
+
+    // Concurrency guard: expected updated_at timestamp must match
+    if (guards?.expectedUpdatedAt && existing.updated_at !== guards.expectedUpdatedAt) {
+      return false
+    }
 
     const mergedMetadata = {
       ...(existing.metadata || {}),
@@ -174,18 +197,37 @@ export class SupabaseCredentialStore implements CredentialStore {
       certification_status: ProviderCertificationStatus
       last_verified_at: string
       auditMetadata?: Record<string, any>
+    },
+    guards?: {
+      expectedCredentialId?: string
+      expectedUpdatedAt?: string
     }
   ): Promise<boolean> {
     const supabase = await this.getClient()
     const existing = await this.findCredential(clientId, deploymentId, provider)
     if (!existing) return false
 
+    // Require active status: certification cannot mutate revoked, expired, or suspended credentials
+    if (existing.status !== 'active') {
+      return false
+    }
+
+    // Concurrency guard: expected credential ID must match
+    if (guards?.expectedCredentialId && existing.id !== guards.expectedCredentialId) {
+      return false
+    }
+
+    // Concurrency guard: expected updated_at timestamp must match
+    if (guards?.expectedUpdatedAt && existing.updated_at !== guards.expectedUpdatedAt) {
+      return false
+    }
+
     const mergedMetadata = {
       ...(existing.metadata || {}),
       ...(updates.auditMetadata ? { certification_audit: updates.auditMetadata } : {}),
     }
 
-    const { error } = await supabase
+    let query = supabase
       .from('integration_credentials')
       .update({
         certification_status: updates.certification_status,
@@ -196,8 +238,24 @@ export class SupabaseCredentialStore implements CredentialStore {
       .eq('client_id', clientId)
       .eq('deployment_id', deploymentId)
       .eq('provider', provider)
+      .eq('status', 'active')
 
-    return !error
+    if (guards?.expectedCredentialId) {
+      query = query.eq('id', guards.expectedCredentialId)
+    }
+
+    if (guards?.expectedUpdatedAt) {
+      query = query.eq('updated_at', guards.expectedUpdatedAt)
+    }
+
+    const { error, data } = await query.select('id')
+    if (error) return false
+    // If no rows were updated (e.g. concurrent race condition changed updated_at or status), fail closed
+    if (Array.isArray(data) && data.length === 0) {
+      return false
+    }
+
+    return true
   }
 
   async saveCredential(record: IntegrationCredentialRecord): Promise<boolean> {

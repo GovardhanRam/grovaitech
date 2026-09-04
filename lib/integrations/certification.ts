@@ -348,8 +348,15 @@ export async function certifyIntegration(
     }
   }
 
-  // 4. Decrypt credentials safely in-memory for verifier
+  // Capture concurrency guards for optimistic concurrency check
+  const expectedCredentialId = credRecord.id
+  const expectedUpdatedAt = credRecord.updated_at
+  const concurrencyGuards = {
+    expectedCredentialId,
+    expectedUpdatedAt,
+  }
 
+  // 4. Decrypt credentials safely in-memory for verifier
   let decryptedSecret: Record<string, any> = {}
   try {
     const rawSecret = decryptSecret(credRecord.encrypted_secret)
@@ -392,15 +399,33 @@ export async function certifyIntegration(
   if (!verificationOutcome.success) {
     const errorMsg = verificationOutcome.error || 'Provider verification check failed.'
     if (store.updateCertificationStatus) {
-      await store.updateCertificationStatus(cleanClientId, cleanDeploymentId, provider, {
-        certification_status: 'ERROR',
-        last_verified_at: now,
-        auditMetadata: {
-          ...verificationOutcome.auditDetails,
-          error: errorMsg,
-          timestamp: now,
+      const updated = await store.updateCertificationStatus(
+        cleanClientId,
+        cleanDeploymentId,
+        provider,
+        {
+          certification_status: 'ERROR',
+          last_verified_at: now,
+          auditMetadata: {
+            ...verificationOutcome.auditDetails,
+            error: errorMsg,
+            timestamp: now,
+          },
         },
-      })
+        concurrencyGuards
+      )
+
+      if (!updated) {
+        return {
+          success: false,
+          status: 'ERROR',
+          provider,
+          clientId: cleanClientId,
+          deploymentId: cleanDeploymentId,
+          verifiedAt: now,
+          error: 'Certification aborted: Credential was rotated or modified concurrently.',
+        }
+      }
     }
 
     return {
@@ -415,16 +440,34 @@ export async function certifyIntegration(
     }
   }
 
-  // Success: Update certification status to CERTIFIED
+  // Success: Update certification status to CERTIFIED with concurrency guards
   if (store.updateCertificationStatus) {
-    await store.updateCertificationStatus(cleanClientId, cleanDeploymentId, provider, {
-      certification_status: 'CERTIFIED',
-      last_verified_at: now,
-      auditMetadata: {
-        ...verificationOutcome.auditDetails,
-        timestamp: now,
+    const updated = await store.updateCertificationStatus(
+      cleanClientId,
+      cleanDeploymentId,
+      provider,
+      {
+        certification_status: 'CERTIFIED',
+        last_verified_at: now,
+        auditMetadata: {
+          ...verificationOutcome.auditDetails,
+          timestamp: now,
+        },
       },
-    })
+      concurrencyGuards
+    )
+
+    if (!updated) {
+      return {
+        success: false,
+        status: 'ERROR',
+        provider,
+        clientId: cleanClientId,
+        deploymentId: cleanDeploymentId,
+        verifiedAt: now,
+        error: 'Certification aborted: Credential was rotated or modified concurrently.',
+      }
+    }
   }
 
   return {
