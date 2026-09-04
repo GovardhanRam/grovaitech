@@ -49,6 +49,8 @@ export interface CredentialStore {
       auditMetadata?: Record<string, any>
     }
   ): Promise<boolean>
+  saveCredential?(record: IntegrationCredentialRecord): Promise<boolean>
+  revokeCredential?(clientId: string, deploymentId: string, provider: string): Promise<boolean>
 }
 
 /**
@@ -101,6 +103,25 @@ export class MemoryCredentialStore implements CredentialStore {
       last_verified_at: updates.last_verified_at,
       metadata: mergedMetadata,
       updated_at: updates.last_verified_at,
+    })
+    return true
+  }
+
+  async saveCredential(record: IntegrationCredentialRecord): Promise<boolean> {
+    const key = `${record.client_id}:${record.deployment_id}:${record.provider}`
+    this.credentials.set(key, record)
+    return true
+  }
+
+  async revokeCredential(clientId: string, deploymentId: string, provider: string): Promise<boolean> {
+    const key = `${clientId}:${deploymentId}:${provider}`
+    const existing = this.credentials.get(key)
+    if (!existing) return false
+    this.credentials.set(key, {
+      ...existing,
+      status: 'revoked',
+      certification_status: 'REVOKED',
+      updated_at: new Date().toISOString(),
     })
     return true
   }
@@ -176,6 +197,44 @@ export class SupabaseCredentialStore implements CredentialStore {
       .eq('deployment_id', deploymentId)
       .eq('provider', provider)
 
+    return !error
+  }
+
+  async saveCredential(record: IntegrationCredentialRecord): Promise<boolean> {
+    const supabase = await this.getClient()
+    const { error } = await supabase
+      .from('integration_credentials')
+      .upsert({
+        id: record.id,
+        client_id: record.client_id,
+        deployment_id: record.deployment_id,
+        provider: record.provider,
+        credential_type: record.credential_type,
+        encrypted_secret: record.encrypted_secret,
+        key_version: record.key_version,
+        metadata: record.metadata,
+        status: record.status,
+        certification_status: record.certification_status,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+        expires_at: record.expires_at,
+        last_verified_at: record.last_verified_at,
+      })
+    return !error
+  }
+
+  async revokeCredential(clientId: string, deploymentId: string, provider: string): Promise<boolean> {
+    const supabase = await this.getClient()
+    const { error } = await supabase
+      .from('integration_credentials')
+      .update({
+        status: 'revoked',
+        certification_status: 'REVOKED',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('client_id', clientId)
+      .eq('deployment_id', deploymentId)
+      .eq('provider', provider)
     return !error
   }
 }
