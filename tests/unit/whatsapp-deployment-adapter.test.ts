@@ -142,13 +142,19 @@ describe('PHASE 5B: WhatsApp Channel Adapter (Meta Cloud API Ingress)', () => {
 
   // GET: Webhook handshake
   it('GET handshake verifies hub.verify_token and returns challenge', async () => {
-    const req = new NextRequest(
-      'http://localhost:3000/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=grovaitech_whatsapp_verify_token_2026&hub.challenge=test_challenge_123'
-    )
-    const res = await GET(req)
-    expect(res.status).toBe(200)
-    const text = await res.text()
-    expect(text).toBe('test_challenge_123')
+    const originalToken = process.env.META_VERIFY_TOKEN
+    try {
+      process.env.META_VERIFY_TOKEN = 'test_verify_token_adapter'
+      const req = new NextRequest(
+        'http://localhost:3000/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=test_verify_token_adapter&hub.challenge=test_challenge_123'
+      )
+      const res = await GET(req)
+      expect(res.status).toBe(200)
+      const text = await res.text()
+      expect(text).toBe('test_challenge_123')
+    } finally {
+      process.env.META_VERIFY_TOKEN = originalToken
+    }
   })
 
   // A. Valid phone_number_id -> correct deployment & live turn execution

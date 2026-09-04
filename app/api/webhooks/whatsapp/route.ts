@@ -16,12 +16,15 @@ export async function GET(request: NextRequest) {
   const token = searchParams.get('hub.verify_token')
   const challenge = searchParams.get('hub.challenge')
 
-  const expectedToken =
-    process.env.WHATSAPP_VERIFY_TOKEN ||
-    process.env.META_VERIFY_TOKEN ||
-    'grovaitech_whatsapp_verify_token_2026'
+  const expectedToken = (process.env.WHATSAPP_VERIFY_TOKEN || process.env.META_VERIFY_TOKEN || '').trim()
 
   console.log('[WhatsApp Webhook Handshake]', { mode, hasToken: !!token, hasChallenge: !!challenge })
+
+  // Fail closed if server has no verify token configured
+  if (!expectedToken) {
+    console.error('[WhatsApp Webhook] Verification rejected: No WHATSAPP_VERIFY_TOKEN or META_VERIFY_TOKEN configured in server environment.')
+    return new Response('Forbidden', { status: 403 })
+  }
 
   if (mode === 'subscribe' && token === expectedToken) {
     console.log('[WhatsApp Webhook] Verification successful. Returning challenge.')

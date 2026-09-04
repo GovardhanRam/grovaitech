@@ -16,6 +16,7 @@ import type {
   IntegrationProvider,
   IntegrationCapability,
   IntegrationCredentialRecord,
+  ProviderCertificationStatus,
   WhatsAppAdapterCredentials,
   GoogleCalendarAdapterCredentials,
   N8nAdapterCredentials,
@@ -37,7 +38,17 @@ export interface ResolveIntegrationCredentialOptions {
 
 export interface CredentialStore {
   findCredential(clientId: string, deploymentId: string, provider: string): Promise<IntegrationCredentialRecord | null>
-  findDeployment(deploymentId: string): Promise<{ id: string; client_id: string; status: string } | null>
+  findDeployment(deploymentId: string): Promise<{ id: string; client_id: string; status: string; runtime_config?: any } | null>
+  updateCertificationStatus?(
+    clientId: string,
+    deploymentId: string,
+    provider: string,
+    updates: {
+      certification_status: ProviderCertificationStatus
+      last_verified_at: string
+      auditMetadata?: Record<string, any>
+    }
+  ): Promise<boolean>
 }
 
 /**
@@ -45,14 +56,14 @@ export interface CredentialStore {
  */
 export class MemoryCredentialStore implements CredentialStore {
   private credentials = new Map<string, IntegrationCredentialRecord>()
-  private deployments = new Map<string, { id: string; client_id: string; status: string }>()
+  private deployments = new Map<string, { id: string; client_id: string; status: string; runtime_config?: any }>()
 
   addCredential(cred: IntegrationCredentialRecord) {
     const key = `${cred.client_id}:${cred.deployment_id}:${cred.provider}`
     this.credentials.set(key, cred)
   }
 
-  addDeployment(dep: { id: string; client_id: string; status: string }) {
+  addDeployment(dep: { id: string; client_id: string; status: string; runtime_config?: any }) {
     this.deployments.set(dep.id, dep)
   }
 
@@ -61,8 +72,37 @@ export class MemoryCredentialStore implements CredentialStore {
     return this.credentials.get(key) || null
   }
 
-  async findDeployment(deploymentId: string): Promise<{ id: string; client_id: string; status: string } | null> {
+  async findDeployment(deploymentId: string): Promise<{ id: string; client_id: string; status: string; runtime_config?: any } | null> {
     return this.deployments.get(deploymentId) || null
+  }
+
+  async updateCertificationStatus(
+    clientId: string,
+    deploymentId: string,
+    provider: string,
+    updates: {
+      certification_status: ProviderCertificationStatus
+      last_verified_at: string
+      auditMetadata?: Record<string, any>
+    }
+  ): Promise<boolean> {
+    const key = `${clientId}:${deploymentId}:${provider}`
+    const existing = this.credentials.get(key)
+    if (!existing) return false
+
+    const mergedMetadata = {
+      ...(existing.metadata || {}),
+      ...(updates.auditMetadata ? { certification_audit: updates.auditMetadata } : {}),
+    }
+
+    this.credentials.set(key, {
+      ...existing,
+      certification_status: updates.certification_status,
+      last_verified_at: updates.last_verified_at,
+      metadata: mergedMetadata,
+      updated_at: updates.last_verified_at,
+    })
+    return true
   }
 
   clear() {
@@ -93,16 +133,50 @@ export class SupabaseCredentialStore implements CredentialStore {
     return data as IntegrationCredentialRecord
   }
 
-  async findDeployment(deploymentId: string): Promise<{ id: string; client_id: string; status: string } | null> {
+  async findDeployment(deploymentId: string): Promise<{ id: string; client_id: string; status: string; runtime_config?: any } | null> {
     const supabase = await this.getClient()
     const { data, error } = await supabase
       .from('client_deployments')
-      .select('id, client_id, status')
+      .select('id, client_id, status, runtime_config')
       .eq('id', deploymentId)
       .maybeSingle()
 
     if (error || !data) return null
-    return data as { id: string; client_id: string; status: string }
+    return data as { id: string; client_id: string; status: string; runtime_config?: any }
+  }
+
+  async updateCertificationStatus(
+    clientId: string,
+    deploymentId: string,
+    provider: string,
+    updates: {
+      certification_status: ProviderCertificationStatus
+      last_verified_at: string
+      auditMetadata?: Record<string, any>
+    }
+  ): Promise<boolean> {
+    const supabase = await this.getClient()
+    const existing = await this.findCredential(clientId, deploymentId, provider)
+    if (!existing) return false
+
+    const mergedMetadata = {
+      ...(existing.metadata || {}),
+      ...(updates.auditMetadata ? { certification_audit: updates.auditMetadata } : {}),
+    }
+
+    const { error } = await supabase
+      .from('integration_credentials')
+      .update({
+        certification_status: updates.certification_status,
+        last_verified_at: updates.last_verified_at,
+        metadata: mergedMetadata,
+        updated_at: updates.last_verified_at,
+      })
+      .eq('client_id', clientId)
+      .eq('deployment_id', deploymentId)
+      .eq('provider', provider)
+
+    return !error
   }
 }
 

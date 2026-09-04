@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
 import { GET, POST } from '@/app/api/webhooks/whatsapp/route'
 import { Gemini } from '@/lib/ai/gemini'
@@ -265,8 +265,22 @@ describe('WhatsApp Webhook Route - app/api/webhooks/whatsapp/route.ts', () => {
 
   // ─── 1. GET Webhook Verification Handshake ──────────────────────────────────
   describe('GET Webhook Verification Handshake', () => {
+    const TEST_TOKEN = 'test_meta_webhook_verify_token_valid'
+    const originalVerifyToken = process.env.META_VERIFY_TOKEN
+    const originalWhatsAppVerifyToken = process.env.WHATSAPP_VERIFY_TOKEN
+
+    beforeEach(() => {
+      process.env.META_VERIFY_TOKEN = TEST_TOKEN
+      delete process.env.WHATSAPP_VERIFY_TOKEN
+    })
+
+    afterEach(() => {
+      process.env.META_VERIFY_TOKEN = originalVerifyToken
+      process.env.WHATSAPP_VERIFY_TOKEN = originalWhatsAppVerifyToken
+    })
+
     it('returns challenge with HTTP 200 when Meta verify token is valid', async () => {
-      const url = 'http://localhost:3000/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=grovaitech_whatsapp_verify_token_2026&hub.challenge=challenge_code_abc123'
+      const url = `http://localhost:3000/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=${TEST_TOKEN}&hub.challenge=challenge_code_abc123`
       const request = new NextRequest(url, { method: 'GET' })
 
       const response = await GET(request)
@@ -289,7 +303,19 @@ describe('WhatsApp Webhook Route - app/api/webhooks/whatsapp/route.ts', () => {
     })
 
     it('returns HTTP 403 Forbidden when mode is not subscribe', async () => {
-      const url = 'http://localhost:3000/api/webhooks/whatsapp?hub.mode=unsubscribe&hub.verify_token=grovaitech_whatsapp_verify_token_2026&hub.challenge=challenge_code_abc123'
+      const url = `http://localhost:3000/api/webhooks/whatsapp?hub.mode=unsubscribe&hub.verify_token=${TEST_TOKEN}&hub.challenge=challenge_code_abc123`
+      const request = new NextRequest(url, { method: 'GET' })
+
+      const response = await GET(request)
+
+      expect(response.status).toBe(403)
+    })
+
+    it('fails closed with HTTP 403 when no verify token is configured in environment', async () => {
+      delete process.env.META_VERIFY_TOKEN
+      delete process.env.WHATSAPP_VERIFY_TOKEN
+
+      const url = 'http://localhost:3000/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=any_token&hub.challenge=challenge_code_abc123'
       const request = new NextRequest(url, { method: 'GET' })
 
       const response = await GET(request)

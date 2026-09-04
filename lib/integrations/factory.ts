@@ -91,7 +91,7 @@ export function resolveExternalAdapters(
         phoneNumberId,
       })
 
-      if (authResult.status !== 'CERTIFIED' && authResult.status !== 'CONFIGURED') {
+      if (authResult.status !== 'CERTIFIED') {
         return {
           status: 'simulated',
           detail: `[SIMULATED:uncertified] WhatsApp adapter not certified (Status: ${authResult.status}). Reason: ${authResult.reason || 'Certification required'}.`,
