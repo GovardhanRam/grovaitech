@@ -311,9 +311,9 @@ async function handleCreateLead(rawArgs: Record<string, any>): Promise<any> {
  */
 async function handleScheduleSiteVisit(rawArgs: Record<string, any>): Promise<any> {
   const p = validateParams(rawArgs, {
-    customer_name: { type: 'string', required: true, requiredMessage: "Validation Error: 'customer_name' is required to schedule a site visit." },
+    customer_name: { type: 'string', required: true, minLength: 2, requiredMessage: "Validation Error: 'customer_name' is required to schedule a site visit." },
     phone: { type: 'phone', required: true, minLength: 7, requiredMessage: "Validation Error: 'phone' is required to coordinate the site visit." },
-    preferred_date: { type: 'string', required: true, requiredMessage: "Validation Error: 'preferred_date' is required to schedule a site visit." },
+    preferred_date: { type: 'string', required: true, minLength: 3, requiredMessage: "Validation Error: 'preferred_date' is required to schedule a site visit." },
     preferred_time: { type: 'string', default: 'Morning (10:30 AM)' },
     property_type: { type: 'string', default: 'Villa' },
     location: { type: 'string', default: 'Tirupati' },
@@ -322,8 +322,8 @@ async function handleScheduleSiteVisit(rawArgs: Record<string, any>): Promise<an
   })
 
   // 1. Ensure lead record is registered / updated in Supabase with site visit flag
-  const clientId = sanitizeString(rawArgs.clientId || rawArgs.customerContext?.clientId || '') || undefined
-  const deploymentId = sanitizeString(rawArgs.deploymentId || rawArgs.customerContext?.deploymentId || '') || undefined
+  const clientId = sanitizeString(rawArgs.clientId || rawArgs.client_id || rawArgs.customerContext?.clientId || '') || undefined
+  const deploymentId = sanitizeString(rawArgs.deploymentId || rawArgs.deployment_id || rawArgs.customerContext?.deploymentId || '') || undefined
 
   const leadPayload: LeadData = {
     name: p.customer_name,
@@ -340,6 +340,23 @@ async function handleScheduleSiteVisit(rawArgs: Record<string, any>): Promise<an
     source: 'ai_demo',
     client_id: clientId,
     deployment_id: deploymentId,
+  }
+
+  // Enforce executionMode sandbox guardrail: sandbox execution MUST NEVER write to database
+  if (rawArgs.executionMode === 'sandbox') {
+    const mockLeadId = p.lead_id || `mock-lead-${Date.now()}`
+    return {
+      leadId: mockLeadId,
+      customerName: p.customer_name,
+      phone: p.phone,
+      preferredDate: p.preferred_date,
+      preferredTime: p.preferred_time,
+      workflowId: 'wf-001',
+      workflowStatus: 'simulated',
+      customerConfirmationAllowed: false,
+      isSimulated: true,
+      message: `[Sandbox] Simulated site visit for ${p.customer_name} on ${p.preferred_date} (${p.preferred_time}). No database write performed.`,
+    }
   }
 
   const leadSaveResult = await createLead(leadPayload)
