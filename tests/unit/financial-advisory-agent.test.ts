@@ -421,9 +421,9 @@ describe('Financial Advisory Agent (emp-010) & WF-010 Vertical Slice', () => {
     expect(turnResult.workflowResult?.workflowId).toBe('wf-010')
     expect(turnResult.replyText).toContain('Nandini')
 
-    // Regression Check: All 10 Employees are Live
+    // Regression Check: All 11 Employees are Live
     const allEmployees = getCanonicalEmployees()
-    expect(allEmployees).toHaveLength(10)
+    expect(allEmployees).toHaveLength(11)
     expect(allEmployees.every((e) => e.status === 'live')).toBe(true)
     expect(allEmployees.every((e) => e.demo_config.enabled === true)).toBe(true)
 

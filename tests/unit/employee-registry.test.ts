@@ -9,10 +9,10 @@ import {
 import { resolveAuthorizedTools, getDefaultSystemPrompt } from '@/lib/ai/runtime'
 
 describe('lib/employees/registry - Canonical AI Employee Control Plane', () => {
-  it('1. returns exactly 10 canonical employees', () => {
+  it('1. returns exactly 11 canonical employees', () => {
     const list = getCanonicalEmployees()
-    expect(list).toHaveLength(10)
-    expect(CANONICAL_EMPLOYEES).toHaveLength(10)
+    expect(list).toHaveLength(11)
+    expect(CANONICAL_EMPLOYEES).toHaveLength(11)
   })
 
   it('2. verifies real-estate-lead-receptionist is live, demo-enabled, and has tools bound', () => {
@@ -67,5 +67,28 @@ describe('lib/employees/registry - Canonical AI Employee Control Plane', () => {
 
     const fallbackPrompt = getDefaultSystemPrompt('unknown-custom-employee')
     expect(fallbackPrompt).toContain('AI Lead Receptionist for Grovaitech')
+  })
+
+  it('7. verifies hvac-lead-recovery is live, demo-enabled, with authorized tools and prompt', () => {
+    const emp = getCanonicalEmployeeBySlug('hvac-lead-recovery')
+    expect(emp).toBeDefined()
+    expect(emp?.id).toBe('emp-011')
+    expect(emp?.status).toBe('live')
+    expect(emp?.department).toBe('Sales & Dispatch')
+    expect(emp?.industry).toBe('Home Services / HVAC')
+    expect(emp?.demo_config.enabled).toBe(true)
+    expect(emp?.tools).toEqual(['create_lead', 'search_knowledge_base', 'escalate_to_human'])
+    expect(emp?.system_prompt).toContain('Home Services Receptionist and Lead Recovery')
+    expect(emp?.system_prompt).toContain('SAFETY & HAZARD ESCALATION')
+
+    const tools = resolveAuthorizedTools('hvac-lead-recovery')
+    const toolNames = tools.map((t) => t.name)
+    expect(toolNames).toEqual(['create_lead', 'search_knowledge_base', 'escalate_to_human'])
+
+    const prompt = getDefaultSystemPrompt('hvac-lead-recovery')
+    expect(prompt).toContain('SAFETY & HAZARD ESCALATION')
+
+    const keywordPrompt = getDefaultSystemPrompt('residential-hvac-support')
+    expect(keywordPrompt).toContain('SAFETY & HAZARD ESCALATION')
   })
 })

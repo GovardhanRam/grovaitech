@@ -139,6 +139,14 @@ export function getDefaultSystemPrompt(slug?: string): string {
   ) {
     return getCanonicalEmployeeBySlug('financial-advisory-agent')?.system_prompt || ''
   }
+  if (
+    normalized.includes('hvac') ||
+    normalized.includes('heating') ||
+    normalized.includes('cooling') ||
+    normalized.includes('air-conditioning')
+  ) {
+    return getCanonicalEmployeeBySlug('hvac-lead-recovery')?.system_prompt || ''
+  }
 
   return `You are GrovAI, an elite AI Lead Receptionist for Grovaitech.
 Your goal is to warmly assist prospective customers, qualify their requirements, answer questions intelligently, and use tools when appropriate to schedule visits, book appointments, or create CRM leads.

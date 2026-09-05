@@ -402,7 +402,7 @@ describe('HR Onboarding Agent (emp-009) & WF-009 Vertical Slice', () => {
 
     // Regression Check: Employee count & workflows
     const allEmployees = getCanonicalEmployees()
-    expect(allEmployees).toHaveLength(10)
+    expect(allEmployees).toHaveLength(11)
     expect(allEmployees.find((e) => e.slug === 'hr-onboarding-agent')?.status).toBe('live')
     expect(allEmployees.find((e) => e.slug === 'ecommerce-support-agent')?.status).toBe('live')
     expect(allEmployees.find((e) => e.slug === 'legal-intake-agent')?.status).toBe('live')

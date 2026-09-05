@@ -344,7 +344,7 @@ describe('E-Commerce Support Agent (emp-008) & WF-008 Vertical Slice', () => {
 
     // Regression Check: Employee count & workflows
     const allEmployees = getCanonicalEmployees()
-    expect(allEmployees).toHaveLength(10)
+    expect(allEmployees).toHaveLength(11)
     expect(allEmployees.find((e) => e.slug === 'ecommerce-support-agent')?.status).toBe('live')
     expect(allEmployees.find((e) => e.slug === 'legal-intake-agent')?.status).toBe('live')
     expect(allEmployees.find((e) => e.slug === 'ai-qa-inspector')?.status).toBe('live')
