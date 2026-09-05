@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Grovaitech AI Platform
  * tests/unit/phase-5r-scheduling-boundary.test.ts
  *
@@ -21,12 +21,13 @@ import { dispatchToolCall } from '@/lib/ai/dispatcher'
 import { executeLiveDeploymentTurn } from '@/lib/deployment/live-executor'
 import { resolveAuthorizedTools } from '@/lib/ai/runtime'
 import { ALL_GROVAITECH_TOOLS } from '@/lib/ai/tools'
-import { createServerClient } from '@/lib/supabase/server'
+import { createServerClient, createAdminClient } from '@/lib/supabase/server'
 import * as leadsAction from '@/app/actions/leads'
 import type { ClientDeployment } from '@/lib/deployment/types'
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: vi.fn(),
+  createAdminClient: vi.fn(),
 }))
 
 describe('PHASE 5R: Site-Visit & Scheduling Boundary Hardening', () => {
@@ -42,6 +43,7 @@ describe('PHASE 5R: Site-Visit & Scheduling Boundary Hardening', () => {
       single: vi.fn().mockResolvedValue({ data: null, error: null }),
     }
     vi.mocked(createServerClient).mockResolvedValue(mockSupabase as any)
+    vi.mocked(createAdminClient).mockResolvedValue(mockSupabase as any)
   })
 
   describe('1. Server-Side Parameter Validation for schedule_site_visit', () => {

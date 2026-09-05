@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server'
 import { GET, POST } from '@/app/api/webhooks/whatsapp/route'
 import { Gemini } from '@/lib/ai/gemini'
 import { dispatchToolCall } from '@/lib/ai/dispatcher'
-import { createServerClient } from '@/lib/supabase/server'
+import { createServerClient, createAdminClient } from '@/lib/supabase/server'
 import { getEmployeeBySlug } from '@/lib/employees'
 import { extractRealEstateLead } from '@/lib/leads/extractor'
 import { executeRealEstateWorkflow } from '@/lib/workflows/executor'
@@ -31,6 +31,7 @@ vi.mock('@/lib/ai/dispatcher', () => ({
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: vi.fn(),
+  createAdminClient: vi.fn(),
 }))
 
 vi.mock('@/lib/employees', async (importOriginal) => {
@@ -197,6 +198,7 @@ describe('WhatsApp Webhook Route - app/api/webhooks/whatsapp/route.ts', () => {
     }
 
     vi.mocked(createServerClient).mockResolvedValue(mockSupabase)
+    vi.mocked(createAdminClient).mockResolvedValue(mockSupabase as any)
     vi.mocked(getEmployeeBySlug).mockResolvedValue({
       system_prompt: 'You are GrovAI Real Estate Receptionist.',
     } as any)

@@ -15,11 +15,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { POST } from '@/app/api/deployments/[deploymentId]/messages/route'
 import { NextRequest } from 'next/server'
-import { createServerClient } from '@/lib/supabase/server'
+import { createServerClient, createAdminClient } from '@/lib/supabase/server'
 import { Gemini } from '@/lib/ai/gemini'
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: vi.fn(),
+  createAdminClient: vi.fn(),
 }))
 
 vi.mock('@/lib/ai/gemini', () => ({
@@ -187,6 +188,7 @@ describe('PHASE 4C: Local Deployment Execution E2E Flow', () => {
     }
 
     vi.mocked(createServerClient).mockResolvedValue(mockSupabase as any)
+    vi.mocked(createAdminClient).mockResolvedValue(mockSupabase as any)
 
     mockGenerateContentWithTools = vi.fn()
     vi.mocked(Gemini).mockImplementation(

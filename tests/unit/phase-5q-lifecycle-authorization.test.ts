@@ -20,7 +20,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { executeLiveDeploymentTurn } from '@/lib/deployment/live-executor'
 import { POST } from '@/app/api/deployments/[deploymentId]/messages/route'
 import { runLiveDeploymentTurnAction } from '@/app/actions/deployment'
-import { createServerClient } from '@/lib/supabase/server'
+import { createServerClient, createAdminClient } from '@/lib/supabase/server'
 import { Gemini } from '@/lib/ai/gemini'
 import { createLead } from '@/app/actions/leads'
 import { dispatchToolCall } from '@/lib/ai/dispatcher'
@@ -30,6 +30,7 @@ import type { ClientDeployment, DeploymentStatus } from '@/lib/deployment/types'
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: vi.fn(),
+  createAdminClient: vi.fn(),
 }))
 
 vi.mock('@/lib/ai/gemini', () => ({
@@ -252,6 +253,7 @@ describe('PHASE 5Q: ClientDeployment Lifecycle Authorization Matrix', () => {
     }
 
     vi.mocked(createServerClient).mockResolvedValue(mockSupabase as any)
+    vi.mocked(createAdminClient).mockResolvedValue(mockSupabase as any)
 
     mockGenerateContentWithTools = vi.fn().mockResolvedValue({
       text: 'Hello from the verified AI receptionist!',

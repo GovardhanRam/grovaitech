@@ -43,7 +43,7 @@ import {
   type MetaWhatsAppCredentials,
 } from '@/lib/whatsapp/client'
 import { sanitizeResultPayload } from './fingerprint'
-import { createServerClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/server'
 
 export interface DispatchTenantWhatsAppReplyOptions {
   clientId: string
@@ -140,7 +140,7 @@ export async function dispatchTenantWhatsAppTextMessage(
   let deployment = providedDeployment || (await credStore.findDeployment(cleanDeploymentId))
   if (!deployment) {
     try {
-      const supabase = await createServerClient()
+      const supabase = await createAdminClient()
       const { data } = await supabase
         .from('client_deployments')
         .select('*')
@@ -538,7 +538,7 @@ export async function dispatchTenantWhatsAppTemplateMessage(
   let deployment = providedDeployment || (await credStore.findDeployment(cleanDeploymentId))
   if (!deployment) {
     try {
-      const supabase = await createServerClient()
+      const supabase = await createAdminClient()
       const { data } = await supabase
         .from('client_deployments')
         .select('*')

@@ -8,7 +8,7 @@
  * and real database side-effect attribution.
  */
 
-import { createServerClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/server'
 import {
   getCanonicalEmployeeBySlug,
   getCanonicalEmployeeById,
@@ -82,7 +82,7 @@ export async function executeLiveDeploymentTurn(
   }
 
   try {
-    const supabase = await createServerClient()
+    const supabase = await createAdminClient()
     const cleanDeploymentId = deploymentId.trim()
 
     // 2. Server-Side Lookup: Fetch Client Deployment Record from canonical client_deployments table
@@ -208,7 +208,7 @@ export async function resolveDeploymentByPhoneNumberId(phoneNumberId: string): P
   if (!cleanPhoneId) return null
 
   try {
-    const supabase = await createServerClient()
+    const supabase = await createAdminClient()
     const { data: deployments, error } = await supabase
       .from('client_deployments')
       .select('*')

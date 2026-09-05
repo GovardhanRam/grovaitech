@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Grovaitech AI Platform
  * tests/unit/phase-5s-workflow-boundary.test.ts
  *
@@ -28,11 +28,12 @@ import {
 import { executeLiveDeploymentTurn } from '@/lib/deployment/live-executor'
 import { maskSensitiveCredentials, dispatchToolCall } from '@/lib/ai/dispatcher'
 import { resolveAuthorizedTools } from '@/lib/ai/runtime'
-import { createServerClient } from '@/lib/supabase/server'
+import { createServerClient, createAdminClient } from '@/lib/supabase/server'
 import type { ClientDeployment } from '@/lib/deployment/types'
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: vi.fn(),
+  createAdminClient: vi.fn(),
 }))
 
 describe('PHASE 5S: Workflow Execution Engine & Adapter Boundary', () => {
@@ -49,6 +50,7 @@ describe('PHASE 5S: Workflow Execution Engine & Adapter Boundary', () => {
       single: vi.fn().mockResolvedValue({ data: null, error: null }),
     }
     vi.mocked(createServerClient).mockResolvedValue(mockSupabase as any)
+    vi.mocked(createAdminClient).mockResolvedValue(mockSupabase as any)
   })
 
   describe('1. Unconfigured Adapter Safety & Truthful Simulation', () => {

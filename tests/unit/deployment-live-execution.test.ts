@@ -10,7 +10,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { executeLiveDeploymentTurn, type ExecuteLiveDeploymentTurnOptions } from '@/lib/deployment/live-executor'
 import { runLiveDeploymentTurnAction } from '@/app/actions/deployment'
 import { CANONICAL_EMPLOYEES, getCanonicalEmployeeBySlug } from '@/lib/employees/registry'
-import { createServerClient } from '@/lib/supabase/server'
+import { createServerClient, createAdminClient } from '@/lib/supabase/server'
 import { Gemini } from '@/lib/ai/gemini'
 import { createLead, type LeadData } from '@/app/actions/leads'
 import { executeDeploymentDemo } from '@/lib/deployment/demo-executor'
@@ -18,6 +18,7 @@ import { dispatchToolCall } from '@/lib/ai/dispatcher'
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: vi.fn(),
+  createAdminClient: vi.fn(),
 }))
 
 vi.mock('@/lib/ai/gemini', () => ({
@@ -108,6 +109,7 @@ describe('Client Deployment Live Runtime Runner & Tenant-Scoped Lead Creation', 
     }
 
     vi.mocked(createServerClient).mockResolvedValue(mockSupabase as any)
+    vi.mocked(createAdminClient).mockResolvedValue(mockSupabase as any)
 
     mockGenerateContentWithTools = vi.fn()
     vi.mocked(Gemini).mockImplementation(
