@@ -26,7 +26,12 @@ export interface EncryptedEnvelope {
  * Fails closed if missing, empty, or improperly sized.
  */
 function getMasterKey(customKey?: string): Buffer {
-  const rawKey = (customKey || process.env.ENCRYPTION_MASTER_KEY || '').trim()
+  const rawKey = (
+    customKey ||
+    process.env.CREDENTIAL_ENCRYPTION_KEY ||
+    process.env.ENCRYPTION_MASTER_KEY ||
+    ''
+  ).trim()
 
   if (!rawKey) {
     throw new Error('ENCRYPTION_MASTER_KEY is not configured in environment. Failed closed.')

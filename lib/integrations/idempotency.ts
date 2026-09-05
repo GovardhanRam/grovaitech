@@ -12,7 +12,7 @@ import crypto from 'crypto'
 import type { ExternalAdapterContext } from './types'
 import { validateLiveAdapterContext } from './types'
 import { createRequestFingerprint, sanitizeResultPayload } from './fingerprint'
-import { createServerClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/server'
 
 export type ExternalOperationStatus =
   | 'claimed'
@@ -138,7 +138,7 @@ export class MemoryIdempotencyStore implements IdempotencyStore {
  */
 export class SupabaseIdempotencyStore implements IdempotencyStore {
   private async getClient() {
-    return createServerClient()
+    return createAdminClient()
   }
 
   async insertClaim(record: IdempotencyRecord): Promise<{ success: boolean; record: IdempotencyRecord }> {

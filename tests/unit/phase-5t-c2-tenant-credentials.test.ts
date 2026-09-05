@@ -687,4 +687,23 @@ describe('Phase 5T-C2: Tenant Credential Foundation & Cryptographic Boundary', (
       expect(calResult.detail).toContain('Calendar adapter not certified')
     })
   })
+
+  // ── 5. Admin Server Client & Key Configuration ───────────────────────────────
+  describe('Admin Server Client & Key Configuration', () => {
+    it('supports CREDENTIAL_ENCRYPTION_KEY alias alongside ENCRYPTION_MASTER_KEY', () => {
+      const savedMaster = process.env.ENCRYPTION_MASTER_KEY
+      const savedCred = process.env.CREDENTIAL_ENCRYPTION_KEY
+      try {
+        delete process.env.ENCRYPTION_MASTER_KEY
+        process.env.CREDENTIAL_ENCRYPTION_KEY = TEST_MASTER_KEY
+
+        const plaintext = 'test_secret_with_cred_key'
+        const encrypted = encryptSecret(plaintext)
+        expect(decryptSecret(encrypted)).toBe(plaintext)
+      } finally {
+        process.env.ENCRYPTION_MASTER_KEY = savedMaster
+        process.env.CREDENTIAL_ENCRYPTION_KEY = savedCred
+      }
+    })
+  })
 })

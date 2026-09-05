@@ -23,7 +23,7 @@ import type {
   ExecutionMode,
 } from './types'
 import { decryptSecret } from './crypto'
-import { createServerClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/server'
 
 export interface ResolveIntegrationCredentialOptions {
   clientId?: string
@@ -160,7 +160,7 @@ export class MemoryCredentialStore implements CredentialStore {
  */
 export class SupabaseCredentialStore implements CredentialStore {
   private async getClient() {
-    return createServerClient()
+    return createAdminClient()
   }
 
   async findCredential(clientId: string, deploymentId: string, provider: string): Promise<IntegrationCredentialRecord | null> {
