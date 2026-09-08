@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Loader2, Bot, User } from 'lucide-react'
+import { Send, Loader2, Bot, User, Mic } from 'lucide-react'
+import { GovaVoiceModal } from '@/components/voice'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -17,6 +18,7 @@ export default function ChatInterface({ employeeSlug }: ChatInterfaceProps) {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [chatId, setChatId] = useState<string | null>(null)
+  const [voiceModalOpen, setVoiceModalOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
@@ -142,14 +144,25 @@ export default function ChatInterface({ employeeSlug }: ChatInterfaceProps) {
             className="flex-1 resize-none rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs sm:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#3B82F6]"
           />
           <button
+            type="button"
+            onClick={() => setVoiceModalOpen(true)}
+            className="px-3 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl border border-blue-200 transition-colors flex items-center justify-center cursor-pointer shadow-xs"
+            title="Talk to GOVA (Voice Mode)"
+          >
+            <Mic className="w-4 h-4 animate-pulse" />
+          </button>
+          <button
             onClick={sendMessage}
             disabled={!input.trim() || isLoading}
-            className="px-4 py-2.5 bg-[#3B82F6] hover:bg-[#2563EB] disabled:opacity-45 text-white rounded-xl shadow-lg transition-colors flex items-center justify-center"
+            className="px-4 py-2.5 bg-[#3B82F6] hover:bg-[#2563EB] disabled:opacity-45 text-white rounded-xl shadow-lg transition-colors flex items-center justify-center cursor-pointer"
           >
             <Send className="w-4 h-4" />
           </button>
         </div>
       </div>
+
+      {/* GOVA Voice Interactive Modal */}
+      <GovaVoiceModal isOpen={voiceModalOpen} onClose={() => setVoiceModalOpen(false)} />
     </div>
   )
 }

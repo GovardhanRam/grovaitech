@@ -34,7 +34,9 @@ import {
   Bell,
   Search,
   ChevronDown,
+  Mic,
 } from 'lucide-react'
+import { GovaVoiceModal } from '@/components/voice'
 
 interface ShellLayoutProps {
   children: React.ReactNode
@@ -63,6 +65,7 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
   const [user, setUser] = useState<any>(null)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
+  const [voiceModalOpen, setVoiceModalOpen] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = useMemo(() => createClient(), [])
@@ -247,6 +250,16 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* GOVA Voice Control */}
+            <button
+              onClick={() => setVoiceModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-xs text-xs font-bold transition-all duration-200 cursor-pointer"
+              title="Talk to GOVA (Voice Mode)"
+            >
+              <Mic className="w-3.5 h-3.5 animate-pulse" />
+              <span className="hidden sm:inline">Talk to GOVA</span>
+            </button>
+
             {/* Notifications */}
             <div className="relative">
               <button
@@ -316,6 +329,9 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
           </div>
         </main>
       </div>
+
+      {/* GOVA Voice Interactive Modal */}
+      <GovaVoiceModal isOpen={voiceModalOpen} onClose={() => setVoiceModalOpen(false)} />
     </div>
   )
 }

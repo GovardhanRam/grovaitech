@@ -13,8 +13,10 @@ import {
   Calendar,
   Phone,
   MessageCircle,
-  HelpCircle
+  HelpCircle,
+  Mic,
 } from 'lucide-react'
+import { GovaVoiceModal } from '@/components/voice'
 
 interface Chat {
   id: string
@@ -36,6 +38,7 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [chatId, setChatId] = useState<string | null>(null)
   const [user, setUser] = useState<any>(null)
+  const [voiceModalOpen, setVoiceModalOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const supabase = useMemo(() => createClient(), [])
 
@@ -287,15 +290,27 @@ export default function ChatPage() {
               className="flex-1 resize-none rounded-xl border border-[#1E293B] bg-[#0F172A] px-4 py-3 text-xs sm:text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-[#3B82F6] focus:ring-1 focus:ring-[#3B82F6] transition-colors"
             />
             <button
+              type="button"
+              onClick={() => setVoiceModalOpen(true)}
+              className="px-3.5 py-3 bg-[#1E293B] hover:bg-[#334155] text-[#60A5FA] hover:text-white rounded-xl border border-[#3B82F6]/30 shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+              title="Start Voice Session with GOVA"
+            >
+              <Mic className="w-4 h-4 animate-pulse" />
+              <span className="hidden sm:inline text-xs font-semibold">Voice Mode</span>
+            </button>
+            <button
               onClick={sendMessage}
               disabled={!input.trim() || isLoading}
-              className="px-4 py-3 bg-[#3B82F6] hover:bg-[#2563EB] disabled:opacity-40 text-white rounded-xl shadow-lg transition-all flex items-center justify-center"
+              className="px-4 py-3 bg-[#3B82F6] hover:bg-[#2563EB] disabled:opacity-40 text-white rounded-xl shadow-lg transition-all flex items-center justify-center cursor-pointer"
             >
               <Send className="w-4 h-4" />
             </button>
           </div>
         </div>
       </div>
+
+      {/* GOVA Voice Interactive Modal */}
+      <GovaVoiceModal isOpen={voiceModalOpen} onClose={() => setVoiceModalOpen(false)} />
     </div>
   )
 }
