@@ -71,6 +71,9 @@ export class GeminiLiveSession {
 
     try {
       this.ws = new WebSocket(this.wsUrl)
+      try {
+        this.ws.binaryType = 'arraybuffer'
+      } catch {}
 
       this.ws.onopen = () => {
         this.sendSetup()
@@ -81,10 +84,10 @@ export class GeminiLiveSession {
           let text = ''
           if (typeof event.data === 'string') {
             text = event.data
-          } else if (event.data instanceof Blob) {
-            text = await event.data.text()
           } else if (event.data instanceof ArrayBuffer) {
             text = new TextDecoder().decode(event.data)
+          } else if (event.data instanceof Blob) {
+            text = await event.data.text()
           }
 
           if (text) {
@@ -104,20 +107,24 @@ export class GeminiLiveSession {
 
       this.ws.onclose = (event) => {
         this.isSetupDone = false
-        if (this.currentState !== 'ERROR') {
-          this.setState('DISCONNECTED')
-        }
-        this.callbacks.onClose()
-
         if (event.code !== 1000 && event.code !== 1005) {
           const reason =
-            event.code === 1008
+            event.reason ||
+            (event.code === 1008
               ? 'Voice session token expired or invalid.'
               : event.code === 1011
               ? 'Voice session limit reached.'
-              : 'Voice connection closed unexpectedly.'
+              : event.code === 1007
+              ? 'Voice protocol configuration error.'
+              : 'Voice connection closed unexpectedly.')
+          this.setState('ERROR')
           this.callbacks.onError(reason)
+        } else {
+          if (this.currentState !== 'ERROR') {
+            this.setState('DISCONNECTED')
+          }
         }
+        this.callbacks.onClose()
       }
     } catch (err: any) {
       this.setState('ERROR')
@@ -222,12 +229,10 @@ export class GeminiLiveSession {
     const base64Data = arrayBufferToBase64(pcm16.buffer)
     const msg: GeminiLiveRealtimeInputMessage = {
       realtimeInput: {
-        mediaChunks: [
-          {
-            mimeType: 'audio/pcm',
-            data: base64Data,
-          },
-        ],
+        audio: {
+          mimeType: 'audio/pcm;rate=16000',
+          data: base64Data,
+        },
       },
     }
 

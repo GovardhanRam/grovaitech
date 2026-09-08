@@ -24,7 +24,7 @@ import {
   GEMINI_LIVE_WS_URL,
   POST as tokenRoutePost,
 } from '@/app/api/voice/token/route'
-import { DEFAULT_GOVA_IDENTITY } from '@/lib/voice/live-client'
+import { DEFAULT_GOVA_IDENTITY, GeminiLiveSession } from '@/lib/voice/live-client'
 import { NextRequest } from 'next/server'
 
 describe('GOVA Voice UI v1 - Audio Processing Utilities', () => {
@@ -198,3 +198,149 @@ describe('GOVA Voice UI v1 - Server-Side Ephemeral Token Route', () => {
     expect(JSON.stringify(json)).not.toContain(sensitiveKey)
   })
 })
+
+describe('GOVA Voice UI v1 - GeminiLiveSession Protocol & Regression Tests', () => {
+  it('1. sends audio using the supported realtimeInput.audio schema with 16kHz PCM MIME type', async () => {
+    let capturedSentData: string | null = null
+    const mockWs = {
+      readyState: 1, // OPEN
+      binaryType: 'blob',
+      send: vi.fn((data: string) => {
+        capturedSentData = data
+      }),
+      close: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      onopen: null as any,
+      onmessage: null as any,
+      onerror: null as any,
+      onclose: null as any,
+    }
+
+    const MockWebSocketClass: any = vi.fn().mockImplementation(() => mockWs)
+    MockWebSocketClass.OPEN = 1
+    MockWebSocketClass.CONNECTING = 0
+    MockWebSocketClass.CLOSING = 2
+    MockWebSocketClass.CLOSED = 3
+    vi.stubGlobal('WebSocket', MockWebSocketClass)
+
+    const session = new GeminiLiveSession(
+      'wss://mock.gemini.live',
+      { model: 'gemini-3.1-flash-live-preview' },
+      {
+        onStateChange: vi.fn(),
+        onAudioChunk: vi.fn(),
+        onTranscript: vi.fn(),
+        onInterrupted: vi.fn(),
+        onError: vi.fn(),
+        onClose: vi.fn(),
+      }
+    )
+
+    await session.connect()
+    // Simulate setup complete from server
+    mockWs.onmessage({ data: JSON.stringify({ setupComplete: {} }) })
+
+    // Send 16-bit PCM audio
+    const pcmData = new Int16Array([100, -200, 300, -400])
+    session.sendRealtimeAudio(pcmData)
+
+    expect(capturedSentData).not.toBeNull()
+    const parsed = JSON.parse(capturedSentData!)
+
+    // Must have realtimeInput.audio
+    expect(parsed.realtimeInput).toBeDefined()
+    expect(parsed.realtimeInput.audio).toBeDefined()
+    expect(parsed.realtimeInput.audio.mimeType).toBe('audio/pcm;rate=16000')
+    expect(typeof parsed.realtimeInput.audio.data).toBe('string')
+
+    // Must NOT have deprecated mediaChunks
+    expect(parsed.realtimeInput.mediaChunks).toBeUndefined()
+
+    vi.unstubAllGlobals()
+  })
+
+  it('2. transitions to ERROR state and relays reason on abnormal WebSocket closure (e.g. 1007)', async () => {
+    const mockWs = {
+      readyState: 1,
+      binaryType: 'blob',
+      send: vi.fn(),
+      close: vi.fn(),
+      onopen: null as any,
+      onmessage: null as any,
+      onerror: null as any,
+      onclose: null as any,
+    }
+
+    vi.stubGlobal('WebSocket', vi.fn().mockImplementation(() => mockWs))
+
+    const stateChanges: string[] = []
+    let receivedError: string | null = null
+
+    const session = new GeminiLiveSession(
+      'wss://mock.gemini.live',
+      { model: 'gemini-3.1-flash-live-preview' },
+      {
+        onStateChange: (s) => stateChanges.push(s),
+        onAudioChunk: vi.fn(),
+        onTranscript: vi.fn(),
+        onInterrupted: vi.fn(),
+        onError: (err) => {
+          receivedError = err
+        },
+        onClose: vi.fn(),
+      }
+    )
+
+    await session.connect()
+    mockWs.onmessage({ data: JSON.stringify({ setupComplete: {} }) })
+
+    // Simulate server closing with protocol error 1007
+    const serverReason = 'realtime_input.media_chunks is deprecated. Use audio, video, or text instead.'
+    mockWs.onclose({ code: 1007, reason: serverReason })
+
+    expect(session.getState()).toBe('ERROR')
+    expect(stateChanges).toContain('ERROR')
+    expect(receivedError).toBe(serverReason)
+
+    vi.unstubAllGlobals()
+  })
+
+  it('3. transitions to DISCONNECTED state on clean user/server close (1000)', async () => {
+    const mockWs = {
+      readyState: 1,
+      binaryType: 'blob',
+      send: vi.fn(),
+      close: vi.fn(),
+      onopen: null as any,
+      onmessage: null as any,
+      onerror: null as any,
+      onclose: null as any,
+    }
+
+    vi.stubGlobal('WebSocket', vi.fn().mockImplementation(() => mockWs))
+
+    const stateChanges: string[] = []
+
+    const session = new GeminiLiveSession(
+      'wss://mock.gemini.live',
+      { model: 'gemini-3.1-flash-live-preview' },
+      {
+        onStateChange: (s) => stateChanges.push(s),
+        onAudioChunk: vi.fn(),
+        onTranscript: vi.fn(),
+        onInterrupted: vi.fn(),
+        onError: vi.fn(),
+        onClose: vi.fn(),
+      }
+    )
+
+    await session.connect()
+    mockWs.onclose({ code: 1000, reason: 'Normal Closure' })
+
+    expect(session.getState()).toBe('DISCONNECTED')
+
+    vi.unstubAllGlobals()
+  })
+})
+

@@ -124,7 +124,11 @@ export function useGovaVoice(options: UseGovaVoiceOptions = {}) {
     if (!outputAudioCtxRef.current) {
       try {
         const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext
-        outputAudioCtxRef.current = new AudioCtxClass({ sampleRate: 24000 })
+        try {
+          outputAudioCtxRef.current = new AudioCtxClass({ sampleRate: 24000 })
+        } catch {
+          outputAudioCtxRef.current = new AudioCtxClass()
+        }
       } catch (e) {
         console.warn('[GOVA Voice] Failed to initialize output AudioContext:', e)
         return
@@ -297,6 +301,7 @@ export function useGovaVoice(options: UseGovaVoiceOptions = {}) {
           flushAudioPlayback()
         },
         onError: (err) => {
+          setState('ERROR')
           setErrorMessage(err)
         },
         onClose: () => {
@@ -347,12 +352,17 @@ export function useGovaVoice(options: UseGovaVoiceOptions = {}) {
         const resampled = resampleAudioBuffer(inputChannelData, inputAudioCtx.sampleRate, 16000)
         const pcm16 = float32ToPcm16(resampled)
 
-        // Stream PCM16 audio chunk over WebSocket
+        // Stream PCM16 audio chunk over WebSocket using the supported schema
         session.sendRealtimeAudio(pcm16)
       }
 
+      // Mute gain node to prevent microphone audio from playing back through local speakers
+      const muteGain = inputAudioCtx.createGain()
+      muteGain.gain.value = 0
+
       source.connect(processor)
-      processor.connect(inputAudioCtx.destination)
+      processor.connect(muteGain)
+      muteGain.connect(inputAudioCtx.destination)
     } catch (audioErr: any) {
       stopSession()
       setState('ERROR')

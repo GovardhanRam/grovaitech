@@ -63,9 +63,13 @@ export interface GeminiLiveSetupMessage {
 
 export interface GeminiLiveRealtimeInputMessage {
   realtimeInput: {
-    mediaChunks: Array<{
+    audio?: {
       mimeType: string
       data: string // Base64 encoded PCM audio
+    }
+    mediaChunks?: Array<{
+      mimeType: string
+      data: string
     }>
   }
 }
