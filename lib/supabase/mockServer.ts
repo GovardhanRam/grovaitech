@@ -35,8 +35,7 @@ export function createMockServerClient() {
   };
 
   const from = (table: string) => {
-    let filterField: string | null = null;
-    let filterVal: any = null;
+    const filters: Array<{ field: string; val: any }> = [];
     let orderField: string | null = null;
     let orderAsc = true;
     let limitCount: number | null = null;
@@ -63,7 +62,10 @@ export function createMockServerClient() {
       if (queryAction === 'update') {
         let updated: any[] = [];
         const updatedRecords = records.map((r: any) => {
-          if (filterField && String(r[filterField]) === String(filterVal)) {
+          const match = filters.length > 0
+            ? filters.every((f) => String(r[f.field]) === String(f.val))
+            : true;
+          if (match) {
             const up = { ...r, ...payloadData };
             updated.push(up);
             return up;
@@ -76,8 +78,16 @@ export function createMockServerClient() {
       }
 
       if (queryAction === 'delete') {
-        const remaining = records.filter((r: any) => !filterField || String(r[filterField]) !== String(filterVal));
-        const deleted = records.filter((r: any) => filterField && String(r[filterField]) === String(filterVal));
+        const remaining = records.filter((r: any) =>
+          filters.length > 0
+            ? !filters.every((f) => String(r[f.field]) === String(f.val))
+            : false
+        );
+        const deleted = records.filter((r: any) =>
+          filters.length > 0
+            ? filters.every((f) => String(r[f.field]) === String(f.val))
+            : true
+        );
         (db as any)[table] = remaining;
         saveMockDb(db);
         return { data: deleted, error: null };
@@ -85,8 +95,10 @@ export function createMockServerClient() {
 
       // Default: select
       let filtered = [...records];
-      if (filterField) {
-        filtered = filtered.filter((r: any) => String(r[filterField!]) === String(filterVal));
+      if (filters.length > 0) {
+        filtered = filtered.filter((r: any) =>
+          filters.every((f) => String(r[f.field]) === String(f.val))
+        );
       }
       
       if (orderField) {
@@ -111,8 +123,7 @@ export function createMockServerClient() {
         return builder;
       },
       eq: (field: string, val: any) => {
-        filterField = field;
-        filterVal = val;
+        filters.push({ field, val });
         return builder;
       },
       order: (field: string, options: any = {}) => {

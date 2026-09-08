@@ -138,8 +138,930 @@
     }
   ],
   "real_estate_leads": [],
-  "workflow_executions": [],
+  "workflow_executions": [
+    {
+      "id": "exec-1788887858984-8asjb",
+      "created_at": "2026-09-08T17:17:38.984Z",
+      "workflow_id": "wf-001",
+      "trigger_event": "Site Visit Booked",
+      "status": "partial",
+      "overall_status": "partial",
+      "started_at": "2026-09-08T17:17:38.984Z",
+      "completed_at": "2026-09-08T17:17:38.992Z",
+      "duration_ms": 8,
+      "lead_id": "lead-stable-101",
+      "lead_name": "Ramesh Verma",
+      "payload_summary": "Site visit workflow executed (PARTIAL) for Ramesh Verma. Steps: 4, Status: partial.",
+      "steps": [
+        {
+          "stepId": "s1",
+          "stepName": "Insert Lead in CRM",
+          "type": "database",
+          "status": "success",
+          "target": "Supabase real_estate_leads",
+          "durationMs": 15,
+          "detail": "Lead record lead-stable-101 confirmed with status: QUALIFIED and score: 95/100."
+        },
+        {
+          "stepId": "s2",
+          "stepName": "Dispatch WhatsApp Template",
+          "type": "whatsapp",
+          "target": "+919876543210",
+          "durationMs": 3,
+          "payload": {
+            "template": "real_estate_site_visit_confirmation",
+            "recipient": "+919876543210",
+            "parameters": {
+              "customer_name": "Ramesh Verma",
+              "property_type": "3 BHK apartment",
+              "location": "Tirupati Central",
+              "site_visit_date": "Saturday 11 AM"
+            }
+          },
+          "status": "simulated",
+          "detail": "attempt 1"
+        },
+        {
+          "stepId": "s3",
+          "stepName": "Create Calendar Event",
+          "type": "calendar",
+          "status": "simulated",
+          "target": "Agent Google Calendar",
+          "durationMs": 0,
+          "detail": "[SIMULATED] Site visit request prepared for Saturday 11 AM. No verified Google Calendar adapter is configured.",
+          "payload": {
+            "title": "Site Visit: Ramesh Verma - 3 BHK apartment (Tirupati Central)",
+            "description": "Customer Contact: +919876543210\nBudget: 85 Lakhs\nTimeline: Immediate\nLead ID: lead-stable-101",
+            "date": "Saturday 11 AM",
+            "status": "tentative"
+          }
+        },
+        {
+          "stepId": "s4",
+          "stepName": "Sync n8n Pipeline",
+          "type": "n8n_webhook",
+          "status": "simulated",
+          "target": "https://n8n.grovaitech.ai/webhook/v1/real-estate",
+          "durationMs": 20,
+          "detail": "[SIMULATED] Webhook payload generated and validated for n8n ingestion.",
+          "payload": {
+            "event": "lead.qualified",
+            "employee": "real-estate-lead-receptionist",
+            "leadId": "lead-stable-101",
+            "conversationId": "conv-001",
+            "qualificationScore": 95,
+            "timestamp": "2026-09-08T17:17:38.990Z",
+            "lead": {
+              "name": "Ramesh Verma",
+              "phone": "+919876543210",
+              "email": "ramesh@example.com",
+              "location": "Tirupati Central",
+              "propertyType": "apartment",
+              "bhk": 3,
+              "budget": "85 Lakhs",
+              "timeline": "Immediate",
+              "siteVisitRequested": true,
+              "siteVisitDate": "Saturday 11 AM"
+            }
+          }
+        }
+      ],
+      "n8n_result": {
+        "status": "not_configured",
+        "endpoint": "https://n8n.grovaitech.ai/webhook/v1/real-estate"
+      }
+    },
+    {
+      "id": "exec-1788887859004-hfljm",
+      "created_at": "2026-09-08T17:17:39.004Z",
+      "workflow_id": "wf-001",
+      "trigger_event": "Site Visit Booked",
+      "status": "partial",
+      "overall_status": "partial",
+      "started_at": "2026-09-08T17:17:39.004Z",
+      "completed_at": "2026-09-08T17:17:39.020Z",
+      "duration_ms": 16,
+      "lead_id": "lead-stable-101",
+      "lead_name": "Ramesh Verma",
+      "payload_summary": "Site visit workflow executed (PARTIAL) for Ramesh Verma. Steps: 4, Status: partial.",
+      "steps": [
+        {
+          "stepId": "s1",
+          "stepName": "Insert Lead in CRM",
+          "type": "database",
+          "status": "success",
+          "target": "Supabase real_estate_leads",
+          "durationMs": 15,
+          "detail": "Lead record lead-stable-101 confirmed with status: QUALIFIED and score: 95/100."
+        },
+        {
+          "stepId": "s2",
+          "stepName": "Dispatch WhatsApp Template",
+          "type": "whatsapp",
+          "target": "+919876543210",
+          "durationMs": 1,
+          "payload": {
+            "template": "real_estate_site_visit_confirmation",
+            "recipient": "+919876543210",
+            "parameters": {
+              "customer_name": "Ramesh Verma",
+              "property_type": "3 BHK apartment",
+              "location": "Tirupati Central",
+              "site_visit_date": "Saturday 11 AM"
+            }
+          },
+          "status": "simulated",
+          "detail": "attempt 2"
+        },
+        {
+          "stepId": "s3",
+          "stepName": "Create Calendar Event",
+          "type": "calendar",
+          "status": "simulated",
+          "target": "Agent Google Calendar",
+          "durationMs": 15,
+          "detail": "[SIMULATED] Site visit request prepared for Saturday 11 AM. No verified Google Calendar adapter is configured.",
+          "payload": {
+            "title": "Site Visit: Ramesh Verma - 3 BHK apartment (Tirupati Central)",
+            "description": "Customer Contact: +919876543210\nBudget: 85 Lakhs\nTimeline: Immediate\nLead ID: lead-stable-101",
+            "date": "Saturday 11 AM",
+            "status": "tentative"
+          }
+        },
+        {
+          "stepId": "s4",
+          "stepName": "Sync n8n Pipeline",
+          "type": "n8n_webhook",
+          "status": "simulated",
+          "target": "https://n8n.grovaitech.ai/webhook/v1/real-estate",
+          "durationMs": 20,
+          "detail": "[SIMULATED] Webhook payload generated and validated for n8n ingestion.",
+          "payload": {
+            "event": "lead.qualified",
+            "employee": "real-estate-lead-receptionist",
+            "leadId": "lead-stable-101",
+            "conversationId": "conv-001",
+            "qualificationScore": 95,
+            "timestamp": "2026-09-08T17:17:39.020Z",
+            "lead": {
+              "name": "Ramesh Verma",
+              "phone": "+919876543210",
+              "email": "ramesh@example.com",
+              "location": "Tirupati Central",
+              "propertyType": "apartment",
+              "bhk": 3,
+              "budget": "85 Lakhs",
+              "timeline": "Immediate",
+              "siteVisitRequested": true,
+              "siteVisitDate": "Saturday 11 AM"
+            }
+          }
+        }
+      ],
+      "n8n_result": {
+        "status": "not_configured",
+        "endpoint": "https://n8n.grovaitech.ai/webhook/v1/real-estate"
+      }
+    },
+    {
+      "id": "exec-1788887859051-39b0x",
+      "created_at": "2026-09-08T17:17:39.051Z",
+      "workflow_id": "wf-001",
+      "trigger_event": "Site Visit Booked",
+      "status": "partial",
+      "overall_status": "partial",
+      "started_at": "2026-09-08T17:17:39.051Z",
+      "completed_at": "2026-09-08T17:17:39.052Z",
+      "duration_ms": 1,
+      "lead_id": "lead-test-001",
+      "lead_name": "Ramesh Verma",
+      "payload_summary": "Site visit workflow executed (PARTIAL) for Ramesh Verma. Steps: 4, Status: partial.",
+      "steps": [
+        {
+          "stepId": "s1",
+          "stepName": "Insert Lead in CRM",
+          "type": "database",
+          "status": "success",
+          "target": "Supabase real_estate_leads",
+          "durationMs": 15,
+          "detail": "Lead record lead-test-001 confirmed with status: QUALIFIED and score: 95/100."
+        },
+        {
+          "stepId": "s2",
+          "stepName": "Dispatch WhatsApp Template",
+          "type": "whatsapp",
+          "status": "simulated",
+          "target": "+919876543210",
+          "durationMs": 1,
+          "detail": "[SIMULATED] Outbound template prepared for +919876543210. No verified Meta WhatsApp adapter is configured.",
+          "payload": {
+            "template": "real_estate_site_visit_confirmation",
+            "recipient": "+919876543210",
+            "parameters": {
+              "customer_name": "Ramesh Verma",
+              "property_type": "3 BHK apartment",
+              "location": "Tirupati Central",
+              "site_visit_date": "Saturday 11 AM"
+            }
+          }
+        },
+        {
+          "stepId": "s3",
+          "stepName": "Create Calendar Event",
+          "type": "calendar",
+          "status": "simulated",
+          "target": "Agent Google Calendar",
+          "durationMs": 0,
+          "detail": "[SIMULATED] Site visit request prepared for Saturday 11 AM. No verified Google Calendar adapter is configured.",
+          "payload": {
+            "title": "Site Visit: Ramesh Verma - 3 BHK apartment (Tirupati Central)",
+            "description": "Customer Contact: +919876543210\nBudget: 85 Lakhs\nTimeline: Immediate\nLead ID: lead-test-001",
+            "date": "Saturday 11 AM",
+            "status": "tentative"
+          }
+        },
+        {
+          "stepId": "s4",
+          "stepName": "Sync n8n Pipeline",
+          "type": "n8n_webhook",
+          "status": "simulated",
+          "target": "https://n8n.grovaitech.ai/webhook/v1/real-estate",
+          "durationMs": 20,
+          "detail": "[SIMULATED] Webhook payload generated and validated for n8n ingestion.",
+          "payload": {
+            "event": "lead.qualified",
+            "employee": "real-estate-lead-receptionist",
+            "leadId": "lead-test-001",
+            "conversationId": "conv-test-001",
+            "qualificationScore": 95,
+            "timestamp": "2026-09-08T17:17:39.052Z",
+            "lead": {
+              "name": "Ramesh Verma",
+              "phone": "+919876543210",
+              "email": "ramesh@example.com",
+              "location": "Tirupati Central",
+              "propertyType": "apartment",
+              "bhk": 3,
+              "budget": "85 Lakhs",
+              "timeline": "Immediate",
+              "siteVisitRequested": true,
+              "siteVisitDate": "Saturday 11 AM"
+            }
+          }
+        }
+      ],
+      "n8n_result": {
+        "status": "not_configured",
+        "endpoint": "https://n8n.grovaitech.ai/webhook/v1/real-estate"
+      }
+    },
+    {
+      "id": "exec-1788887859087-9aajb",
+      "created_at": "2026-09-08T17:17:39.087Z",
+      "workflow_id": "wf-001",
+      "trigger_event": "Site Visit Booked",
+      "status": "partial",
+      "overall_status": "partial",
+      "started_at": "2026-09-08T17:17:39.087Z",
+      "completed_at": "2026-09-08T17:17:39.089Z",
+      "duration_ms": 2,
+      "lead_id": "lead-test-002",
+      "lead_name": "Ramesh Verma",
+      "payload_summary": "Site visit workflow executed (PARTIAL) for Ramesh Verma. Steps: 4, Status: partial.",
+      "steps": [
+        {
+          "stepId": "s1",
+          "stepName": "Insert Lead in CRM",
+          "type": "database",
+          "status": "success",
+          "target": "Supabase real_estate_leads",
+          "durationMs": 15,
+          "detail": "Lead record lead-test-002 confirmed with status: QUALIFIED and score: 95/100."
+        },
+        {
+          "stepId": "s2",
+          "stepName": "Dispatch WhatsApp Template",
+          "type": "whatsapp",
+          "target": "+919876543210",
+          "durationMs": 1,
+          "payload": {
+            "template": "real_estate_site_visit_confirmation",
+            "recipient": "+919876543210",
+            "parameters": {
+              "customer_name": "Ramesh Verma",
+              "property_type": "3 BHK apartment",
+              "location": "Tirupati Central",
+              "site_visit_date": "Saturday 11 AM"
+            }
+          },
+          "status": "simulated",
+          "detail": "Captured WhatsApp context: idemp_whatsapp_template_c235cac3a3379be1d77b3d5cb7356081"
+        },
+        {
+          "stepId": "s3",
+          "stepName": "Create Calendar Event",
+          "type": "calendar",
+          "target": "Primary Agent Google Calendar",
+          "durationMs": 1,
+          "payload": {
+            "title": "Site Visit: Ramesh Verma - 3 BHK apartment (Tirupati Central)",
+            "description": "Customer Contact: +919876543210\nBudget: 85 Lakhs\nTimeline: Immediate\nLead ID: lead-test-002",
+            "date": "Saturday 11 AM",
+            "status": "tentative"
+          },
+          "status": "simulated",
+          "detail": "Captured Calendar context: idemp_calendar_event_fdd23ee033e6160a5f95c02fed55622b"
+        },
+        {
+          "stepId": "s4",
+          "stepName": "Sync n8n Pipeline",
+          "type": "n8n_webhook",
+          "status": "simulated",
+          "target": "https://n8n.grovaitech.ai/webhook/v1/real-estate",
+          "durationMs": 20,
+          "detail": "[SIMULATED] Webhook payload generated and validated for n8n ingestion.",
+          "payload": {
+            "event": "lead.qualified",
+            "employee": "real-estate-lead-receptionist",
+            "leadId": "lead-test-002",
+            "conversationId": "conv-test-002",
+            "qualificationScore": 95,
+            "timestamp": "2026-09-08T17:17:39.089Z",
+            "lead": {
+              "name": "Ramesh Verma",
+              "phone": "+919876543210",
+              "email": "ramesh@example.com",
+              "location": "Tirupati Central",
+              "propertyType": "apartment",
+              "bhk": 3,
+              "budget": "85 Lakhs",
+              "timeline": "Immediate",
+              "siteVisitRequested": true,
+              "siteVisitDate": "Saturday 11 AM"
+            }
+          }
+        }
+      ],
+      "n8n_result": {
+        "status": "not_configured",
+        "endpoint": "https://n8n.grovaitech.ai/webhook/v1/real-estate"
+      }
+    },
+    {
+      "id": "exec-1788887859172-mjexg",
+      "created_at": "2026-09-08T17:17:39.172Z",
+      "workflow_id": "wf-001",
+      "trigger_event": "Site Visit Booked",
+      "status": "partial",
+      "overall_status": "partial",
+      "started_at": "2026-09-08T17:17:39.172Z",
+      "completed_at": "2026-09-08T17:17:39.186Z",
+      "duration_ms": 14,
+      "lead_id": "lead-test-003",
+      "lead_name": "Ramesh Verma",
+      "payload_summary": "Site visit workflow executed (PARTIAL) for Ramesh Verma. Steps: 4, Status: partial.",
+      "steps": [
+        {
+          "stepId": "s1",
+          "stepName": "Insert Lead in CRM",
+          "type": "database",
+          "status": "success",
+          "target": "Supabase real_estate_leads",
+          "durationMs": 15,
+          "detail": "Lead record lead-test-003 confirmed with status: QUALIFIED and score: 95/100."
+        },
+        {
+          "stepId": "s2",
+          "stepName": "Dispatch WhatsApp Template",
+          "type": "whatsapp",
+          "target": "+919876543210",
+          "durationMs": 0,
+          "payload": {
+            "template": "real_estate_site_visit_confirmation",
+            "recipient": "+919876543210",
+            "parameters": {
+              "customer_name": "Ramesh Verma",
+              "property_type": "3 BHK apartment",
+              "location": "Tirupati Central",
+              "site_visit_date": "Saturday 11 AM"
+            }
+          },
+          "status": "simulated",
+          "detail": "[SIMULATED:sandbox] Outbound WhatsApp template prepared for +919876543210 (Idempotency: idemp_whatsapp_template_b80c0448f71c5a85e276057d76fb500f)."
+        },
+        {
+          "stepId": "s3",
+          "stepName": "Create Calendar Event",
+          "type": "calendar",
+          "target": "Primary Agent Google Calendar",
+          "durationMs": 0,
+          "payload": {
+            "title": "Site Visit: Ramesh Verma - 3 BHK apartment (Tirupati Central)",
+            "description": "Customer Contact: +919876543210\nBudget: 85 Lakhs\nTimeline: Immediate\nLead ID: lead-test-003",
+            "date": "Saturday 11 AM",
+            "status": "tentative"
+          },
+          "status": "simulated",
+          "detail": "[SIMULATED:sandbox] Calendar event prepared for Saturday 11 AM (Idempotency: idemp_calendar_event_2dac1e020f1ac11f90106b5e1a2db9d0)."
+        },
+        {
+          "stepId": "s4",
+          "stepName": "Sync n8n Pipeline",
+          "type": "n8n_webhook",
+          "status": "simulated",
+          "target": "https://n8n.grovaitech.ai/webhook/v1/real-estate",
+          "durationMs": 20,
+          "detail": "[SIMULATED] Webhook payload generated and validated for n8n ingestion.",
+          "payload": {
+            "event": "lead.qualified",
+            "employee": "real-estate-lead-receptionist",
+            "leadId": "lead-test-003",
+            "conversationId": "conv-test-003",
+            "qualificationScore": 95,
+            "timestamp": "2026-09-08T17:17:39.174Z",
+            "lead": {
+              "name": "Ramesh Verma",
+              "phone": "+919876543210",
+              "email": "ramesh@example.com",
+              "location": "Tirupati Central",
+              "propertyType": "apartment",
+              "bhk": 3,
+              "budget": "85 Lakhs",
+              "timeline": "Immediate",
+              "siteVisitRequested": true,
+              "siteVisitDate": "Saturday 11 AM"
+            }
+          }
+        }
+      ],
+      "n8n_result": {
+        "status": "not_configured",
+        "endpoint": "https://n8n.grovaitech.ai/webhook/v1/real-estate"
+      }
+    },
+    {
+      "id": "exec-1788888661351-ylzlv",
+      "created_at": "2026-09-08T17:31:01.351Z",
+      "workflow_id": "wf-001",
+      "trigger_event": "Site Visit Booked",
+      "status": "partial",
+      "overall_status": "partial",
+      "started_at": "2026-09-08T17:31:01.351Z",
+      "completed_at": "2026-09-08T17:31:01.358Z",
+      "duration_ms": 7,
+      "lead_id": "lead-stable-101",
+      "lead_name": "Ramesh Verma",
+      "payload_summary": "Site visit workflow executed (PARTIAL) for Ramesh Verma. Steps: 4, Status: partial.",
+      "steps": [
+        {
+          "stepId": "s1",
+          "stepName": "Insert Lead in CRM",
+          "type": "database",
+          "status": "success",
+          "target": "Supabase real_estate_leads",
+          "durationMs": 15,
+          "detail": "Lead record lead-stable-101 confirmed with status: QUALIFIED and score: 95/100."
+        },
+        {
+          "stepId": "s2",
+          "stepName": "Dispatch WhatsApp Template",
+          "type": "whatsapp",
+          "target": "+919876543210",
+          "durationMs": 2,
+          "payload": {
+            "template": "real_estate_site_visit_confirmation",
+            "recipient": "+919876543210",
+            "parameters": {
+              "customer_name": "Ramesh Verma",
+              "property_type": "3 BHK apartment",
+              "location": "Tirupati Central",
+              "site_visit_date": "Saturday 11 AM"
+            }
+          },
+          "status": "simulated",
+          "detail": "attempt 1"
+        },
+        {
+          "stepId": "s3",
+          "stepName": "Create Calendar Event",
+          "type": "calendar",
+          "status": "simulated",
+          "target": "Agent Google Calendar",
+          "durationMs": 1,
+          "detail": "[SIMULATED] Site visit request prepared for Saturday 11 AM. No verified Google Calendar adapter is configured.",
+          "payload": {
+            "title": "Site Visit: Ramesh Verma - 3 BHK apartment (Tirupati Central)",
+            "description": "Customer Contact: +919876543210\nBudget: 85 Lakhs\nTimeline: Immediate\nLead ID: lead-stable-101",
+            "date": "Saturday 11 AM",
+            "status": "tentative"
+          }
+        },
+        {
+          "stepId": "s4",
+          "stepName": "Sync n8n Pipeline",
+          "type": "n8n_webhook",
+          "status": "simulated",
+          "target": "https://n8n.grovaitech.ai/webhook/v1/real-estate",
+          "durationMs": 20,
+          "detail": "[SIMULATED] Webhook payload generated and validated for n8n ingestion.",
+          "payload": {
+            "event": "lead.qualified",
+            "employee": "real-estate-lead-receptionist",
+            "leadId": "lead-stable-101",
+            "conversationId": "conv-001",
+            "qualificationScore": 95,
+            "timestamp": "2026-09-08T17:31:01.357Z",
+            "lead": {
+              "name": "Ramesh Verma",
+              "phone": "+919876543210",
+              "email": "ramesh@example.com",
+              "location": "Tirupati Central",
+              "propertyType": "apartment",
+              "bhk": 3,
+              "budget": "85 Lakhs",
+              "timeline": "Immediate",
+              "siteVisitRequested": true,
+              "siteVisitDate": "Saturday 11 AM"
+            }
+          }
+        }
+      ],
+      "n8n_result": {
+        "status": "not_configured",
+        "endpoint": "https://n8n.grovaitech.ai/webhook/v1/real-estate"
+      }
+    },
+    {
+      "id": "exec-1788888661378-6awp9",
+      "created_at": "2026-09-08T17:31:01.379Z",
+      "workflow_id": "wf-001",
+      "trigger_event": "Site Visit Booked",
+      "status": "partial",
+      "overall_status": "partial",
+      "started_at": "2026-09-08T17:31:01.379Z",
+      "completed_at": "2026-09-08T17:31:01.381Z",
+      "duration_ms": 3,
+      "lead_id": "lead-stable-101",
+      "lead_name": "Ramesh Verma",
+      "payload_summary": "Site visit workflow executed (PARTIAL) for Ramesh Verma. Steps: 4, Status: partial.",
+      "steps": [
+        {
+          "stepId": "s1",
+          "stepName": "Insert Lead in CRM",
+          "type": "database",
+          "status": "success",
+          "target": "Supabase real_estate_leads",
+          "durationMs": 15,
+          "detail": "Lead record lead-stable-101 confirmed with status: QUALIFIED and score: 95/100."
+        },
+        {
+          "stepId": "s2",
+          "stepName": "Dispatch WhatsApp Template",
+          "type": "whatsapp",
+          "target": "+919876543210",
+          "durationMs": 1,
+          "payload": {
+            "template": "real_estate_site_visit_confirmation",
+            "recipient": "+919876543210",
+            "parameters": {
+              "customer_name": "Ramesh Verma",
+              "property_type": "3 BHK apartment",
+              "location": "Tirupati Central",
+              "site_visit_date": "Saturday 11 AM"
+            }
+          },
+          "status": "simulated",
+          "detail": "attempt 2"
+        },
+        {
+          "stepId": "s3",
+          "stepName": "Create Calendar Event",
+          "type": "calendar",
+          "status": "simulated",
+          "target": "Agent Google Calendar",
+          "durationMs": 0,
+          "detail": "[SIMULATED] Site visit request prepared for Saturday 11 AM. No verified Google Calendar adapter is configured.",
+          "payload": {
+            "title": "Site Visit: Ramesh Verma - 3 BHK apartment (Tirupati Central)",
+            "description": "Customer Contact: +919876543210\nBudget: 85 Lakhs\nTimeline: Immediate\nLead ID: lead-stable-101",
+            "date": "Saturday 11 AM",
+            "status": "tentative"
+          }
+        },
+        {
+          "stepId": "s4",
+          "stepName": "Sync n8n Pipeline",
+          "type": "n8n_webhook",
+          "status": "simulated",
+          "target": "https://n8n.grovaitech.ai/webhook/v1/real-estate",
+          "durationMs": 20,
+          "detail": "[SIMULATED] Webhook payload generated and validated for n8n ingestion.",
+          "payload": {
+            "event": "lead.qualified",
+            "employee": "real-estate-lead-receptionist",
+            "leadId": "lead-stable-101",
+            "conversationId": "conv-001",
+            "qualificationScore": 95,
+            "timestamp": "2026-09-08T17:31:01.380Z",
+            "lead": {
+              "name": "Ramesh Verma",
+              "phone": "+919876543210",
+              "email": "ramesh@example.com",
+              "location": "Tirupati Central",
+              "propertyType": "apartment",
+              "bhk": 3,
+              "budget": "85 Lakhs",
+              "timeline": "Immediate",
+              "siteVisitRequested": true,
+              "siteVisitDate": "Saturday 11 AM"
+            }
+          }
+        }
+      ],
+      "n8n_result": {
+        "status": "not_configured",
+        "endpoint": "https://n8n.grovaitech.ai/webhook/v1/real-estate"
+      }
+    },
+    {
+      "id": "exec-1788888661394-3s6ls",
+      "created_at": "2026-09-08T17:31:01.394Z",
+      "workflow_id": "wf-001",
+      "trigger_event": "Site Visit Booked",
+      "status": "partial",
+      "overall_status": "partial",
+      "started_at": "2026-09-08T17:31:01.394Z",
+      "completed_at": "2026-09-08T17:31:01.396Z",
+      "duration_ms": 3,
+      "lead_id": "lead-test-001",
+      "lead_name": "Ramesh Verma",
+      "payload_summary": "Site visit workflow executed (PARTIAL) for Ramesh Verma. Steps: 4, Status: partial.",
+      "steps": [
+        {
+          "stepId": "s1",
+          "stepName": "Insert Lead in CRM",
+          "type": "database",
+          "status": "success",
+          "target": "Supabase real_estate_leads",
+          "durationMs": 15,
+          "detail": "Lead record lead-test-001 confirmed with status: QUALIFIED and score: 95/100."
+        },
+        {
+          "stepId": "s2",
+          "stepName": "Dispatch WhatsApp Template",
+          "type": "whatsapp",
+          "status": "simulated",
+          "target": "+919876543210",
+          "durationMs": 1,
+          "detail": "[SIMULATED] Outbound template prepared for +919876543210. No verified Meta WhatsApp adapter is configured.",
+          "payload": {
+            "template": "real_estate_site_visit_confirmation",
+            "recipient": "+919876543210",
+            "parameters": {
+              "customer_name": "Ramesh Verma",
+              "property_type": "3 BHK apartment",
+              "location": "Tirupati Central",
+              "site_visit_date": "Saturday 11 AM"
+            }
+          }
+        },
+        {
+          "stepId": "s3",
+          "stepName": "Create Calendar Event",
+          "type": "calendar",
+          "status": "simulated",
+          "target": "Agent Google Calendar",
+          "durationMs": 0,
+          "detail": "[SIMULATED] Site visit request prepared for Saturday 11 AM. No verified Google Calendar adapter is configured.",
+          "payload": {
+            "title": "Site Visit: Ramesh Verma - 3 BHK apartment (Tirupati Central)",
+            "description": "Customer Contact: +919876543210\nBudget: 85 Lakhs\nTimeline: Immediate\nLead ID: lead-test-001",
+            "date": "Saturday 11 AM",
+            "status": "tentative"
+          }
+        },
+        {
+          "stepId": "s4",
+          "stepName": "Sync n8n Pipeline",
+          "type": "n8n_webhook",
+          "status": "simulated",
+          "target": "https://n8n.grovaitech.ai/webhook/v1/real-estate",
+          "durationMs": 20,
+          "detail": "[SIMULATED] Webhook payload generated and validated for n8n ingestion.",
+          "payload": {
+            "event": "lead.qualified",
+            "employee": "real-estate-lead-receptionist",
+            "leadId": "lead-test-001",
+            "conversationId": "conv-test-001",
+            "qualificationScore": 95,
+            "timestamp": "2026-09-08T17:31:01.396Z",
+            "lead": {
+              "name": "Ramesh Verma",
+              "phone": "+919876543210",
+              "email": "ramesh@example.com",
+              "location": "Tirupati Central",
+              "propertyType": "apartment",
+              "bhk": 3,
+              "budget": "85 Lakhs",
+              "timeline": "Immediate",
+              "siteVisitRequested": true,
+              "siteVisitDate": "Saturday 11 AM"
+            }
+          }
+        }
+      ],
+      "n8n_result": {
+        "status": "not_configured",
+        "endpoint": "https://n8n.grovaitech.ai/webhook/v1/real-estate"
+      }
+    },
+    {
+      "id": "exec-1788888661441-9txqc",
+      "created_at": "2026-09-08T17:31:01.441Z",
+      "workflow_id": "wf-001",
+      "trigger_event": "Site Visit Booked",
+      "status": "partial",
+      "overall_status": "partial",
+      "started_at": "2026-09-08T17:31:01.441Z",
+      "completed_at": "2026-09-08T17:31:01.443Z",
+      "duration_ms": 2,
+      "lead_id": "lead-test-002",
+      "lead_name": "Ramesh Verma",
+      "payload_summary": "Site visit workflow executed (PARTIAL) for Ramesh Verma. Steps: 4, Status: partial.",
+      "steps": [
+        {
+          "stepId": "s1",
+          "stepName": "Insert Lead in CRM",
+          "type": "database",
+          "status": "success",
+          "target": "Supabase real_estate_leads",
+          "durationMs": 15,
+          "detail": "Lead record lead-test-002 confirmed with status: QUALIFIED and score: 95/100."
+        },
+        {
+          "stepId": "s2",
+          "stepName": "Dispatch WhatsApp Template",
+          "type": "whatsapp",
+          "target": "+919876543210",
+          "durationMs": 1,
+          "payload": {
+            "template": "real_estate_site_visit_confirmation",
+            "recipient": "+919876543210",
+            "parameters": {
+              "customer_name": "Ramesh Verma",
+              "property_type": "3 BHK apartment",
+              "location": "Tirupati Central",
+              "site_visit_date": "Saturday 11 AM"
+            }
+          },
+          "status": "simulated",
+          "detail": "Captured WhatsApp context: idemp_whatsapp_template_c235cac3a3379be1d77b3d5cb7356081"
+        },
+        {
+          "stepId": "s3",
+          "stepName": "Create Calendar Event",
+          "type": "calendar",
+          "target": "Primary Agent Google Calendar",
+          "durationMs": 0,
+          "payload": {
+            "title": "Site Visit: Ramesh Verma - 3 BHK apartment (Tirupati Central)",
+            "description": "Customer Contact: +919876543210\nBudget: 85 Lakhs\nTimeline: Immediate\nLead ID: lead-test-002",
+            "date": "Saturday 11 AM",
+            "status": "tentative"
+          },
+          "status": "simulated",
+          "detail": "Captured Calendar context: idemp_calendar_event_fdd23ee033e6160a5f95c02fed55622b"
+        },
+        {
+          "stepId": "s4",
+          "stepName": "Sync n8n Pipeline",
+          "type": "n8n_webhook",
+          "status": "simulated",
+          "target": "https://n8n.grovaitech.ai/webhook/v1/real-estate",
+          "durationMs": 20,
+          "detail": "[SIMULATED] Webhook payload generated and validated for n8n ingestion.",
+          "payload": {
+            "event": "lead.qualified",
+            "employee": "real-estate-lead-receptionist",
+            "leadId": "lead-test-002",
+            "conversationId": "conv-test-002",
+            "qualificationScore": 95,
+            "timestamp": "2026-09-08T17:31:01.443Z",
+            "lead": {
+              "name": "Ramesh Verma",
+              "phone": "+919876543210",
+              "email": "ramesh@example.com",
+              "location": "Tirupati Central",
+              "propertyType": "apartment",
+              "bhk": 3,
+              "budget": "85 Lakhs",
+              "timeline": "Immediate",
+              "siteVisitRequested": true,
+              "siteVisitDate": "Saturday 11 AM"
+            }
+          }
+        }
+      ],
+      "n8n_result": {
+        "status": "not_configured",
+        "endpoint": "https://n8n.grovaitech.ai/webhook/v1/real-estate"
+      }
+    },
+    {
+      "id": "exec-1788888661457-oqjtb",
+      "created_at": "2026-09-08T17:31:01.457Z",
+      "workflow_id": "wf-001",
+      "trigger_event": "Site Visit Booked",
+      "status": "partial",
+      "overall_status": "partial",
+      "started_at": "2026-09-08T17:31:01.457Z",
+      "completed_at": "2026-09-08T17:31:01.460Z",
+      "duration_ms": 3,
+      "lead_id": "lead-test-003",
+      "lead_name": "Ramesh Verma",
+      "payload_summary": "Site visit workflow executed (PARTIAL) for Ramesh Verma. Steps: 4, Status: partial.",
+      "steps": [
+        {
+          "stepId": "s1",
+          "stepName": "Insert Lead in CRM",
+          "type": "database",
+          "status": "success",
+          "target": "Supabase real_estate_leads",
+          "durationMs": 15,
+          "detail": "Lead record lead-test-003 confirmed with status: QUALIFIED and score: 95/100."
+        },
+        {
+          "stepId": "s2",
+          "stepName": "Dispatch WhatsApp Template",
+          "type": "whatsapp",
+          "target": "+919876543210",
+          "durationMs": 1,
+          "payload": {
+            "template": "real_estate_site_visit_confirmation",
+            "recipient": "+919876543210",
+            "parameters": {
+              "customer_name": "Ramesh Verma",
+              "property_type": "3 BHK apartment",
+              "location": "Tirupati Central",
+              "site_visit_date": "Saturday 11 AM"
+            }
+          },
+          "status": "simulated",
+          "detail": "[SIMULATED:sandbox] Outbound WhatsApp template prepared for +919876543210 (Idempotency: idemp_whatsapp_template_b80c0448f71c5a85e276057d76fb500f)."
+        },
+        {
+          "stepId": "s3",
+          "stepName": "Create Calendar Event",
+          "type": "calendar",
+          "target": "Primary Agent Google Calendar",
+          "durationMs": 1,
+          "payload": {
+            "title": "Site Visit: Ramesh Verma - 3 BHK apartment (Tirupati Central)",
+            "description": "Customer Contact: +919876543210\nBudget: 85 Lakhs\nTimeline: Immediate\nLead ID: lead-test-003",
+            "date": "Saturday 11 AM",
+            "status": "tentative"
+          },
+          "status": "simulated",
+          "detail": "[SIMULATED:sandbox] Calendar event prepared for Saturday 11 AM (Idempotency: idemp_calendar_event_2dac1e020f1ac11f90106b5e1a2db9d0)."
+        },
+        {
+          "stepId": "s4",
+          "stepName": "Sync n8n Pipeline",
+          "type": "n8n_webhook",
+          "status": "simulated",
+          "target": "https://n8n.grovaitech.ai/webhook/v1/real-estate",
+          "durationMs": 20,
+          "detail": "[SIMULATED] Webhook payload generated and validated for n8n ingestion.",
+          "payload": {
+            "event": "lead.qualified",
+            "employee": "real-estate-lead-receptionist",
+            "leadId": "lead-test-003",
+            "conversationId": "conv-test-003",
+            "qualificationScore": 95,
+            "timestamp": "2026-09-08T17:31:01.460Z",
+            "lead": {
+              "name": "Ramesh Verma",
+              "phone": "+919876543210",
+              "email": "ramesh@example.com",
+              "location": "Tirupati Central",
+              "propertyType": "apartment",
+              "bhk": 3,
+              "budget": "85 Lakhs",
+              "timeline": "Immediate",
+              "siteVisitRequested": true,
+              "siteVisitDate": "Saturday 11 AM"
+            }
+          }
+        }
+      ],
+      "n8n_result": {
+        "status": "not_configured",
+        "endpoint": "https://n8n.grovaitech.ai/webhook/v1/real-estate"
+      }
+    }
+  ],
   "client_deployments": [],
+  "client_knowledge_items": [],
   "settings": {
     "theme": "dark",
     "notificationEmail": true,

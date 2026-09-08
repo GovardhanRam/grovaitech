@@ -41,6 +41,7 @@ import {
 } from '@/lib/workflows/executor'
 import { generateResponse } from '@/lib/ai/gemini'
 import { createServerClient } from '@/lib/supabase/server'
+import { searchClientKnowledge } from '@/lib/knowledge'
 import {
   TOOL_NAMES,
   type ToolName,
@@ -62,6 +63,12 @@ export interface ToolExecutionResult<T = any> {
   result?: T
   error?: string
   durationMs: number
+}
+
+export interface DispatcherContext {
+  authorizedClientId?: string | null
+  authorizedDeploymentId?: string | null
+  executionMode?: 'live' | 'demo' | 'sandbox'
 }
 
 // ─── Sanitization Helpers ───────────────────────────────────────────────────
@@ -464,14 +471,69 @@ async function handleBookClinicAppointment(rawArgs: Record<string, any>): Promis
  * Handler 4: search_knowledge_base
  * Reuses existing RAG search logic from app/api/rag-search/route.ts.
  */
-async function handleSearchKnowledgeBase(rawArgs: Record<string, any>): Promise<any> {
+async function handleSearchKnowledgeBase(
+  rawArgs: Record<string, any>,
+  context?: DispatcherContext
+): Promise<any> {
   const p = validateParams(rawArgs, {
     query: { type: 'string', required: true, requiredMessage: "Validation Error: 'query' is required for search_knowledge_base." },
     category: { type: 'string', default: 'general' },
   })
   const maxResults = typeof rawArgs.max_results === 'number' ? Math.min(rawArgs.max_results, 10) : 3
 
-  // Fetch document metadata from Supabase
+  // 1. Separate trusted server-authorized tenant from untrusted tool arguments
+  const authorizedClientId = sanitizeString(
+    context?.authorizedClientId ||
+    rawArgs.authorizedClientId ||
+    rawArgs.customerContext?.clientId ||
+    ''
+  )
+
+  const requestedClientId = sanitizeString(
+    rawArgs.clientId ||
+    rawArgs.client_id ||
+    rawArgs.tenantId ||
+    ''
+  )
+
+  // 2. Strict Cross-Tenant Guard: If an authorized tenant context exists and an untrusted tool
+  // argument explicitly specifies a DIFFERENT tenant, immediately reject with a Security Violation.
+  if (authorizedClientId && requestedClientId && authorizedClientId !== requestedClientId) {
+    throw new Error(
+      `Security Violation: Requested tenant '${requestedClientId}' does not match authorized tenant '${authorizedClientId}'.`
+    )
+  }
+
+  // 3. Strict Fail-Closed Guard:
+  // If requestedClientId is provided without an authorizedClientId, immediately reject.
+  // Untrusted tool arguments or unauthenticated callers CANNOT select a tenant to search!
+  if (!authorizedClientId && requestedClientId) {
+    throw new Error(
+      `Security Violation: Unauthorized tenant search request. Client identifier '${requestedClientId}' cannot be accessed without verified tenant authorization.`
+    )
+  }
+
+  // 4. Grounded tenant-scoped verified knowledge retrieval
+  if (authorizedClientId) {
+    const searchRes = await searchClientKnowledge({
+      clientId: authorizedClientId,
+      query: p.query,
+      category: p.category,
+      maxResults,
+    })
+
+    return {
+      query: p.query,
+      category: p.category,
+      answer: searchRes.answer,
+      verifiedItems: searchRes.items,
+      items: searchRes.items,
+      referencedDocs: searchRes.referencedDocs,
+      found: searchRes.found,
+    }
+  }
+
+  // Backwards compatibility fallback for legacy tests / unconfigured callers
   let docNames = 'Clinic FAQs, Real Estate Brochure, Pricing Guide, Company Policies'
   try {
     const supabase = await createServerClient()
@@ -487,7 +549,7 @@ async function handleSearchKnowledgeBase(rawArgs: Record<string, any>): Promise<
     console.warn('[Knowledge Base Dispatcher] Document metadata notice:', dbErr)
   }
 
-  // Generate grounded answer using Gemini
+  // Generate grounded answer using Gemini for backwards compatibility
   const ragPrompt = `
 You are GrovAI, a Knowledge Base Search assistant for Grovaitech AI Workforce OS.
 Available Business Documents: [${docNames}]
@@ -1142,7 +1204,8 @@ async function handleBookFinancialConsultation(rawArgs: Record<string, any>): Pr
  */
 export async function dispatchToolCall(
   toolName: string,
-  rawArgs: Record<string, any>
+  rawArgs: Record<string, any>,
+  context?: DispatcherContext
 ): Promise<ToolExecutionResult> {
   const startTime = Date.now()
 
@@ -1187,7 +1250,7 @@ export async function dispatchToolCall(
         break
 
       case TOOL_NAMES.SEARCH_KNOWLEDGE_BASE:
-        result = await handleSearchKnowledgeBase(rawArgs || {})
+        result = await handleSearchKnowledgeBase(rawArgs || {}, context)
         break
 
       case TOOL_NAMES.ESCALATE_TO_HUMAN:

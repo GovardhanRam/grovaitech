@@ -477,12 +477,24 @@ export async function runAgentTurn(options: RunAgentTurnOptions): Promise<AgentT
           callArgs.patient_name = customerContext.name
         }
 
+        // Strip untrusted tenant identifiers emitted by the model to prevent tool-argument tenant injection
+        delete callArgs.clientId
+        delete callArgs.client_id
+        delete callArgs.tenantId
+        delete callArgs.authorizedClientId
+        delete callArgs.customerContext
+
         // Attach trusted server-provided tenant identity (cannot be overwritten by model args)
-        if (customerContext.clientId) {
-          callArgs.clientId = customerContext.clientId
+        const serverClientId = customerContext.clientId?.trim() || null
+        const serverDeploymentId = customerContext.deploymentId?.trim() || null
+
+        if (serverClientId) {
+          callArgs.authorizedClientId = serverClientId
+          callArgs.clientId = serverClientId
         }
-        if (customerContext.deploymentId) {
-          callArgs.deploymentId = customerContext.deploymentId
+        if (serverDeploymentId) {
+          callArgs.authorizedDeploymentId = serverDeploymentId
+          callArgs.deploymentId = serverDeploymentId
         }
         if (options.executionMode) {
           callArgs.executionMode = options.executionMode

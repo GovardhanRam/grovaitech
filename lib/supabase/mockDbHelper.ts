@@ -20,6 +20,7 @@ export interface MockDbSchema {
   clients: any[];
   clinic_bookings: any[];
   real_estate_leads: any[];
+  client_knowledge_items?: any[];
   settings: Record<string, any>;
 }
 
@@ -155,6 +156,7 @@ const SEED_DATA: MockDbSchema = {
     }
   ],
   real_estate_leads: [],
+  client_knowledge_items: [],
   settings: {
     theme: 'dark',
     notificationEmail: true,
