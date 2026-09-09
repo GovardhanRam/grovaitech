@@ -163,7 +163,34 @@ export function generateDemoPlan(
         `What solutions do you offer for ${industry} companies?`,
         `Can I speak with a representative or schedule an appointment?`,
       ]
+      break
   }
+
+  // Compute missing information required before live operational deployment
+  const missingInfo: string[] = []
+  if (!prospect.phone) missingInfo.push('Prospect phone number for SMS/WhatsApp verification')
+  if (!prospect.contact_name) missingInfo.push('Designated business contact person name')
+  if (!prospect.budget) missingInfo.push('Budget qualification criteria and thresholds')
+  if (!prospect.location) missingInfo.push('Target operating location / geography')
+  if (!prospect.timeline) missingInfo.push('Deployment and decision timeline')
+  if (missingInfo.length === 0) {
+    missingInfo.push('Production CRM integration credentials and calendar OAuth binding')
+    missingInfo.push('Designated human staff on-call contact for ticket escalations')
+  }
+
+  // Derive concrete employee actions from canonical employee profile
+  const employeeActions =
+    matchedEmployee.employee.responsibilities && matchedEmployee.employee.responsibilities.length > 0
+      ? matchedEmployee.employee.responsibilities.slice(0, 4)
+      : matchedEmployee.employee.capabilities.slice(0, 4)
+
+  const businessProblem =
+    primaryLeak?.problem ||
+    primaryLeak?.title ||
+    'Inbound customer inquiry drop-off and manual coordination overhead'
+
+  const uncertainty =
+    'Operational performance depends on incoming inquiry volume, team calendar availability, and staff speed to engage escalated leads. Revenue gains and conversion rates cannot be guaranteed.'
 
   return {
     headline,
@@ -171,5 +198,11 @@ export function generateDemoPlan(
     conversation_starters: conversationStarters,
     expected_outcome: expectedOutcome,
     workflow_id: workflowId,
+    business_problem: businessProblem,
+    relevant_employee: employeeName,
+    employee_actions: employeeActions,
+    expected_operational_outcome: expectedOutcome,
+    missing_information: missingInfo,
+    uncertainty,
   }
 }

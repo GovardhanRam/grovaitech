@@ -16,6 +16,7 @@ export interface Prospect {
   description?: string
   current_channels?: string[]
   known_problems?: string[]
+  operational_signals?: string[]
   contact_name?: string
   phone?: string
   email?: string
@@ -42,6 +43,13 @@ export interface RevenueLeak {
   severity: 'high' | 'medium' | 'low'
   detected_signals: string[]
   estimated_impact: string
+  // Safety & structured finding fields (Truthful, non-fabricated):
+  problem: string
+  evidence: string[]
+  likely_impact: string
+  opportunity: string
+  confidence: 'high' | 'medium' | 'low'
+  uncertainty?: string
 }
 
 /**
@@ -91,6 +99,13 @@ export interface DemoPlan {
   conversation_starters: [string, string, string] // Exactly 3 conversation starters
   expected_outcome: string
   workflow_id?: string
+  // Personalized recommendation structured fields:
+  business_problem: string
+  relevant_employee: string
+  employee_actions: string[]
+  expected_operational_outcome: string
+  missing_information: string[]
+  uncertainty: string
 }
 
 export interface CrmReadiness {
@@ -106,6 +121,27 @@ export interface DeploymentAnalysis {
   alternative_matches: EmployeeMatch[]
   demo: DemoPlan | null
   crm: CrmReadiness
+  uncertainty?: string
+  prospect_id?: string
+  crm_status?: 'new' | 'analyzed' | 'demo_ready' | 'qualified'
+}
+
+export interface ProspectRecord {
+  id: string
+  company_name: string
+  industry: string
+  contact_name?: string
+  phone?: string
+  email?: string
+  location?: string
+  budget?: string
+  timeline?: string
+  known_problems?: string[]
+  current_channels?: string[]
+  status: 'new' | 'analyzed' | 'demo_ready' | 'qualified'
+  analysis?: DeploymentAnalysis
+  created_at: string
+  updated_at?: string
 }
 
 export interface ExecuteDeploymentDemoOptions {

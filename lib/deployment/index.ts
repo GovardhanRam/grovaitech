@@ -104,6 +104,9 @@ export function analyzeProspect(prospect: Prospect): DeploymentAnalysis {
   // 4. Evaluate CRM Readiness
   const crm = evaluateCrmReadiness(safeProspect)
 
+  // 5. Evaluate Overall Uncertainty on Missing Evidence
+  const overallUncertainty = revenueLeaks.find((l) => l.uncertainty)?.uncertainty
+
   return {
     prospect: safeProspect,
     revenue_leaks: revenueLeaks,
@@ -111,5 +114,6 @@ export function analyzeProspect(prospect: Prospect): DeploymentAnalysis {
     alternative_matches,
     demo,
     crm,
+    uncertainty: overallUncertainty,
   }
 }

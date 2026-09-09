@@ -15,7 +15,7 @@ export interface LeadData {
   site_visit_date?: string
   site_visit_time?: string
   lead_score?: 'hot' | 'warm' | 'cold'
-  lead_status?: 'new' | 'contacted' | 'qualified' | 'site_visit' | 'converted' | 'lost'
+  lead_status?: 'new' | 'analyzed' | 'demo_ready' | 'contacted' | 'qualified' | 'site_visit' | 'converted' | 'lost'
   notes?: string
   source?: 'ai_demo' | 'whatsapp' | 'website' | 'manual'
   user_id?: string
@@ -23,10 +23,10 @@ export interface LeadData {
   deployment_id?: string
 }
 
-const ALLOWED_STATUSES = ['new', 'contacted', 'qualified', 'site_visit', 'converted', 'lost']
+const ALLOWED_STATUSES = ['new', 'analyzed', 'demo_ready', 'contacted', 'qualified', 'site_visit', 'converted', 'lost']
 
 // Helper to get a secure administrative client on the server to bypass RLS for public demo leads
-async function getAdminClient() {
+export async function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
