@@ -216,7 +216,7 @@ export function WorkforceMarketplace({ employees, isDemo }: WorkforceProps) {
     const q = search.toLowerCase()
     const matchSearch = !q ||
       emp.name.toLowerCase().includes(q) ||
-      emp.description.toLowerCase().includes(q) ||
+      (emp.description ?? '').toLowerCase().includes(q) ||
       (emp.industry ?? '').toLowerCase().includes(q)
     const matchStatus = statusFilter === 'all' || STATUS_GROUP[emp.status] === statusFilter
     const matchIndustry = industryFilter === 'all' ||
@@ -244,9 +244,9 @@ export function WorkforceMarketplace({ employees, isDemo }: WorkforceProps) {
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">AI Workforce OS</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Grovaitech AI Employee Marketplace</span>
           <div className="flex items-center gap-2 mt-0.5">
-            <h1 className="text-xl font-extrabold tracking-tight text-slate-900">AI Employees</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Meet Your AI Workforce</h1>
             {isDemo && (
               <span className="text-[8px] px-2 py-0.5 rounded-full font-black border bg-amber-50 text-amber-600 border-amber-200 uppercase tracking-wide">
                 Demo Registry
@@ -254,7 +254,7 @@ export function WorkforceMarketplace({ employees, isDemo }: WorkforceProps) {
             )}
           </div>
           <p className="text-xs text-slate-500 mt-0.5 max-w-lg">
-            Deploy specialized AI Employees that work across conversations, leads, workflows, and business operations.
+            Explore AI employees built to handle real business work.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -299,10 +299,10 @@ export function WorkforceMarketplace({ employees, isDemo }: WorkforceProps) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
           <input
             type="text"
-            placeholder="Search AI Employees…"
+            placeholder="Search AI employees..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="pl-8 pr-3 py-2 text-xs font-medium bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-400 transition w-44"
+            className="pl-8 pr-3 py-2 text-xs font-medium bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-400 transition w-48"
           />
         </div>
         {[

@@ -12,93 +12,38 @@ import {
   getCanonicalEmployeeBySlug,
   getCanonicalEmployeeById,
   getCanonicalEmployees,
-  type AIEmployee,
-  type AIEmployeePricing,
-  type AIEmployeeDemoConfig,
 } from './registry'
+import {
+  getEmployees,
+  getEmployeeBySlug,
+  getEmployeeById,
+} from './queries'
+import type {
+  AIEmployee,
+  AIEmployeeStatus,
+  AIEmployeePricing,
+  AIEmployeeDemoConfig,
+} from './types'
 
 export {
   CANONICAL_EMPLOYEES,
   getCanonicalEmployeeBySlug,
   getCanonicalEmployeeById,
   getCanonicalEmployees,
+  getEmployees,
+  getEmployeeBySlug,
+  getEmployeeById,
   type AIEmployee,
+  type AIEmployeeStatus,
   type AIEmployeePricing,
   type AIEmployeeDemoConfig,
 }
 
 /**
  * Returns all active AI Employees, preferring Supabase if populated,
- * falling back to the canonical 10-employee registry.
+ * falling back to the canonical workforce registry.
  */
 export async function getAllEmployees(): Promise<AIEmployee[]> {
-  try {
-    const supabase = await createServerClient()
-
-    const { data, error } = await supabase
-      .from('ai_employees')
-      .select('*')
-      .order('name', { ascending: true })
-
-    if (error || !data || data.length === 0) {
-      return getCanonicalEmployees()
-    }
-
-    return data
-  } catch (err) {
-    console.warn('[Employee Registry] Fallback to canonical workforce:', err)
-    return getCanonicalEmployees()
-  }
+  return getEmployees()
 }
 
-/**
- * Resolves an AI Employee by slug. Checks Supabase first; if not found,
- * resolves from canonical in-memory registry.
- */
-export async function getEmployeeBySlug(slug: string): Promise<AIEmployee | null> {
-  if (!slug) return null
-
-  try {
-    const supabase = await createServerClient()
-
-    const { data, error } = await supabase
-      .from('ai_employees')
-      .select('*')
-      .eq('slug', slug)
-      .single()
-
-    if (data && !error) {
-      return data
-    }
-  } catch (err) {
-    console.warn('[Employee Registry] getEmployeeBySlug notice:', err)
-  }
-
-  return getCanonicalEmployeeBySlug(slug) || null
-}
-
-/**
- * Resolves an AI Employee by unique ID. Checks Supabase first; if not found,
- * resolves from canonical in-memory registry.
- */
-export async function getEmployeeById(id: string): Promise<AIEmployee | null> {
-  if (!id) return null
-
-  try {
-    const supabase = await createServerClient()
-
-    const { data, error } = await supabase
-      .from('ai_employees')
-      .select('*')
-      .eq('id', id)
-      .single()
-
-    if (data && !error) {
-      return data
-    }
-  } catch (err) {
-    console.warn('[Employee Registry] getEmployeeById notice:', err)
-  }
-
-  return getCanonicalEmployeeById(id) || null
-}
