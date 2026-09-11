@@ -20,6 +20,7 @@ import {
   type TranscriptItem,
   type VoiceSessionConfig,
   type LiveTokenResponse,
+  GOVA_SUPPORTED_LANGUAGES,
 } from './types'
 import { GeminiLiveSession } from './live-client'
 import { float32ToPcm16, pcm16ToFloat32, resampleAudioBuffer } from './audio'
@@ -300,6 +301,39 @@ export function useGovaVoice(options: UseGovaVoiceOptions = {}) {
         onInterrupted: () => {
           flushAudioPlayback()
         },
+        onToolCall: async (call) => {
+          // Record tool action in transcript for live visibility
+          handleTranscript(`[Action: ${call.name}]`, 'gova', false)
+
+          if (options.config?.toolExecutor) {
+            return options.config.toolExecutor(call.name, call.args)
+          }
+
+          try {
+            const toolRes = await fetch('/api/voice/tools/execute', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                toolName: call.name,
+                args: call.args,
+                clientId: options.config?.tenantContext?.clientId,
+              }),
+            })
+
+            const data = await toolRes.json().catch(() => ({}))
+            if (!toolRes.ok || !data.success) {
+              const errorMsg = data.error || `Tool '${call.name}' failed with status ${toolRes.status}`
+              return { error: errorMsg, success: false }
+            }
+
+            return data.result
+          } catch (fetchErr: any) {
+            return {
+              error: fetchErr?.message || `Failed to communicate with voice tool service for '${call.name}'.`,
+              success: false,
+            }
+          }
+        },
         onError: (err) => {
           setState('ERROR')
           setErrorMessage(err)
@@ -404,5 +438,7 @@ export function useGovaVoice(options: UseGovaVoiceOptions = {}) {
     isConnected: state === 'LISTENING' || state === 'THINKING' || state === 'SPEAKING',
     isSpeaking: state === 'SPEAKING',
     isListening: state === 'LISTENING',
+    isThinking: state === 'THINKING',
+    supportedLanguages: GOVA_SUPPORTED_LANGUAGES,
   }
 }

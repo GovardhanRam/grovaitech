@@ -24,7 +24,18 @@ import {
   GEMINI_LIVE_WS_URL,
   POST as tokenRoutePost,
 } from '@/app/api/voice/token/route'
-import { DEFAULT_GOVA_IDENTITY, GeminiLiveSession } from '@/lib/voice/live-client'
+import {
+  DEFAULT_GOVA_IDENTITY,
+  GeminiLiveSession,
+  buildGovaSystemInstruction,
+  toGeminiLiveToolDeclarations,
+} from '@/lib/voice/live-client'
+import {
+  GOVA_SUPPORTED_LANGUAGES,
+  GOVA_VOICE_TOOL_ALLOWLIST,
+  DEFAULT_VOICE_TOOL_NAMES,
+} from '@/lib/voice/types'
+import { POST as voiceToolExecutePost } from '@/app/api/voice/tools/execute/route'
 import { NextRequest } from 'next/server'
 
 describe('GOVA Voice UI v1 - Audio Processing Utilities', () => {
@@ -343,4 +354,473 @@ describe('GOVA Voice UI v1 - GeminiLiveSession Protocol & Regression Tests', () 
     vi.unstubAllGlobals()
   })
 })
+
+describe('GOVA Voice Phase 2 - Multilingual Voice Capabilities', () => {
+  it('1. configures the 6 canonical Indic and English languages with exact locale codes', () => {
+    const codes = GOVA_SUPPORTED_LANGUAGES.map((l) => l.code)
+    expect(codes).toContain('en-IN')
+    expect(codes).toContain('te-IN')
+    expect(codes).toContain('ta-IN')
+    expect(codes).toContain('hi-IN')
+    expect(codes).toContain('kn-IN')
+    expect(codes).toContain('ml-IN')
+    expect(GOVA_SUPPORTED_LANGUAGES.length).toBe(6)
+
+    const te = GOVA_SUPPORTED_LANGUAGES.find((l) => l.code === 'te-IN')
+    expect(te?.nativeName).toBe('తెలుగు')
+
+    const ta = GOVA_SUPPORTED_LANGUAGES.find((l) => l.code === 'ta-IN')
+    expect(ta?.nativeName).toBe('தமிழ்')
+
+    const hi = GOVA_SUPPORTED_LANGUAGES.find((l) => l.code === 'hi-IN')
+    expect(hi?.nativeName).toBe('हिन्दी')
+  })
+
+  it('2. embeds multilingual mirroring and smooth language switching in system instructions', () => {
+    const instruction = buildGovaSystemInstruction()
+    expect(instruction).toContain('English (en-IN)')
+    expect(instruction).toContain('Telugu (te-IN)')
+    expect(instruction).toContain('Tamil (ta-IN)')
+    expect(instruction).toContain('Hindi (hi-IN)')
+    expect(instruction).toContain('Kannada (kn-IN)')
+    expect(instruction).toContain('Malayalam (ml-IN)')
+    expect(instruction).toContain("Respond in the user's current spoken language by default")
+    expect(instruction).toContain('switches languages during the conversation')
+    expect(instruction).toContain('Do not repeat or translate the user')
+  })
+
+  it('3. enforces natural spoken audio formatting rules without markdown or bullet points', () => {
+    const instruction = buildGovaSystemInstruction()
+    expect(instruction).toContain('usually 1-3 sentences')
+    expect(instruction).toContain('Do NOT use markdown formatting')
+    expect(instruction).toContain('bullet points')
+  })
+
+  it('4. maintains language-independent parameter schemas regardless of user language', () => {
+    const tools = toGeminiLiveToolDeclarations(['book_clinic_appointment', 'schedule_site_visit'])
+    expect(tools.length).toBe(1)
+    const declarations = tools[0].functionDeclarations
+    expect(declarations.length).toBe(2)
+
+    const clinicDecl = declarations.find((d) => d.name === 'book_clinic_appointment')
+    expect(clinicDecl?.parameters?.required).toContain('patient_name')
+    expect(clinicDecl?.parameters?.required).toContain('appointment_date')
+  })
+})
+
+describe('GOVA Voice Phase 2 - Tool Declarations & Explicit Allowlist', () => {
+  it('1. generates Gemini Live tool declarations from Grovaitech canonical tool definitions', () => {
+    const tools = toGeminiLiveToolDeclarations(DEFAULT_VOICE_TOOL_NAMES)
+    expect(tools.length).toBe(1)
+    const declarations = tools[0].functionDeclarations
+
+    const names = declarations.map((d) => d.name)
+    expect(names).toContain('schedule_site_visit')
+    expect(names).toContain('book_clinic_appointment')
+    expect(names).toContain('lookup_order_and_support')
+    expect(names).toContain('search_knowledge_base')
+
+    for (const decl of declarations) {
+      expect(decl.name).toBeDefined()
+      expect(decl.description).toBeDefined()
+      expect(decl.parameters).toBeDefined()
+    }
+  })
+
+  it('2. filters out unallowed tools not present on GOVA_VOICE_TOOL_ALLOWLIST', () => {
+    const tools = toGeminiLiveToolDeclarations([
+      'schedule_site_visit',
+      'unauthorized_shell_exec',
+      'delete_database_records',
+    ])
+
+    expect(tools.length).toBe(1)
+    const names = tools[0].functionDeclarations.map((d) => d.name)
+    expect(names).toContain('schedule_site_visit')
+    expect(names).not.toContain('unauthorized_shell_exec')
+    expect(names).not.toContain('delete_database_records')
+  })
+
+  it('3. includes function declarations in GeminiLiveSession setup message', async () => {
+    let capturedSetup: string | null = null
+    const mockWs = {
+      readyState: 1,
+      send: vi.fn((data: string) => {
+        capturedSetup = data
+      }),
+      close: vi.fn(),
+      onopen: null as any,
+      onmessage: null as any,
+      onerror: null as any,
+      onclose: null as any,
+    }
+
+    const MockWebSocketClass: any = vi.fn().mockImplementation(() => {
+      setTimeout(() => {
+        if (mockWs.onopen) mockWs.onopen({} as any)
+      }, 0)
+      return mockWs
+    })
+    MockWebSocketClass.OPEN = 1
+    vi.stubGlobal('WebSocket', MockWebSocketClass)
+
+    const session = new GeminiLiveSession(
+      'wss://mock.gemini.live',
+      {
+        model: 'gemini-3.1-flash-live-preview',
+        allowedTools: ['schedule_site_visit', 'search_knowledge_base'],
+      },
+      {
+        onStateChange: vi.fn(),
+        onAudioChunk: vi.fn(),
+        onTranscript: vi.fn(),
+        onInterrupted: vi.fn(),
+        onError: vi.fn(),
+        onClose: vi.fn(),
+      }
+    )
+
+    await session.connect()
+    if (mockWs.onopen) {
+      mockWs.onopen({} as any)
+    }
+
+    expect(capturedSetup).not.toBeNull()
+    const parsed = JSON.parse(capturedSetup!)
+
+    expect(parsed.setup.tools).toBeDefined()
+    expect(parsed.setup.tools.length).toBe(1)
+    const names = parsed.setup.tools[0].functionDeclarations.map((d: any) => d.name)
+    expect(names).toContain('schedule_site_visit')
+    expect(names).toContain('search_knowledge_base')
+
+    vi.unstubAllGlobals()
+  })
+})
+
+describe('GOVA Voice Phase 2 - Real-Time Tool Calling Wire Protocol', () => {
+  it('1. executes incoming toolCall, sets state to THINKING, and sends toolResponse back', async () => {
+    let capturedResponse: string | null = null
+    const stateHistory: string[] = []
+
+    const mockWs = {
+      readyState: 1,
+      send: vi.fn((data: string) => {
+        capturedResponse = data
+      }),
+      close: vi.fn(),
+      onopen: null as any,
+      onmessage: null as any,
+      onerror: null as any,
+      onclose: null as any,
+    }
+
+    const MockWebSocketClass: any = vi.fn().mockImplementation(() => {
+      setTimeout(() => {
+        if (mockWs.onopen) mockWs.onopen({} as any)
+      }, 0)
+      return mockWs
+    })
+    MockWebSocketClass.OPEN = 1
+    vi.stubGlobal('WebSocket', MockWebSocketClass)
+
+    const mockExecutor = vi.fn().mockResolvedValue({
+      bookingId: 'book-dental-999',
+      status: 'confirmed',
+      timeSlot: '2026-09-12 10:00 AM',
+    })
+
+    const session = new GeminiLiveSession(
+      'wss://mock.gemini.live',
+      {
+        model: 'gemini-3.1-flash-live-preview',
+        toolExecutor: mockExecutor,
+      },
+      {
+        onStateChange: (s) => stateHistory.push(s),
+        onAudioChunk: vi.fn(),
+        onTranscript: vi.fn(),
+        onInterrupted: vi.fn(),
+        onError: vi.fn(),
+        onClose: vi.fn(),
+      }
+    )
+
+    await session.connect()
+    mockWs.onmessage({ data: JSON.stringify({ setupComplete: {} }) })
+
+    // Simulate Gemini Live issuing a tool call
+    const incomingToolCall = {
+      toolCall: {
+        functionCalls: [
+          {
+            id: 'call_clinic_001',
+            name: 'book_clinic_appointment',
+            args: {
+              patient_name: 'Suresh Rao',
+              patient_phone: '+919876543210',
+              appointment_date: '2026-09-12',
+              appointment_time: '10:00 AM',
+            },
+          },
+        ],
+      },
+    }
+
+    await mockWs.onmessage({ data: JSON.stringify(incomingToolCall) })
+
+    expect(stateHistory).toContain('THINKING')
+    expect(mockExecutor).toHaveBeenCalledWith('book_clinic_appointment', {
+      patient_name: 'Suresh Rao',
+      patient_phone: '+919876543210',
+      appointment_date: '2026-09-12',
+      appointment_time: '10:00 AM',
+    })
+
+    expect(capturedResponse).not.toBeNull()
+    const parsedResp = JSON.parse(capturedResponse!)
+
+    expect(parsedResp.toolResponse).toBeDefined()
+    expect(parsedResp.toolResponse.functionResponses.length).toBe(1)
+    const fnResp = parsedResp.toolResponse.functionResponses[0]
+    expect(fnResp.id).toBe('call_clinic_001')
+    expect(fnResp.name).toBe('book_clinic_appointment')
+    expect(fnResp.response.bookingId).toBe('book-dental-999')
+    expect(fnResp.response.status).toBe('confirmed')
+
+    vi.unstubAllGlobals()
+  })
+
+  it('2. discards responses for tool calls cancelled via toolCallCancellation', async () => {
+    let capturedToolResponse: string | null = null
+
+    const mockWs = {
+      readyState: 1,
+      send: vi.fn((data: string) => {
+        if (data.includes('toolResponse')) {
+          capturedToolResponse = data
+        }
+      }),
+      close: vi.fn(),
+      onopen: null as any,
+      onmessage: null as any,
+      onerror: null as any,
+      onclose: null as any,
+    }
+
+    const MockWebSocketClass: any = vi.fn().mockImplementation(() => {
+      setTimeout(() => {
+        if (mockWs.onopen) mockWs.onopen({} as any)
+      }, 0)
+      return mockWs
+    })
+    MockWebSocketClass.OPEN = 1
+    vi.stubGlobal('WebSocket', MockWebSocketClass)
+
+    const session = new GeminiLiveSession(
+      'wss://mock.gemini.live',
+      {
+        model: 'gemini-3.1-flash-live-preview',
+      },
+      {
+        onStateChange: vi.fn(),
+        onAudioChunk: vi.fn(),
+        onTranscript: vi.fn(),
+        onInterrupted: vi.fn(),
+        onError: vi.fn(),
+        onClose: vi.fn(),
+        onToolCall: vi.fn().mockResolvedValue({ status: 'cancelled_test' }),
+      }
+    )
+
+    await session.connect()
+    mockWs.onmessage({ data: JSON.stringify({ setupComplete: {} }) })
+
+    // Simulate Gemini Live cancelling a tool call due to user barge-in
+    mockWs.onmessage({
+      data: JSON.stringify({
+        toolCallCancellation: {
+          ids: ['call_cancelled_101'],
+        },
+      }),
+    })
+
+    // Issue tool call matching the cancelled ID
+    await mockWs.onmessage({
+      data: JSON.stringify({
+        toolCall: {
+          functionCalls: [
+            {
+              id: 'call_cancelled_101',
+              name: 'schedule_site_visit',
+              args: {},
+            },
+          ],
+        },
+      }),
+    })
+
+    expect(capturedToolResponse).toBeNull()
+    vi.unstubAllGlobals()
+  })
+
+  it('3. safely catches tool execution errors and returns structured failure in toolResponse', async () => {
+    let capturedToolResponse: string | null = null
+
+    const mockWs = {
+      readyState: 1,
+      send: vi.fn((data: string) => {
+        if (data.includes('toolResponse')) {
+          capturedToolResponse = data
+        }
+      }),
+      close: vi.fn(),
+      onopen: null as any,
+      onmessage: null as any,
+      onerror: null as any,
+      onclose: null as any,
+    }
+
+    const MockWebSocketClass3: any = vi.fn().mockImplementation(() => {
+      setTimeout(() => {
+        if (mockWs.onopen) mockWs.onopen({} as any)
+      }, 0)
+      return mockWs
+    })
+    MockWebSocketClass3.OPEN = 1
+    vi.stubGlobal('WebSocket', MockWebSocketClass3)
+
+    const session = new GeminiLiveSession(
+      'wss://mock.gemini.live',
+      {
+        model: 'gemini-3.1-flash-live-preview',
+      },
+      {
+        onStateChange: vi.fn(),
+        onAudioChunk: vi.fn(),
+        onTranscript: vi.fn(),
+        onInterrupted: vi.fn(),
+        onError: vi.fn(),
+        onClose: vi.fn(),
+        onToolCall: vi.fn().mockRejectedValue(new Error('Hospital database timeout')),
+      }
+    )
+
+    await session.connect()
+    mockWs.onmessage({ data: JSON.stringify({ setupComplete: {} }) })
+
+    await mockWs.onmessage({
+      data: JSON.stringify({
+        toolCall: {
+          functionCalls: [
+            {
+              id: 'call_err_01',
+              name: 'book_clinic_appointment',
+              args: { patient_name: 'Ravi' },
+            },
+          ],
+        },
+      }),
+    })
+
+    expect(capturedToolResponse).not.toBeNull()
+    const parsed = JSON.parse(capturedToolResponse!)
+    expect(parsed.toolResponse.functionResponses[0].response.success).toBe(false)
+    expect(parsed.toolResponse.functionResponses[0].response.error).toContain('Hospital database timeout')
+
+    vi.unstubAllGlobals()
+  })
+})
+
+describe('GOVA Voice Phase 2 - Server-Side Tool Execution Route (/api/voice/tools/execute)', () => {
+  it('1. rejects requests with missing toolName with HTTP 400', async () => {
+    const req = new NextRequest('http://localhost:3000/api/voice/tools/execute', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    })
+
+    const res = await voiceToolExecutePost(req)
+    expect(res.status).toBe(400)
+    const json = await res.json()
+    expect(json.success).toBe(false)
+    expect(json.error).toContain("'toolName' is required")
+  })
+
+  it('2. rejects unallowed tools with HTTP 403 Security Violation', async () => {
+    const req = new NextRequest('http://localhost:3000/api/voice/tools/execute', {
+      method: 'POST',
+      body: JSON.stringify({
+        toolName: 'unauthorized_shell_exec',
+        args: {},
+      }),
+    })
+
+    const res = await voiceToolExecutePost(req)
+    expect(res.status).toBe(403)
+    const json = await res.json()
+    expect(json.success).toBe(false)
+    expect(json.error).toContain('Security Violation')
+  })
+
+  it('3. executes allowed tool through Grovaitech dispatcher and returns structured outcome', async () => {
+    const req = new NextRequest('http://localhost:3000/api/voice/tools/execute', {
+      method: 'POST',
+      body: JSON.stringify({
+        toolName: 'book_clinic_appointment',
+        args: {
+          patient_name: 'Pooja Verma',
+          patient_phone: '+919876543210',
+          appointment_date: '2026-09-15',
+          appointment_time: '11:00 AM',
+          doctor_name: 'Dr. Reddy',
+          reason: 'Routine Dental Clean',
+        },
+      }),
+    })
+
+    const res = await voiceToolExecutePost(req)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.success).toBe(true)
+    expect(json.toolName).toBe('book_clinic_appointment')
+    expect(json.result).toBeDefined()
+  })
+})
+
+describe('GOVA Voice Phase 2 - Business Grounding & AI Employee Context', () => {
+  it('1. injects tenant business context and operating guidelines into system instructions', () => {
+    const instruction = buildGovaSystemInstruction({
+      tenantContext: {
+        businessName: 'Apex Horizon Living',
+        businessType: 'Luxury Real Estate Development',
+        operatingInstructions: 'Strictly promote Tirupati villa project and require phone verification.',
+      },
+    })
+
+    expect(instruction).toContain('Active Business Context:')
+    expect(instruction).toContain('Apex Horizon Living')
+    expect(instruction).toContain('Luxury Real Estate Development')
+    expect(instruction).toContain('Strictly promote Tirupati villa project')
+    expect(instruction).toContain("Use 'search_knowledge_base' to retrieve verified business documents")
+  })
+
+  it('2. injects active AI Employee persona and capabilities into system instructions', () => {
+    const instruction = buildGovaSystemInstruction({
+      activeEmployee: {
+        id: 'emp-002',
+        name: 'Clinic Receptionist',
+        slug: 'clinic-receptionist',
+        title: 'AI Medical Front-Desk',
+        capabilities: ['Appointment booking', 'Patient intake', 'Clinic FAQ answering'],
+        systemPrompt: 'Warmly assist dental clinic patients and book doctor consultation slots.',
+      },
+    })
+
+    expect(instruction).toContain('Active AI Employee Delegation:')
+    expect(instruction).toContain('Clinic Receptionist (AI Medical Front-Desk)')
+    expect(instruction).toContain('Warmly assist dental clinic patients')
+    expect(instruction).toContain('Appointment booking, Patient intake, Clinic FAQ answering')
+  })
+})
+
 

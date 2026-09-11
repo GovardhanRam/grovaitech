@@ -26,12 +26,25 @@ import {
 import GovaVoiceOrb from './GovaVoiceOrb'
 import { useGovaVoice } from '@/lib/voice/useGovaVoice'
 
+import {
+  type TenantVoiceContext,
+  type ActiveEmployeeVoiceContext,
+  GOVA_SUPPORTED_LANGUAGES,
+} from '@/lib/voice/types'
+
 interface GovaVoiceModalProps {
   isOpen: boolean
   onClose: () => void
+  tenantContext?: TenantVoiceContext
+  activeEmployee?: ActiveEmployeeVoiceContext
 }
 
-export default function GovaVoiceModal({ isOpen, onClose }: GovaVoiceModalProps) {
+export default function GovaVoiceModal({
+  isOpen,
+  onClose,
+  tenantContext,
+  activeEmployee,
+}: GovaVoiceModalProps) {
   const {
     state,
     errorMessage,
@@ -43,7 +56,12 @@ export default function GovaVoiceModal({ isOpen, onClose }: GovaVoiceModalProps)
     toggleMute,
     clearTranscripts,
     isConnected,
-  } = useGovaVoice()
+  } = useGovaVoice({
+    config: {
+      tenantContext,
+      activeEmployee,
+    },
+  })
 
   const transcriptEndRef = useRef<HTMLDivElement>(null)
 
@@ -76,12 +94,26 @@ export default function GovaVoiceModal({ isOpen, onClose }: GovaVoiceModalProps)
                   GOVA VOICE
                 </h2>
                 <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                  v1 Live Preview
+                  v2 Multilingual Live
+                </span>
+                {activeEmployee && (
+                  <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[9px] font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                    {activeEmployee.name}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-[11px] text-slate-400 font-medium">
+                  {tenantContext?.businessName ? `${tenantContext.businessName} · ` : ''}Central Voice OS
+                </p>
+                <span className="text-slate-600">·</span>
+                <span
+                  className="text-[10px] text-cyan-400/90 font-mono font-medium"
+                  title="Supported: English, Telugu, Tamil, Hindi, Kannada, Malayalam"
+                >
+                  EN · TE · TA · HI · KN · ML
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 font-medium">
-                Central Intelligence Voice Interface · Grovaitech AI Workforce OS
-              </p>
             </div>
           </div>
 
@@ -135,8 +167,8 @@ export default function GovaVoiceModal({ isOpen, onClose }: GovaVoiceModalProps)
               <span className="uppercase tracking-wider font-bold text-[10px]">
                 {state === 'IDLE' && 'Ready to Connect'}
                 {state === 'CONNECTING' && 'Connecting to Gemini Live...'}
-                {state === 'LISTENING' && 'Listening...'}
-                {state === 'THINKING' && 'Thinking...'}
+                {state === 'LISTENING' && 'Listening (Multilingual)...'}
+                {state === 'THINKING' && 'Thinking & Executing Action...'}
                 {state === 'SPEAKING' && 'GOVA is Speaking'}
                 {state === 'ERROR' && 'Voice Session Error'}
                 {state === 'DISCONNECTED' && 'Disconnected'}
@@ -147,8 +179,8 @@ export default function GovaVoiceModal({ isOpen, onClose }: GovaVoiceModalProps)
               {state === 'IDLE' && 'Click the orb or "Start Voice" to begin talking with GOVA.'}
               {state === 'CONNECTING' && 'Requesting microphone & secure ephemeral authentication token...'}
               {state === 'LISTENING' &&
-                'Speak into your microphone. Say "Hello GOVA" or ask about AI Employees & workflows.'}
-              {state === 'THINKING' && 'GOVA is processing your speech in real-time...'}
+                'Speak naturally in English, Telugu, Tamil, Hindi, Kannada, or Malayalam. Ask questions or request actions.'}
+              {state === 'THINKING' && 'GOVA is processing your speech and executing enterprise tools in real time...'}
               {state === 'SPEAKING' &&
                 'Audio is streaming through your speakers. You can interrupt GOVA anytime.'}
               {state === 'ERROR' && (
