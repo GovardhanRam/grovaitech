@@ -11,11 +11,13 @@
  * Certification alone does NOT activate live execution.
  */
 
+import crypto from 'crypto'
 import type {
   IntegrationProvider,
   IntegrationCapability,
   ProviderCertificationStatus,
   IntegrationCredentialRecord,
+  ExecutionMode,
 } from './types'
 import {
   type CredentialStore,
@@ -23,6 +25,8 @@ import {
   resolveIntegrationCredential,
 } from './credentials'
 import { decryptSecret } from './crypto'
+import { safeFetch, validateEgressUrl } from './egress'
+import { sanitizeResultPayload, scrubSensitiveString } from './fingerprint'
 
 export interface ProviderVerifierContext {
   clientId: string
@@ -31,6 +35,9 @@ export interface ProviderVerifierContext {
   metadata: Record<string, any>
   decryptedSecret: Record<string, any>
   deploymentOperatingParameters?: Record<string, any>
+  executionMode?: ExecutionMode
+  fetchFn?: typeof fetch
+  lookupFn?: (hostname: string) => Promise<string[]>
 }
 
 export interface ProviderVerificationOutcome {
@@ -49,6 +56,12 @@ export interface CertifyIntegrationOptions {
   customVerifier?: ProviderVerifier
   /** Optional custom credential store for test isolation */
   customStore?: CredentialStore
+  /** Execution mode: 'live' triggers live verification network flows when enabled; 'sandbox' does read-only verification */
+  executionMode?: ExecutionMode
+  /** Test-only fetch injection */
+  fetchFn?: typeof fetch
+  /** Test-only DNS lookup injection */
+  lookupFn?: (hostname: string) => Promise<string[]>
 }
 
 export interface CertificationResult {
@@ -192,10 +205,364 @@ export const defaultN8nVerifier: ProviderVerifier = async (ctx) => {
   }
 }
 
+/**
+ * Safe, non-customer-facing live verifier for Google Calendar.
+ * Strictly operates under Phase 5T-E1 execution safety:
+ * - Live gate check (ENABLE_LIVE_EXTERNAL_ADAPTERS === 'true')
+ * - ExecutionMode validation (live vs sandbox)
+ * - Safe read-only metadata check on target calendar (GET /calendars/{calendarId})
+ * - NEVER creates events or sends customer invites
+ * - SSRF egress protection via safeFetch (HTTPS-only, blocks private/cloud metadata IPs, no redirects)
+ * - 5s bounded timeout
+ * - Zero secret leakage in error messages or audit logs
+ */
+export const certifyGoogleCalendarLive: ProviderVerifier = async (ctx) => {
+  // 1. Live Execution Gate check
+  if (process.env.ENABLE_LIVE_EXTERNAL_ADAPTERS !== 'true') {
+    return {
+      success: false,
+      auditDetails: {
+        check: 'live_execution_gate',
+        passed: false,
+        reason: 'Live external adapters globally disabled (ENABLE_LIVE_EXTERNAL_ADAPTERS !== true).',
+      },
+      error: 'Live external execution is globally disabled (ENABLE_LIVE_EXTERNAL_ADAPTERS !== true).',
+    }
+  }
+
+  if (ctx.executionMode && ctx.executionMode !== 'live') {
+    return {
+      success: false,
+      auditDetails: {
+        check: 'live_execution_mode',
+        passed: false,
+        reason: `Live certification rejected: executionMode is "${ctx.executionMode}", expected "live".`,
+      },
+      error: `Live certification rejected: executionMode is "${ctx.executionMode}", expected "live".`,
+    }
+  }
+
+  // 2. Validate calendar_id format
+  const calendarId = ctx.metadata?.calendar_id || ctx.decryptedSecret?.calendarId
+  if (!calendarId || typeof calendarId !== 'string' || (!calendarId.includes('@') && calendarId !== 'primary')) {
+    return {
+      success: false,
+      auditDetails: { check: 'calendar_id_format', passed: false },
+      error: 'Google Calendar requires a valid calendar_id in metadata (e.g. primary or email address).',
+    }
+  }
+
+  // 3. Validate OAuth / service credentials
+  const accessToken = ctx.decryptedSecret?.accessToken || ctx.decryptedSecret?.token
+  const refreshToken = ctx.decryptedSecret?.refreshToken
+  if (!accessToken && !refreshToken) {
+    return {
+      success: false,
+      auditDetails: { check: 'oauth_tokens', passed: false },
+      error: 'Google Calendar requires an accessToken or refreshToken in encrypted payload.',
+    }
+  }
+
+  if (!accessToken && refreshToken) {
+    return {
+      success: false,
+      auditDetails: { check: 'live_token_availability', passed: false },
+      error: 'Google Calendar live certification requires an active accessToken. Token refresh exchange required.',
+    }
+  }
+
+  const secretsToScrub = [
+    accessToken,
+    refreshToken,
+    ctx.decryptedSecret?.clientSecret,
+    ctx.decryptedSecret?.private_key,
+  ].filter(Boolean) as string[]
+
+  // 4. Build safe read-only calendar verification request
+  const baseUrl = (ctx.metadata?.calendarApiBaseUrl || 'https://www.googleapis.com').replace(/\/$/, '')
+  const targetUrl = `${baseUrl}/calendar/v3/calendars/${encodeURIComponent(calendarId)}`
+
+  try {
+    const res = await safeFetch(targetUrl, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+      timeoutMs: 5000,
+      lookupFn: ctx.lookupFn,
+      fetchFn: ctx.fetchFn,
+    })
+
+    if (res.status === 200) {
+      let data: any = {}
+      try {
+        data = await res.json()
+      } catch {
+        data = {}
+      }
+
+      return {
+        success: true,
+        auditDetails: sanitizeResultPayload({
+          check: 'google_calendar_live_verified',
+          passed: true,
+          calendarId,
+          timeZone: data?.timeZone || undefined,
+          summary: data?.summary ? String(data.summary).substring(0, 60) : undefined,
+          verificationMode: 'live_metadata_read',
+        }),
+      }
+    }
+
+    if (res.status === 401) {
+      return {
+        success: false,
+        auditDetails: {
+          check: 'google_calendar_live_verified',
+          passed: false,
+          statusCode: 401,
+          verificationMode: 'live_metadata_read',
+        },
+        error: 'Google Calendar authentication failed: access token is invalid, expired, or revoked (HTTP 401).',
+      }
+    }
+
+    if (res.status === 403) {
+      return {
+        success: false,
+        auditDetails: {
+          check: 'google_calendar_live_verified',
+          passed: false,
+          statusCode: 403,
+          verificationMode: 'live_metadata_read',
+        },
+        error: 'Google Calendar access forbidden: insufficient permissions for calendar (HTTP 403).',
+      }
+    }
+
+    if (res.status === 404) {
+      return {
+        success: false,
+        auditDetails: {
+          check: 'google_calendar_live_verified',
+          passed: false,
+          statusCode: 404,
+          verificationMode: 'live_metadata_read',
+        },
+        error: `Google Calendar not found: specified calendar_id "${calendarId}" does not exist or is inaccessible (HTTP 404).`,
+      }
+    }
+
+    return {
+      success: false,
+      auditDetails: {
+        check: 'google_calendar_live_verified',
+        passed: false,
+        statusCode: res.status,
+        verificationMode: 'live_metadata_read',
+      },
+      error: `Google Calendar live verification returned unexpected HTTP ${res.status}.`,
+    }
+  } catch (err: any) {
+    const rawMsg = err?.message || 'Network error during Google Calendar verification.'
+    const cleanMsg = scrubSensitiveString(rawMsg, secretsToScrub)
+
+    return {
+      success: false,
+      auditDetails: {
+        check: 'google_calendar_live_exception',
+        passed: false,
+        errorType: err?.name || 'Error',
+      },
+      error: cleanMsg,
+    }
+  }
+}
+
+/**
+ * Safe, non-customer-facing live verifier for n8n Webhook Pipeline.
+ * Strictly operates under Phase 5T-E1 execution safety:
+ * - Live gate check (ENABLE_LIVE_EXTERNAL_ADAPTERS === 'true')
+ * - ExecutionMode validation (live vs sandbox)
+ * - Safe ping payload (event: 'integration.certification.ping', test: true)
+ * - NEVER dispatches real customer leads or triggers production workflows
+ * - SSRF egress protection via safeFetch (HTTPS-only, blocks RFC1918, cloud metadata, loopback)
+ * - HMAC SHA-256 signature / API key header generation
+ * - 5s bounded timeout
+ * - Zero secret leakage in error messages or audit logs
+ */
+export const certifyN8nWebhookLive: ProviderVerifier = async (ctx) => {
+  // 1. Live Execution Gate check
+  if (process.env.ENABLE_LIVE_EXTERNAL_ADAPTERS !== 'true') {
+    return {
+      success: false,
+      auditDetails: {
+        check: 'live_execution_gate',
+        passed: false,
+        reason: 'Live external adapters globally disabled (ENABLE_LIVE_EXTERNAL_ADAPTERS !== true).',
+      },
+      error: 'Live external execution is globally disabled (ENABLE_LIVE_EXTERNAL_ADAPTERS !== true).',
+    }
+  }
+
+  if (ctx.executionMode && ctx.executionMode !== 'live') {
+    return {
+      success: false,
+      auditDetails: {
+        check: 'live_execution_mode',
+        passed: false,
+        reason: `Live certification rejected: executionMode is "${ctx.executionMode}", expected "live".`,
+      },
+      error: `Live certification rejected: executionMode is "${ctx.executionMode}", expected "live".`,
+    }
+  }
+
+  // 2. Validate URL formatting
+  const webhookUrl = ctx.metadata?.webhook_url || ctx.decryptedSecret?.webhookUrl
+  if (!webhookUrl || typeof webhookUrl !== 'string' || !webhookUrl.startsWith('https://')) {
+    return {
+      success: false,
+      auditDetails: { check: 'webhook_url_security', passed: false },
+      error: 'n8n integration requires an HTTPS webhook_url in configuration.',
+    }
+  }
+
+  // 3. SSRF pre-flight validation
+  const egressCheck = await validateEgressUrl(webhookUrl, ctx.lookupFn)
+  if (!egressCheck.valid) {
+    return {
+      success: false,
+      auditDetails: {
+        check: 'webhook_url_egress',
+        passed: false,
+        reason: egressCheck.reason,
+      },
+      error: `Egress blocked: ${egressCheck.reason}`,
+    }
+  }
+
+  const signingSecret = ctx.decryptedSecret?.secretKey || ctx.decryptedSecret?.apiKey
+  const apiKey = ctx.decryptedSecret?.apiKey
+
+  const secretsToScrub = [
+    signingSecret,
+    apiKey,
+    ctx.decryptedSecret?.token,
+  ].filter(Boolean) as string[]
+
+  // 4. Safe non-customer-facing certification payload
+  const pingPayload = {
+    event: 'integration.certification.ping',
+    provider: 'n8n',
+    clientId: ctx.clientId,
+    deploymentId: ctx.deploymentId,
+    timestamp: new Date().toISOString(),
+    test: true,
+  }
+  const payloadJson = JSON.stringify(pingPayload)
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'X-Grovaitech-Event': 'integration.certification.ping',
+  }
+
+  if (signingSecret && typeof signingSecret === 'string') {
+    const hmac = crypto.createHmac('sha256', signingSecret).update(payloadJson).digest('hex')
+    headers['X-Grovaitech-Signature'] = `sha256=${hmac}`
+  }
+
+  if (apiKey && typeof apiKey === 'string') {
+    headers['X-API-Key'] = apiKey
+  }
+
+  // 5. Dispatch via safeFetch
+  try {
+    const res = await safeFetch(webhookUrl, {
+      method: 'POST',
+      headers,
+      body: payloadJson,
+      timeoutMs: 5000,
+      lookupFn: ctx.lookupFn,
+      fetchFn: ctx.fetchFn,
+    })
+
+    if (res.ok) {
+      return {
+        success: true,
+        auditDetails: sanitizeResultPayload({
+          check: 'n8n_live_webhook_verified',
+          passed: true,
+          statusCode: res.status,
+          hasSigningSecret: !!signingSecret,
+          verificationMode: 'live_webhook_ping',
+        }),
+      }
+    }
+
+    if (res.status === 401 || res.status === 403) {
+      return {
+        success: false,
+        auditDetails: {
+          check: 'n8n_live_webhook_verified',
+          passed: false,
+          statusCode: res.status,
+          verificationMode: 'live_webhook_ping',
+        },
+        error: `n8n webhook authentication rejected with status ${res.status}. Valid signing secret or API key required.`,
+      }
+    }
+
+    if (res.status === 404) {
+      return {
+        success: false,
+        auditDetails: {
+          check: 'n8n_live_webhook_verified',
+          passed: false,
+          statusCode: 404,
+          verificationMode: 'live_webhook_ping',
+        },
+        error: 'n8n webhook endpoint not found (HTTP 404). Verify webhook URL path.',
+      }
+    }
+
+    return {
+      success: false,
+      auditDetails: {
+        check: 'n8n_live_webhook_verified',
+        passed: false,
+        statusCode: res.status,
+        verificationMode: 'live_webhook_ping',
+      },
+      error: `n8n server returned HTTP ${res.status}.`,
+    }
+  } catch (err: any) {
+    const rawMsg = err?.message || 'Network error during n8n webhook certification.'
+    const cleanMsg = scrubSensitiveString(rawMsg, secretsToScrub)
+
+    return {
+      success: false,
+      auditDetails: {
+        check: 'n8n_live_webhook_exception',
+        passed: false,
+        errorType: err?.name || 'Error',
+      },
+      error: cleanMsg,
+    }
+  }
+}
+
 const DEFAULT_VERIFIERS: Record<IntegrationProvider, ProviderVerifier> = {
   meta_whatsapp: defaultWhatsAppVerifier,
   google_calendar: defaultCalendarVerifier,
   n8n: defaultN8nVerifier,
+}
+
+const LIVE_VERIFIERS: Record<IntegrationProvider, ProviderVerifier> = {
+  meta_whatsapp: defaultWhatsAppVerifier,
+  google_calendar: certifyGoogleCalendarLive,
+  n8n: certifyN8nWebhookLive,
 }
 
 /**
@@ -210,7 +577,16 @@ const DEFAULT_VERIFIERS: Record<IntegrationProvider, ProviderVerifier> = {
 export async function certifyIntegration(
   options: CertifyIntegrationOptions
 ): Promise<CertificationResult> {
-  const { clientId, deploymentId, provider, customVerifier, customStore } = options
+  const {
+    clientId,
+    deploymentId,
+    provider,
+    customVerifier,
+    customStore,
+    executionMode,
+    fetchFn,
+    lookupFn,
+  } = options
   const now = new Date().toISOString()
 
   const cleanClientId = clientId?.trim()
@@ -374,7 +750,8 @@ export async function certifyIntegration(
   }
 
   // 5. Execute safe provider verification
-  const verifier = customVerifier || DEFAULT_VERIFIERS[provider]
+  const isLive = executionMode === 'live'
+  const verifier = customVerifier || (isLive ? LIVE_VERIFIERS[provider] : DEFAULT_VERIFIERS[provider])
   const operatingParams = deployment.runtime_config?.operating_parameters || {}
 
   let verificationOutcome: ProviderVerificationOutcome
@@ -386,12 +763,23 @@ export async function certifyIntegration(
       metadata: credRecord.metadata || {},
       decryptedSecret,
       deploymentOperatingParameters: operatingParams,
+      executionMode,
+      fetchFn,
+      lookupFn,
     })
   } catch (verErr: any) {
+    const rawError = verErr?.message || 'Unexpected exception during provider verification.'
+    const cleanError = scrubSensitiveString(rawError, [
+      decryptedSecret?.accessToken,
+      decryptedSecret?.token,
+      decryptedSecret?.refreshToken,
+      decryptedSecret?.secretKey,
+      decryptedSecret?.apiKey,
+    ])
     verificationOutcome = {
       success: false,
       auditDetails: { check: 'verifier_exception', passed: false },
-      error: verErr?.message || 'Unexpected exception during provider verification.',
+      error: cleanError,
     }
   }
 

@@ -29,6 +29,8 @@ export interface SafeFetchOptions extends Omit<RequestInit, 'redirect'> {
   timeoutMs?: number
   /** Custom DNS resolver override for testing/mocking */
   lookupFn?: (hostname: string) => Promise<string[]>
+  /** Custom fetch override for testing/mocking */
+  fetchFn?: typeof fetch
 }
 
 /**
@@ -230,7 +232,7 @@ export async function safeFetch(
   urlStr: string,
   options: SafeFetchOptions = {}
 ): Promise<Response> {
-  const { timeoutMs = 5000, lookupFn, ...fetchOptions } = options
+  const { timeoutMs = 5000, lookupFn, fetchFn, ...fetchOptions } = options
 
   // Validate egress constraints
   const validation = await validateEgressUrl(urlStr, lookupFn)
@@ -243,7 +245,8 @@ export async function safeFetch(
   const timeoutId = setTimeout(() => controller.abort(), boundedTimeout)
 
   try {
-    const res = await fetch(validation.url.toString(), {
+    const fetchImpl = fetchFn || fetch
+    const res = await fetchImpl(validation.url.toString(), {
       ...fetchOptions,
       redirect: 'error', // Prevent redirects to prevent SSRF bypass
       signal: controller.signal,

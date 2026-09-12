@@ -32,6 +32,8 @@ import {
   completeExternalOperation,
 } from './idempotency'
 import { sanitizeResultPayload } from './fingerprint'
+import { dispatchTenantCalendarEvent } from './calendar-adapter'
+import { dispatchTenantN8nWebhook } from './n8n-adapter'
 
 export interface ResolveAdaptersOptions {
   clientId?: string
@@ -243,6 +245,28 @@ export function resolveExternalAdapters(
         claimStatus: claim.status,
       })
 
+      if (gateCheck.allowed) {
+        const liveResult = await dispatchTenantCalendarEvent({
+          clientId: ctx.clientId!,
+          deploymentId: ctx.deploymentId!,
+          summary: payload?.summary || `Event for ${payload?.date || 'requested slot'}`,
+          startTime: payload?.startTime || new Date().toISOString(),
+          endTime: payload?.endTime || new Date(Date.now() + 3600000).toISOString(),
+          attendeeEmail: payload?.attendeeEmail,
+          description: payload?.description,
+          businessOperationId: ctx.businessOperationId,
+          workflowStepId: ctx.workflowStepId,
+          executionMode: ctx.executionMode,
+        })
+
+        const mappedStatus: 'success' | 'failed' | 'simulated' =
+          liveResult.status === 'succeeded' ? 'success' : liveResult.status === 'simulated' ? 'simulated' : 'failed'
+        return {
+          status: mappedStatus,
+          detail: liveResult.safeMessage || `Google Calendar event ${liveResult.status}.`,
+        }
+      }
+
       if (claim.operationId && claim.status === 'claimed') {
         await transitionToProcessing(claim.operationId, ctx)
         await completeExternalOperation(
@@ -320,6 +344,25 @@ export function resolveExternalAdapters(
         hasExecutionPermission: claim.hasExecutionPermission,
         claimStatus: claim.status,
       })
+
+      if (gateCheck.allowed) {
+        const liveResult = await dispatchTenantN8nWebhook({
+          clientId: ctx.clientId!,
+          deploymentId: ctx.deploymentId!,
+          payload: payload || {},
+          event: payload?.event || 'pipeline.dispatch',
+          businessOperationId: ctx.businessOperationId,
+          workflowStepId: ctx.workflowStepId,
+          executionMode: ctx.executionMode,
+        })
+
+        const mappedStatus: 'success' | 'failed' | 'simulated' =
+          liveResult.status === 'succeeded' ? 'success' : liveResult.status === 'simulated' ? 'simulated' : 'failed'
+        return {
+          status: mappedStatus,
+          detail: liveResult.safeMessage || `n8n webhook ${liveResult.status}.`,
+        }
+      }
 
       if (claim.operationId && claim.status === 'claimed') {
         await transitionToProcessing(claim.operationId, ctx)

@@ -10,7 +10,7 @@
 
 import crypto from 'crypto'
 
-const SENSITIVE_KEY_PATTERN = /^(authorization|token|access_token|refresh_token|secret|api_key|apikey|password|bearer|credential|credentials|private_key|privatekey|certificate)$/i
+const SENSITIVE_KEY_PATTERN = /^(authorization|token|access_?token|refresh_?token|secret|secret_?key|api_?key|apikey|password|bearer|credential|credentials|private_?key|privatekey|certificate)$/i
 
 /**
  * Recursively canonicalizes any JSON-compatible value:
@@ -93,4 +93,21 @@ export function sanitizeResultPayload(val: any): any {
   }
 
   return val
+}
+
+/**
+ * Strips sensitive substrings, tokens, and authorization headers from strings/error messages.
+ */
+export function scrubSensitiveString(message: string, secrets: (string | undefined | null)[] = []): string {
+  if (!message) return ''
+  let scrubbed = String(message)
+  for (const secret of secrets) {
+    if (secret && typeof secret === 'string' && secret.trim().length >= 3) {
+      scrubbed = scrubbed.split(secret).join('[REDACTED]')
+    }
+  }
+  // Generic token, bearer, and credential scrub patterns
+  scrubbed = scrubbed.replace(/Bearer\s+[A-Za-z0-9_\-\.]+/gi, 'Bearer [REDACTED]')
+  scrubbed = scrubbed.replace(/(?:key|token|secret|password|apikey)=([A-Za-z0-9_\-\.]+)/gi, '$1=[REDACTED]')
+  return scrubbed
 }
