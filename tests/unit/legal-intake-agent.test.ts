@@ -394,7 +394,7 @@ describe('Legal Intake Agent (emp-007) & WF-006 Vertical Slice', () => {
   // ─── 13. Regression Protection ─────────────────────────────────────────────
   it('13. maintains regression safety across all previous AI employees and workflows', () => {
     const allEmployees = getCanonicalEmployees()
-    expect(allEmployees).toHaveLength(11)
+    expect(allEmployees).toHaveLength(12)
 
     const empSlugs = allEmployees.map((e) => e.slug)
     expect(empSlugs).toContain('real-estate-lead-receptionist') // emp-001

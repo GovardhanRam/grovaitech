@@ -107,6 +107,41 @@ export interface SearchKnowledgeBaseParams {
   max_results?: number
 }
 
+export interface AuditGbpProfileParams {
+  business_name: string
+  category?: string
+  address_nap?: string
+  phone?: string
+  website?: string
+  hours?: string
+  rating_info?: string
+  services_products?: string
+  attributes?: string
+  photos_media_info?: string
+  completeness_score_info?: string
+}
+
+export interface DraftReviewReplyParams {
+  review_text: string
+  rating: number
+  reviewer_name?: string
+  business_name: string
+  desired_tone?: 'professional' | 'warm' | 'empathetic' | 'apologetic' | 'grateful'
+  relevant_context?: string
+  response_constraints?: string
+}
+
+export interface CreateGbpPostParams {
+  business_name: string
+  post_topic: string
+  offer_event_details: string
+  target_audience?: string
+  call_to_action: 'book' | 'order_online' | 'buy' | 'learn_more' | 'sign_up' | 'call_now'
+  desired_tone?: 'engaging' | 'professional' | 'promotional' | 'urgent'
+  keywords?: string
+  validity_date_info?: string
+}
+
 // Re-export type alias for backwards compatibility
 export type GeminiFunctionDeclaration = FunctionDeclaration
 export type GeminiTool = FunctionDeclarationsTool
@@ -625,6 +660,164 @@ export const BOOK_FINANCIAL_CONSULTATION_TOOL: FunctionDeclaration = {
   },
 }
 
+export const AUDIT_GBP_PROFILE_TOOL: FunctionDeclaration = {
+  name: 'audit_gbp_profile',
+  description:
+    'Audits a Google Business Profile listing snapshot for completeness, NAP consistency, category relevance, business hours, photos, ratings, and local 3-pack visibility bottlenecks.',
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      business_name: {
+        type: SchemaType.STRING,
+        description: 'Full name of the local business listed on Google Business Profile.',
+      },
+      category: {
+        type: SchemaType.STRING,
+        description:
+          'Primary or secondary business categories assigned to the profile (e.g., Dental Clinic, HVAC Contractor, Italian Restaurant).',
+      },
+      address_nap: {
+        type: SchemaType.STRING,
+        description:
+          'Name, Address, and Phone (NAP) listing details for consistency checking across directories.',
+      },
+      phone: {
+        type: SchemaType.STRING,
+        description: 'Primary public contact phone number associated with the listing.',
+      },
+      website: {
+        type: SchemaType.STRING,
+        description: 'Official website URL linked on the Google Business Profile.',
+      },
+      hours: {
+        type: SchemaType.STRING,
+        description: 'Operating business hours and holiday availability schedule.',
+      },
+      rating_info: {
+        type: SchemaType.STRING,
+        description:
+          'Current Google rating score and total review volume (e.g. 4.7 stars across 128 reviews).',
+      },
+      services_products: {
+        type: SchemaType.STRING,
+        description: 'Services or products listed in the Google Business Profile service menu.',
+      },
+      attributes: {
+        type: SchemaType.STRING,
+        description:
+          'Special business attributes (e.g., Wheelchair Accessible, Wi-Fi, Outdoor Seating, On-site Services).',
+      },
+      photos_media_info: {
+        type: SchemaType.STRING,
+        description:
+          'Photo and media coverage summary (cover photo, interior/exterior shots, logo presence).',
+      },
+      completeness_score_info: {
+        type: SchemaType.STRING,
+        description:
+          'Self-reported or estimated profile completeness notes and missing profile section details.',
+      },
+    },
+    required: ['business_name'],
+  },
+}
+
+export const DRAFT_REVIEW_REPLY_TOOL: FunctionDeclaration = {
+  name: 'draft_review_reply',
+  description:
+    'Drafts a professional, empathetic, and brand-consistent reply to a customer review on Google Business Profile. De-escalates negative reviews safely without disclosing private customer PII.',
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      review_text: {
+        type: SchemaType.STRING,
+        description: 'Full text content of the customer review submitted on Google.',
+      },
+      rating: {
+        type: SchemaType.INTEGER,
+        description: 'Star rating given by the reviewer (1 to 5 stars).',
+      },
+      reviewer_name: {
+        type: SchemaType.STRING,
+        description: 'Public name of the customer who posted the review.',
+      },
+      business_name: {
+        type: SchemaType.STRING,
+        description: 'Name of the business responding to the review.',
+      },
+      desired_tone: {
+        type: SchemaType.STRING,
+        format: 'enum',
+        enum: ['professional', 'warm', 'empathetic', 'apologetic', 'grateful'],
+        description: 'Desired emotional tone for the review response.',
+      },
+      relevant_context: {
+        type: SchemaType.STRING,
+        description:
+          'Internal operational context or background regarding the customer incident or service visit.',
+      },
+      response_constraints: {
+        type: SchemaType.STRING,
+        description:
+          'Specific constraints or instructions (e.g., offer direct email for offline resolution, include discount code policy, do not mention specific staff name).',
+      },
+    },
+    required: ['review_text', 'rating', 'business_name'],
+  },
+}
+
+export const CREATE_GBP_POST_TOOL: FunctionDeclaration = {
+  name: 'create_gbp_post',
+  description:
+    'Drafts a Google Business Profile local post update, promotional offer, or event announcement designed to engage local searchers and drive website or store traffic.',
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      business_name: {
+        type: SchemaType.STRING,
+        description: 'Name of the local business publishing the post.',
+      },
+      post_topic: {
+        type: SchemaType.STRING,
+        description:
+          'Main theme or topic of the local post (e.g. Seasonal HVAC Maintenance Offer, New Dental Doctor Introduction).',
+      },
+      offer_event_details: {
+        type: SchemaType.STRING,
+        description:
+          'Key details of the promotion, discount, event, or announcement to highlight in the post.',
+      },
+      target_audience: {
+        type: SchemaType.STRING,
+        description:
+          'Target local customer segment (e.g., Homeowners in Salem, Families looking for cosmetic dentistry).',
+      },
+      call_to_action: {
+        type: SchemaType.STRING,
+        format: 'enum',
+        enum: ['book', 'order_online', 'buy', 'learn_more', 'sign_up', 'call_now'],
+        description: 'Primary action button type for the Google Business Profile post.',
+      },
+      desired_tone: {
+        type: SchemaType.STRING,
+        format: 'enum',
+        enum: ['engaging', 'professional', 'promotional', 'urgent'],
+        description: 'Desired copywriting tone for the local post.',
+      },
+      keywords: {
+        type: SchemaType.STRING,
+        description: 'Local SEO keywords to naturally incorporate into the post body.',
+      },
+      validity_date_info: {
+        type: SchemaType.STRING,
+        description:
+          'Start and end dates or expiration details for promotional offers or events.',
+      },
+    },
+    required: ['business_name', 'post_topic', 'offer_event_details', 'call_to_action'],
+  },
+}
+
 // ─── Tool Name Constants ────────────────────────────────────────────────────
 
 export const TOOL_NAMES = {
@@ -639,6 +832,9 @@ export const TOOL_NAMES = {
   LOOKUP_ORDER_AND_SUPPORT: 'lookup_order_and_support',
   SCHEDULE_ONBOARDING_INDUCTION: 'schedule_onboarding_induction',
   BOOK_FINANCIAL_CONSULTATION: 'book_financial_consultation',
+  AUDIT_GBP_PROFILE: 'audit_gbp_profile',
+  DRAFT_REVIEW_REPLY: 'draft_review_reply',
+  CREATE_GBP_POST: 'create_gbp_post',
 } as const
 
 export type ToolName = typeof TOOL_NAMES[keyof typeof TOOL_NAMES]
@@ -657,6 +853,9 @@ export const TOOL_REGISTRY: Record<ToolName, FunctionDeclaration> = {
   [TOOL_NAMES.LOOKUP_ORDER_AND_SUPPORT]: LOOKUP_ORDER_AND_SUPPORT_TOOL,
   [TOOL_NAMES.SCHEDULE_ONBOARDING_INDUCTION]: SCHEDULE_ONBOARDING_INDUCTION_TOOL,
   [TOOL_NAMES.BOOK_FINANCIAL_CONSULTATION]: BOOK_FINANCIAL_CONSULTATION_TOOL,
+  [TOOL_NAMES.AUDIT_GBP_PROFILE]: AUDIT_GBP_PROFILE_TOOL,
+  [TOOL_NAMES.DRAFT_REVIEW_REPLY]: DRAFT_REVIEW_REPLY_TOOL,
+  [TOOL_NAMES.CREATE_GBP_POST]: CREATE_GBP_POST_TOOL,
 }
 
 export const ALL_GROVAITECH_TOOLS: FunctionDeclaration[] = Object.values(TOOL_REGISTRY)
@@ -715,4 +914,11 @@ export const FINANCIAL_TOOLS: FunctionDeclaration[] = [
   TOOL_REGISTRY.book_financial_consultation,
   TOOL_REGISTRY.search_knowledge_base,
   TOOL_REGISTRY.escalate_to_human,
+]
+
+export const GBP_TOOLS: FunctionDeclaration[] = [
+  TOOL_REGISTRY.audit_gbp_profile,
+  TOOL_REGISTRY.draft_review_reply,
+  TOOL_REGISTRY.create_gbp_post,
+  TOOL_REGISTRY.search_knowledge_base,
 ]

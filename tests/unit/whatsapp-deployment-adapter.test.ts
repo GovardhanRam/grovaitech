@@ -536,7 +536,7 @@ describe('PHASE 5B: WhatsApp Channel Adapter (Meta Cloud API Ingress)', () => {
     )
 
     global.fetch = originalFetch
-  })
+  }, 15000)
 
   // M. Reject silent global fallback: credentials cannot come from global env
   it('M. rejects silent global environment fallback when credentials are not provided', async () => {

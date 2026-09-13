@@ -9,10 +9,10 @@ import {
 import { resolveAuthorizedTools, getDefaultSystemPrompt } from '@/lib/ai/runtime'
 
 describe('lib/employees/registry - Canonical AI Employee Control Plane', () => {
-  it('1. returns exactly 11 canonical employees', () => {
+  it('1. returns exactly 12 canonical employees', () => {
     const list = getCanonicalEmployees()
-    expect(list).toHaveLength(11)
-    expect(CANONICAL_EMPLOYEES).toHaveLength(11)
+    expect(list).toHaveLength(12)
+    expect(CANONICAL_EMPLOYEES).toHaveLength(12)
   })
 
   it('2. verifies real-estate-lead-receptionist is live, demo-enabled, and has tools bound', () => {
@@ -90,5 +90,19 @@ describe('lib/employees/registry - Canonical AI Employee Control Plane', () => {
 
     const keywordPrompt = getDefaultSystemPrompt('residential-hvac-support')
     expect(keywordPrompt).toContain('SAFETY & HAZARD ESCALATION')
+  })
+
+  it('8. verifies gbp-growth-manager is live, demo-enabled, with authorized tools and prompt', () => {
+    const emp = getCanonicalEmployeeBySlug('gbp-growth-manager')
+    expect(emp).toBeDefined()
+    expect(emp?.id).toBe('emp-012')
+    expect(emp?.title).toBe('GBP Growth & Reputation Manager')
+    expect(emp?.status).toBe('live')
+    expect(emp?.department).toBe('Marketing & Local SEO')
+    expect(emp?.industry).toBe('Local Businesses')
+    expect(emp?.demo_config.enabled).toBe(true)
+    expect(emp?.tools).toEqual(['audit_gbp_profile', 'draft_review_reply', 'create_gbp_post', 'search_knowledge_base'])
+    expect(emp?.system_prompt).toContain('Google Business Profile Growth & Reputation Manager')
+    expect(emp?.system_prompt).toContain('NO FALSE MODIFICATION CLAIMS')
   })
 })

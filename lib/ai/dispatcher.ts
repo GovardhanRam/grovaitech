@@ -53,6 +53,9 @@ import {
   type LookupOrderAndSupportParams,
   type ScheduleOnboardingInductionParams,
   type BookFinancialConsultationParams,
+  type AuditGbpProfileParams,
+  type DraftReviewReplyParams,
+  type CreateGbpPostParams,
 } from '@/lib/ai/tools'
 
 // ─── Dispatcher Response Interfaces ──────────────────────────────────────────
@@ -1196,6 +1199,381 @@ async function handleBookFinancialConsultation(rawArgs: Record<string, any>): Pr
   })
 }
 
+/**
+ * Handler for 'audit_gbp_profile'
+ */
+async function handleAuditGbpProfile(
+  rawArgs: Record<string, any>,
+  context?: DispatcherContext
+) {
+  // 1. Tenant Security & Authorization Guardrails
+  const authorizedClientId = context?.authorizedClientId || rawArgs.authorizedClientId || null
+  const requestedClientId = rawArgs.clientId || rawArgs.client_id || null
+
+  if (authorizedClientId && requestedClientId && authorizedClientId !== requestedClientId) {
+    throw new Error(
+      `Security Violation: Requested tenant '${requestedClientId}' does not match authorized tenant '${authorizedClientId}'.`
+    )
+  }
+  if (!authorizedClientId && requestedClientId) {
+    throw new Error(
+      `Security Violation: Unauthorized tenant request. Client identifier '${requestedClientId}' cannot be accessed without verified tenant authorization.`
+    )
+  }
+
+  // 2. Validate and sanitize parameters
+  const p = validateParams(rawArgs, {
+    business_name: {
+      type: 'string',
+      required: true,
+      minLength: 2,
+      maxLength: 150,
+      requiredMessage: "Validation Error: 'business_name' is required for GBP profile audit.",
+      minLengthMessage: "Validation Error: 'business_name' must be at least 2 characters.",
+    },
+    category: { type: 'string', maxLength: 100 },
+    address_nap: { type: 'string', maxLength: 300 },
+    phone: { type: 'phone', maxLength: 30 },
+    website: { type: 'string', maxLength: 200 },
+    hours: { type: 'string', maxLength: 200 },
+    rating_info: { type: 'string', maxLength: 200 },
+    services_products: { type: 'string', maxLength: 500 },
+    attributes: { type: 'string', maxLength: 500 },
+    photos_media_info: { type: 'string', maxLength: 300 },
+    completeness_score_info: { type: 'string', maxLength: 300 },
+  })
+
+  // 3. Compute deterministic profile audit dimensions
+  let score = 30 // baseline for business name present
+  const missingSections: string[] = []
+  const detectedStrengths: string[] = ['Business name provided']
+
+  if (p.category) {
+    score += 15
+    detectedStrengths.push(`Category set: ${p.category}`)
+  } else {
+    missingSections.push('Primary business category missing')
+  }
+
+  if (p.address_nap || p.phone) {
+    score += 15
+    detectedStrengths.push('NAP / Contact information specified')
+  } else {
+    missingSections.push('NAP / Contact phone & address details incomplete')
+  }
+
+  if (p.website) {
+    score += 10
+    detectedStrengths.push(`Website link present: ${p.website}`)
+  } else {
+    missingSections.push('Website URL not linked to GBP profile')
+  }
+
+  if (p.hours) {
+    score += 10
+    detectedStrengths.push('Operating hours configured')
+  } else {
+    missingSections.push('Regular and holiday operating hours unlisted')
+  }
+
+  if (p.services_products) {
+    score += 10
+    detectedStrengths.push('Services & products menu items present')
+  } else {
+    missingSections.push('Service menu / product catalog incomplete')
+  }
+
+  if (p.photos_media_info) {
+    score += 10
+    detectedStrengths.push('Photo coverage details provided')
+  } else {
+    missingSections.push('Cover photo, exterior shots, or team photos missing')
+  }
+
+  const recommendations: string[] = []
+  if (!p.category) {
+    recommendations.push(
+      'Select a specific primary business category (e.g. Dental Clinic, HVAC Contractor) to optimize local search relevance.'
+    )
+  }
+  if (!p.hours) {
+    recommendations.push(
+      'Add complete weekly operating hours and holiday schedules to prevent customer drop-off.'
+    )
+  }
+  if (!p.photos_media_info) {
+    recommendations.push(
+      'Upload high-quality exterior, interior, and service photos to improve customer trust and click-through rates.'
+    )
+  }
+  if (!p.services_products) {
+    recommendations.push(
+      'Populate the GBP service menu with clear service titles, descriptions, and pricing ranges.'
+    )
+  }
+  if (!p.attributes) {
+    recommendations.push(
+      'Add relevant business attributes (e.g. Wheelchair Accessible, Appointments Required, On-site Services).'
+    )
+  }
+  if (recommendations.length === 0) {
+    recommendations.push(
+      'Maintain active review generation campaigns and post weekly GBP updates to retain local 3-pack dominance.'
+    )
+  }
+
+  const executionMode = context?.executionMode || 'sandbox'
+
+  return {
+    business_name: p.business_name,
+    category: p.category || 'Not Specified',
+    completeness_score: Math.min(100, score),
+    profile_completeness_assessment: `Profile Completeness: ${Math.min(
+      100,
+      score
+    )}/100. ${
+      missingSections.length > 0
+        ? `Missing: ${missingSections.join('; ')}.`
+        : 'Listing is well-optimized.'
+    }`,
+    nap_information: {
+      provided_nap: p.address_nap || 'Unspecified',
+      phone: p.phone || 'Unspecified',
+      website: p.website || 'Unspecified',
+      status: p.address_nap && p.phone ? 'consistent' : 'incomplete',
+    },
+    operating_hours_assessment: p.hours
+      ? `Hours listed: ${p.hours}`
+      : 'Hours missing from profile.',
+    services_products_assessment: p.services_products
+      ? `Service catalog: ${p.services_products}`
+      : 'No services or products listed.',
+    attributes_evaluation: p.attributes
+      ? `Attributes: ${p.attributes}`
+      : 'No attributes configured.',
+    photos_and_media: p.photos_media_info
+      ? `Media coverage: ${p.photos_media_info}`
+      : 'No media coverage details provided.',
+    reputation_and_rating: p.rating_info
+      ? `Rating data: ${p.rating_info}`
+      : 'No rating or review volume info provided.',
+    prioritized_recommendations: recommendations,
+    detected_strengths: detectedStrengths,
+    missing_sections: missingSections,
+    executionMode,
+    isSimulated: true,
+    published: false,
+    disclaimer:
+      'SANDBOX AUDIT DEMO: This is a simulated audit recommendation based on supplied profile data. No live Google Business Profile API calls or account modifications were executed.',
+  }
+}
+
+/**
+ * Handler for 'draft_review_reply'
+ */
+async function handleDraftReviewReply(
+  rawArgs: Record<string, any>,
+  context?: DispatcherContext
+) {
+  // 1. Tenant Security & Authorization Guardrails
+  const authorizedClientId = context?.authorizedClientId || rawArgs.authorizedClientId || null
+  const requestedClientId = rawArgs.clientId || rawArgs.client_id || null
+
+  if (authorizedClientId && requestedClientId && authorizedClientId !== requestedClientId) {
+    throw new Error(
+      `Security Violation: Requested tenant '${requestedClientId}' does not match authorized tenant '${authorizedClientId}'.`
+    )
+  }
+  if (!authorizedClientId && requestedClientId) {
+    throw new Error(
+      `Security Violation: Unauthorized tenant request. Client identifier '${requestedClientId}' cannot be accessed without verified tenant authorization.`
+    )
+  }
+
+  // 2. Validate rating specifically before schema validation
+  const rawRating = rawArgs?.rating
+  if (
+    rawRating === undefined ||
+    rawRating === null ||
+    typeof rawRating !== 'number' ||
+    !Number.isInteger(rawRating) ||
+    rawRating < 1 ||
+    rawRating > 5
+  ) {
+    throw new Error("Validation Error: 'rating' must be an integer between 1 and 5.")
+  }
+
+  // 3. Validate string parameters
+  const p = validateParams(rawArgs, {
+    review_text: {
+      type: 'string',
+      required: true,
+      minLength: 3,
+      maxLength: 1000,
+      requiredMessage: "Validation Error: 'review_text' is required to draft a review reply.",
+      minLengthMessage: "Validation Error: 'review_text' must be at least 3 characters.",
+    },
+    business_name: {
+      type: 'string',
+      required: true,
+      minLength: 2,
+      maxLength: 150,
+      requiredMessage: "Validation Error: 'business_name' is required to draft a review reply.",
+      minLengthMessage: "Validation Error: 'business_name' must be at least 2 characters.",
+    },
+    reviewer_name: { type: 'string', maxLength: 100, default: 'Valued Customer' },
+    desired_tone: {
+      type: 'string',
+      enum: ['professional', 'warm', 'empathetic', 'apologetic', 'grateful'],
+      default: rawRating <= 2 ? 'apologetic' : rawRating === 3 ? 'professional' : 'grateful',
+    },
+    relevant_context: { type: 'string', maxLength: 500 },
+    response_constraints: { type: 'string', maxLength: 500 },
+  })
+
+  // 4. Draft response based on tone, rating, and context (without revealing private PII)
+  const reviewerDisplay =
+    p.reviewer_name && p.reviewer_name !== 'Valued Customer' ? p.reviewer_name : 'Valued Customer'
+  let draftReply = ''
+
+  if (rawRating <= 2) {
+    draftReply = `Dear ${reviewerDisplay}, thank you for taking the time to share your feedback with us at ${p.business_name}. We are sincerely sorry to hear about your experience. Providing high-quality service is our top priority, and we regret falling short of your expectations. Please reach out to our management team directly so we can understand what happened and address your concerns offline.`
+  } else if (rawRating === 3) {
+    draftReply = `Hello ${reviewerDisplay}, thank you for your review of ${p.business_name}. We appreciate your honest feedback. We are always striving to improve our customer experience, and we would love to learn more about how we can make your next visit a 5-star experience.`
+  } else {
+    draftReply = `Hi ${reviewerDisplay}! Thank you so much for the wonderful ${rawRating}-star review! The team at ${p.business_name} is thrilled to hear that you had a great experience with us. We look forward to serving you again soon!`
+  }
+
+  if (p.relevant_context) {
+    draftReply += ` Note: ${p.relevant_context.slice(0, 100)}`
+  }
+
+  const executionMode = context?.executionMode || 'sandbox'
+
+  return {
+    business_name: p.business_name,
+    reviewer_name: reviewerDisplay,
+    rating: rawRating,
+    review_text: p.review_text,
+    desired_tone: p.desired_tone,
+    draft_reply: draftReply,
+    isDraft: true,
+    published: false,
+    executionMode,
+    disclaimer:
+      'SANDBOX DRAFT DEMO: This is a generated review response draft. The response has NOT been published to Google Business Profile.',
+  }
+}
+
+/**
+ * Handler for 'create_gbp_post'
+ */
+async function handleCreateGbpPost(
+  rawArgs: Record<string, any>,
+  context?: DispatcherContext
+) {
+  // 1. Tenant Security & Authorization Guardrails
+  const authorizedClientId = context?.authorizedClientId || rawArgs.authorizedClientId || null
+  const requestedClientId = rawArgs.clientId || rawArgs.client_id || null
+
+  if (authorizedClientId && requestedClientId && authorizedClientId !== requestedClientId) {
+    throw new Error(
+      `Security Violation: Requested tenant '${requestedClientId}' does not match authorized tenant '${authorizedClientId}'.`
+    )
+  }
+  if (!authorizedClientId && requestedClientId) {
+    throw new Error(
+      `Security Violation: Unauthorized tenant request. Client identifier '${requestedClientId}' cannot be accessed without verified tenant authorization.`
+    )
+  }
+
+  // 2. Validate parameters
+  const p = validateParams(rawArgs, {
+    business_name: {
+      type: 'string',
+      required: true,
+      minLength: 2,
+      maxLength: 150,
+      requiredMessage: "Validation Error: 'business_name' is required to draft a local post.",
+      minLengthMessage: "Validation Error: 'business_name' must be at least 2 characters.",
+    },
+    post_topic: {
+      type: 'string',
+      required: true,
+      minLength: 3,
+      maxLength: 200,
+      requiredMessage: "Validation Error: 'post_topic' is required to draft a local post.",
+      minLengthMessage: "Validation Error: 'post_topic' must be at least 3 characters.",
+    },
+    offer_event_details: {
+      type: 'string',
+      required: true,
+      minLength: 3,
+      maxLength: 500,
+      requiredMessage: "Validation Error: 'offer_event_details' is required to draft a local post.",
+      minLengthMessage: "Validation Error: 'offer_event_details' must be at least 3 characters.",
+    },
+    call_to_action: {
+      type: 'string',
+      required: true,
+      strictEnum: true,
+      enum: ['book', 'order_online', 'buy', 'learn_more', 'sign_up', 'call_now'],
+      requiredMessage: "Validation Error: 'call_to_action' is required.",
+      enumMessage:
+        "Validation Error: 'call_to_action' must be one of: book, order_online, buy, learn_more, sign_up, call_now.",
+    },
+    target_audience: { type: 'string', maxLength: 200 },
+    desired_tone: {
+      type: 'string',
+      enum: ['engaging', 'professional', 'promotional', 'urgent'],
+      default: 'engaging',
+    },
+    keywords: { type: 'string', maxLength: 300 },
+    validity_date_info: { type: 'string', maxLength: 200 },
+  })
+
+  // CTA button label mapping
+  const ctaMap: Record<string, string> = {
+    book: 'Book Now',
+    order_online: 'Order Online',
+    buy: 'Buy Now',
+    learn_more: 'Learn More',
+    sign_up: 'Sign Up',
+    call_now: 'Call Now',
+  }
+  const ctaButton = ctaMap[p.call_to_action] || 'Learn More'
+
+  // Draft post content incorporating details and keywords naturally
+  let postContent = `📢 ${p.post_topic} | ${p.business_name}\n\n${p.offer_event_details}`
+
+  if (p.validity_date_info) {
+    postContent += `\n\n⏰ Valid: ${p.validity_date_info}`
+  }
+  if (p.keywords) {
+    postContent += `\n\nTags: ${p.keywords}`
+  }
+  postContent += `\n\n👉 Click "${ctaButton}" to get started!`
+
+  const executionMode = context?.executionMode || 'sandbox'
+
+  return {
+    business_name: p.business_name,
+    post_topic: p.post_topic,
+    offer_event_details: p.offer_event_details,
+    call_to_action: p.call_to_action,
+    cta_button: ctaButton,
+    desired_tone: p.desired_tone,
+    keywords: p.keywords || null,
+    validity_date_info: p.validity_date_info || null,
+    draft_post_content: postContent,
+    isDraft: true,
+    published: false,
+    executionMode,
+    disclaimer:
+      'SANDBOX DRAFT DEMO: This is a generated Google Business Profile post draft. The post has NOT been published to Google.',
+  }
+}
+
 // ─── Main Dispatcher Entry Point ─────────────────────────────────────────────
 
 /**
@@ -1279,6 +1657,18 @@ export async function dispatchToolCall(
 
       case TOOL_NAMES.BOOK_FINANCIAL_CONSULTATION:
         result = await handleBookFinancialConsultation(rawArgs || {})
+        break
+
+      case TOOL_NAMES.AUDIT_GBP_PROFILE:
+        result = await handleAuditGbpProfile(rawArgs || {}, context)
+        break
+
+      case TOOL_NAMES.DRAFT_REVIEW_REPLY:
+        result = await handleDraftReviewReply(rawArgs || {}, context)
+        break
+
+      case TOOL_NAMES.CREATE_GBP_POST:
+        result = await handleCreateGbpPost(rawArgs || {}, context)
         break
 
       default:
