@@ -858,8 +858,8 @@ describe('Phase 5T-E3: Live Provider Certification & Execution Safety', () => {
 
       expect(result.status).toBe('succeeded')
 
-      const idempRecord = Array.from(idempStore.records.values()).find(
-        (r) => r.business_operation_id === 'biz_cal_op_100'
+      const idempRecord = Array.from((idempStore as any).records.values() as Iterable<any>).find(
+        (r: any) => r.business_operation_id === 'biz_cal_op_100'
       )
       expect(idempRecord).toBeDefined()
       expect(idempRecord?.status).toBe('succeeded')

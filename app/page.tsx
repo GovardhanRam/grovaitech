@@ -1,43 +1,27 @@
-import PublicNav from '@/components/public/PublicNav'
+import Navbar from '@/components/public/Navbar'
 import HeroSection from '@/components/public/HeroSection'
-import IndustryStrip from '@/components/public/IndustryStrip'
-import ProductCards from '@/components/public/ProductCards'
-import HowItWorksSection from '@/components/public/HowItWorksSection'
-import NewsletterSection from '@/components/public/NewsletterSection'
-import PublicFooter from '@/components/public/PublicFooter'
+import MissionSection from '@/components/public/MissionSection'
+import ServicesSection from '@/components/public/ServicesSection'
+import TrustSection from '@/components/public/TrustSection'
+import Footer from '@/components/public/Footer'
 
 export const metadata = {
-  title: 'Grovaitech | Deploy AI Employees for Business',
+  title: 'Grovaitech | Enterprise AI Solutions & Career Training',
   description:
-    'We Don’t Sell Software. We Deploy AI Employees. Specialized AI Employees that handle real conversations, automate workflows, and deliver measurable business results.',
+    'Empowering global enterprises with deterministic AI solutions while teaching individuals how to master high-value AI skills to earn a secure and happy living.',
 }
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans selection:bg-blue-100 selection:text-blue-900">
-      {/* Navigation Header */}
-      <PublicNav />
-
-      {/* Main Content Sections */}
+    <div className="min-h-screen bg-slate-950 text-white font-sans selection:bg-blue-600 selection:text-white flex flex-col">
+      <Navbar />
       <main className="flex-1">
-        {/* Hero Section with Command Interaction and Real Estate Lead Receptionist Demo */}
         <HeroSection />
-
-        {/* Industry Strip: Truthful "Built for businesses across industries" */}
-        <IndustryStrip />
-
-        {/* AI Workforce & Product Navigation Cards (AI Employees, Solutions, How It Works, Blog, Suggestion) */}
-        <ProductCards />
-
-        {/* Deployment Process & Technology Details */}
-        <HowItWorksSection />
-
-        {/* Newsletter / Updates Section */}
-        <NewsletterSection />
+        <MissionSection />
+        <ServicesSection />
+        <TrustSection />
       </main>
-
-      {/* Public Footer */}
-      <PublicFooter />
+      <Footer />
     </div>
   )
 }
