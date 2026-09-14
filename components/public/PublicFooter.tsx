@@ -10,21 +10,16 @@ export default function PublicFooter() {
           
           {/* Brand & Mission Statement */}
           <div className="lg:col-span-2 space-y-4">
-            <Link href="/" className="flex items-center gap-3 group">
-              <div className="p-1.5 rounded-lg bg-slate-800 border border-slate-700">
-                <Image
-                  src="/images/Grovaitech_Logo_Optimized.png"
-                  alt="Grovaitech Logo"
-                  width={26}
-                  height={26}
-                  className="w-6 h-6 object-contain"
-                />
-              </div>
-              <span className="font-extrabold text-lg tracking-tight text-white uppercase">
-                Grovaitech
-              </span>
+            <Link href="/" className="inline-block group py-1">
+              <Image
+                src="/images/Grovaitech_Logo_Optimized.png"
+                alt="Grovaitech - We Don't Sell Software. We Deploy AI Employees."
+                width={180}
+                height={180}
+                className="h-14 sm:h-16 w-auto object-contain transition-opacity group-hover:opacity-90 bg-white/95 rounded-xl p-1.5 border border-slate-800"
+              />
             </Link>
-            <p className="text-slate-300 font-semibold text-sm max-w-sm">
+            <p className="text-slate-300 font-semibold text-sm max-w-sm pt-1">
               “We Don’t Sell Software. We Deploy AI Employees.”
             </p>
             <p className="text-xs text-slate-500 max-w-sm leading-relaxed">

@@ -23,15 +23,15 @@ export default function PublicNav() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-[72px] sm:h-20">
           
-          {/* Left: Final Approved Brand Logo Asset */}
+          {/* Left: Official Grovaitech Logo Asset */}
           <Link href="/" className="flex items-center shrink-0 group py-1">
             <Image
-              src="/images/grovaitech-navbar-logo-240x84.png"
+              src="/images/Grovaitech_Logo_Optimized.png"
               alt="Grovaitech - We Don't Sell Software. We Deploy AI Employees."
-              width={240}
-              height={84}
+              width={160}
+              height={160}
               priority
-              className="w-[145px] sm:w-[200px] md:w-[240px] h-auto object-contain transition-opacity group-hover:opacity-90"
+              className="h-11 sm:h-13 md:h-14 w-auto object-contain transition-opacity group-hover:opacity-90"
             />
           </Link>
 
@@ -48,7 +48,7 @@ export default function PublicNav() {
             ))}
           </nav>
 
-          {/* Right: Auth & Dashboard Actions */}
+          {/* Right: Auth & Book Demo Actions */}
           <div className="hidden md:flex items-center gap-2 lg:gap-3 shrink-0">
             <Link
               href="/dashboard"
@@ -63,21 +63,21 @@ export default function PublicNav() {
               Sign in
             </Link>
             <Link
-              href="/signup"
+              href="/deploy"
               className="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition shadow-xs whitespace-nowrap"
             >
-              <span>Sign up</span>
+              <span>Book Demo</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
 
-          {/* Mobile Menu Button */}
+          {/* Mobile Menu Actions */}
           <div className="flex md:hidden items-center gap-2">
             <Link
-              href="/signup"
+              href="/deploy"
               className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition shadow-xs whitespace-nowrap cursor-pointer"
             >
-              Sign up
+              Book Demo
             </Link>
             <button
               type="button"

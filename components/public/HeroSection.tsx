@@ -46,7 +46,7 @@ export default function HeroSection() {
 
             {/* Headline */}
             <div className="space-y-2">
-              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 tracking-tight leading-[1.15]">
+              <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-slate-900 tracking-tight leading-[1.15]">
                 We Don’t Sell Software.{' '}
                 <span className="block text-blue-600 mt-1">
                   We Deploy AI Employees.
@@ -55,33 +55,33 @@ export default function HeroSection() {
             </div>
 
             {/* Supporting Copy */}
-            <p className="text-base sm:text-lg lg:text-xl text-slate-600 max-w-2xl font-normal leading-relaxed">
+            <p className="text-sm sm:text-lg lg:text-xl text-slate-600 max-w-2xl font-normal leading-relaxed">
               Specialized AI Employees that handle real conversations, automate workflows, and deliver measurable business results.
             </p>
 
             {/* Primary Command / Search Interaction */}
-            <form onSubmit={handleSearchSubmit} className="max-w-xl">
-              <div className="relative flex items-center bg-white border border-slate-300 hover:border-slate-400 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-500/10 rounded-2xl p-1.5 shadow-xs transition-all">
-                <div className="pl-3.5 pr-2 text-slate-400">
-                  <Search className="w-5 h-5" />
+            <form onSubmit={handleSearchSubmit} className="max-w-xl w-full">
+              <div className="relative flex items-center bg-white border border-slate-300 hover:border-slate-400 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-500/10 rounded-2xl p-1.5 shadow-xs transition-all w-full">
+                <div className="pl-3 pr-2 text-slate-400 shrink-0">
+                  <Search className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="What would you like an AI Employee to handle?"
-                  className="w-full bg-transparent text-sm sm:text-base text-slate-900 placeholder:text-slate-400 focus:outline-none py-2"
+                  placeholder="What should an AI Employee handle?"
+                  className="w-full min-w-0 bg-transparent text-xs sm:text-base text-slate-900 placeholder:text-slate-400 focus:outline-none py-1.5 sm:py-2"
                 />
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl transition shadow-xs cursor-pointer shrink-0"
+                  className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl transition shadow-xs cursor-pointer shrink-0"
                 >
                   <span>Search</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
               <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500 pl-0.5">
-                <span className="text-slate-400 font-medium">Popular:</span>
+                <span className="text-slate-400 font-medium shrink-0">Popular:</span>
                 <button
                   type="button"
                   onClick={() => router.push('/ai-employees?search=receptionist')}
@@ -110,14 +110,14 @@ export default function HeroSection() {
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 pt-2">
               <Link
                 href="/ai-employees"
-                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white text-sm sm:text-base font-semibold rounded-xl shadow-xs transition-colors text-center"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white text-sm sm:text-base font-semibold rounded-xl shadow-xs transition-colors text-center w-full sm:w-auto"
               >
                 <span>Explore AI Employees</span>
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <Link
                 href="#how-it-works"
-                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 text-sm sm:text-base font-semibold rounded-xl border border-slate-200 transition-colors text-center"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 text-sm sm:text-base font-semibold rounded-xl border border-slate-200 transition-colors text-center w-full sm:w-auto"
               >
                 <span>See how it works</span>
               </Link>

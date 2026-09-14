@@ -10,16 +10,25 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        brand: {
+          navy: '#00142E',
+          blue: '#0066FF',
+          blueHover: '#0052CC',
+          blueLight: '#EBF3FF',
+          green: '#00A859',
+          orange: '#FFB703',
+          red: '#E53935',
+        },
         grovaitech: {
-          dark: '#0F172A',
+          dark: '#00142E',
           darker: '#0A0F1A',
           slate: '#1E293B',
-          blue: '#3B82F6',
-          blueDark: '#2563EB',
-          blueLight: '#60A5FA',
+          blue: '#0066FF',
+          blueDark: '#0052CC',
+          blueLight: '#EBF3FF',
           text: '#FFFFFF',
           textSecondary: '#94A3B8',
-          border: '#1E293B',
+          border: '#E2E8F0',
         }
       },
       fontFamily: {

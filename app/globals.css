@@ -1,22 +1,50 @@
 @import "tailwindcss";
 
+:root {
+  --brand-navy: #00142E;
+  --brand-blue: #0066FF;
+  --brand-blue-hover: #0052CC;
+  --brand-blue-light: #EBF3FF;
+  --brand-green: #00A859;
+  --brand-orange: #FFB703;
+  --brand-red: #E53935;
+  --surface: #FFFFFF;
+  --surface-muted: #F8FAFC;
+  --text-primary: #00142E;
+  --text-secondary: #475569;
+  --border: #E2E8F0;
+}
+
 @theme {
-  --color-grovaitech-dark: #0F172A;
+  --color-brand-navy: var(--brand-navy);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-blue-hover: var(--brand-blue-hover);
+  --color-brand-blue-light: var(--brand-blue-light);
+  --color-brand-green: var(--brand-green);
+  --color-brand-orange: var(--brand-orange);
+  --color-brand-red: var(--brand-red);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-border: var(--border);
+
+  --color-grovaitech-dark: #00142E;
   --color-grovaitech-darker: #0A0F1A;
   --color-grovaitech-slate: #1E293B;
-  --color-grovaitech-blue: #3B82F6;
-  --color-grovaitech-blue-dark: #2563EB;
-  --color-grovaitech-blue-light: #60A5FA;
+  --color-grovaitech-blue: #0066FF;
+  --color-grovaitech-blue-dark: #0052CC;
+  --color-grovaitech-blue-light: #EBF3FF;
   --color-grovaitech-text: #FFFFFF;
   --color-grovaitech-text-secondary: #94A3B8;
-  --color-grovaitech-border: #1E293B;
+  --color-grovaitech-border: #E2E8F0;
   
   --font-inter: 'Inter', sans-serif;
 }
 
 body {
-  background: #FFFFFF;
-  color: #1E293B;
+  background: var(--surface);
+  color: var(--text-primary);
   font-family: 'Inter', system-ui, sans-serif;
 }
 

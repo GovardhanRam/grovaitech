@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Menu, X, ArrowRight, Bot, Sparkles } from 'lucide-react'
+import Image from 'next/image'
+import { Menu, X, ArrowRight, Bot } from 'lucide-react'
 
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -19,19 +20,16 @@ export default function Navbar() {
     <header className="sticky top-0 z-50 w-full bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80 text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
-          {/* Logo Brand */}
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform">
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-300 bg-clip-text text-transparent">
-                Grovaitech
-              </span>
-              <span className="text-[10px] uppercase font-semibold tracking-wider text-blue-400">
-                Enterprise AI & Training
-              </span>
-            </div>
+          {/* Logo Brand: Official Grovaitech Logo */}
+          <Link href="/" className="flex items-center gap-3 group py-1">
+            <Image
+              src="/images/Grovaitech_Logo_Optimized.png"
+              alt="Grovaitech - We Don't Sell Software. We Deploy AI Employees."
+              width={160}
+              height={160}
+              priority
+              className="h-12 w-auto object-contain transition-opacity group-hover:opacity-90 bg-white/95 rounded-lg p-1"
+            />
           </Link>
 
           {/* Desktop Navigation */}

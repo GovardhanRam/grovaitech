@@ -2,8 +2,10 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
-import { Bot, Mail, Key, User, Loader2, ArrowRight } from 'lucide-react'
+import { Mail, Key, User, Loader2, ArrowRight } from 'lucide-react'
 
 export default function SignupPage() {
   const [email, setEmail] = useState('')
@@ -47,10 +49,19 @@ export default function SignupPage() {
         <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-slate-900/10 to-transparent blur-xl pointer-events-none" />
         
         <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center font-bold text-white shadow-xl shadow-blue-500/20 mx-auto group hover:scale-105 transition-transform duration-200">
-            <Bot className="w-6 h-6" />
+          <div className="flex justify-center mb-2">
+            <Link href="/" className="inline-block hover:opacity-90 transition">
+              <Image
+                src="/images/Grovaitech_Logo_Optimized.png"
+                alt="Grovaitech Logo"
+                width={120}
+                height={120}
+                priority
+                className="h-14 w-auto object-contain bg-white rounded-xl p-1.5 shadow-md"
+              />
+            </Link>
           </div>
-          <h2 className="text-2xl font-bold tracking-tight text-white pt-2">
+          <h2 className="text-2xl font-bold tracking-tight text-white pt-1">
             Create Account
           </h2>
           <p className="text-xs text-slate-400">
