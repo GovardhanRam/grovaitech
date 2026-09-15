@@ -14,6 +14,7 @@
 
 import { useState, useEffect, useCallback, useTransition } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import {
   analyzeProspectForDeployment,
   executeDeploymentDemoAction,
@@ -59,6 +60,7 @@ import {
   Info,
   Database,
   ExternalLink,
+  Settings,
 } from 'lucide-react'
 
 // Suggested quick-select presets for fast demonstration
@@ -147,6 +149,11 @@ export default function DeploymentEngineWorkspace() {
     error?: string
   } | null>(null)
 
+  // Query Params & Recipe Configuration Hand-Off
+  const searchParams = useSearchParams()
+  const employeeQueryParam = searchParams.get('employee')
+  const [activeRecipeConfig, setActiveRecipeConfig] = useState<Record<string, any> | null>(null)
+
   // Fetch persisted prospects from CRM on mount
   const loadProspects = useCallback(async () => {
     try {
@@ -162,6 +169,40 @@ export default function DeploymentEngineWorkspace() {
   useEffect(() => {
     loadProspects()
   }, [loadProspects])
+
+  // Hydrate pre-configured recipe if present
+  useEffect(() => {
+    if (employeeQueryParam === 'social-media-marketing') {
+      try {
+        const stored = localStorage.getItem('grovaitech_recipe_config_social-media-marketing')
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          if (parsed && typeof parsed === 'object') {
+            setActiveRecipeConfig(parsed)
+            if (parsed.businessName) {
+              setCompanyName(parsed.businessName)
+            }
+            if (parsed.industry) {
+              setIndustry(parsed.industry)
+            }
+            if (Array.isArray(parsed.platforms) && parsed.platforms.length > 0) {
+              const mappedChannels = parsed.platforms.map((p: string) => {
+                if (p === 'instagram') return 'Instagram'
+                if (p === 'linkedin') return 'LinkedIn'
+                if (p === 'facebook') return 'Facebook'
+                if (p === 'x') return 'X (Twitter)'
+                if (p === 'youtube') return 'YouTube'
+                return p
+              })
+              setSelectedChannels((prev) => [...new Set([...prev, ...mappedChannels])])
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[Recipe Config Load Notice]', err)
+      }
+    }
+  }, [employeeQueryParam])
 
   // Select existing prospect from CRM or reset to new
   const handleSelectProspect = (prospectId: string) => {
@@ -292,6 +333,7 @@ export default function DeploymentEngineWorkspace() {
     location: location.trim() || undefined,
     budget: budget.trim() || undefined,
     timeline: timeline.trim() || undefined,
+    website: activeRecipeConfig?.website?.trim() || undefined,
   }
 
   // Step 1: Run Prospect Analysis
@@ -496,6 +538,62 @@ export default function DeploymentEngineWorkspace() {
           </p>
         </div>
       </div>
+
+      {/* Configured AI Employee Recipe Banner */}
+      {activeRecipeConfig && (
+        <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-white rounded-2xl border border-blue-200 p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Bot className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                  Configured Recipe Attached
+                </span>
+                <span className="text-xs font-black text-slate-900">
+                  {activeRecipeConfig.businessName || 'Configured Business'}
+                </span>
+              </div>
+              <h3 className="text-sm font-extrabold text-slate-900 mt-0.5">
+                Social Media Marketing AI Employee
+              </h3>
+              <p className="text-xs text-slate-600 mt-1">
+                Targeting:{' '}
+                <span className="font-semibold text-slate-800">
+                  {Array.isArray(activeRecipeConfig.platforms)
+                    ? activeRecipeConfig.platforms.join(', ')
+                    : 'LinkedIn, X'}
+                </span>{' '}
+                · Voice:{' '}
+                <span className="font-semibold text-slate-800">
+                  {activeRecipeConfig.brandVoice || 'Professional'}
+                </span>{' '}
+                · Cadence:{' '}
+                <span className="font-semibold text-slate-800">
+                  {activeRecipeConfig.postingFrequency || '3 times/week'}
+                </span>{' '}
+                · Governance:{' '}
+                <span className="font-semibold text-emerald-700">
+                  {activeRecipeConfig.approvalMode === 'human_approval'
+                    ? 'Human Approval Required'
+                    : 'Autonomous'}
+                </span>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href="/ai-employees/social-media-marketing#configure"
+              className="px-3.5 py-2 bg-white border border-slate-200 text-slate-700 hover:text-blue-600 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs"
+            >
+              <Settings className="w-3.5 h-3.5" />
+              <span>Edit Configuration</span>
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* CRM Lifecycle Stepper & Prospect Selector Bar */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5 space-y-4">

@@ -7,6 +7,7 @@ import {
 } from '@/lib/employees'
 import { getRecipeBySlug } from '@/lib/recipes'
 import EmployeeDemo from '@/components/employee/EmployeeDemo'
+import EmployeeConfigurationForm from '@/components/employee/EmployeeConfigurationForm'
 import {
   Bot,
   Rocket,
@@ -265,49 +266,10 @@ export default async function EmployeeProfilePage({
           </div>
         </div>
 
-        {/* ── 4. Reusable Configuration Schema Preview ──────────────────────── */}
+        {/* ── 4. Real Configuration UI (Recipe Schema Form) ────────────────── */}
         {recipe && recipe.configurationSchema && (
-          <div
-            id="configure"
-            className="bg-white rounded-2xl border border-slate-200/90 p-6 sm:p-8 mb-6 shadow-xs"
-          >
-            <div className="flex items-center justify-between gap-4 mb-3">
-              <div>
-                <h2 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <Settings className="w-4 h-4 text-blue-600" />
-                  <span>Configurable Operating Parameters</span>
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Parameters customized for your business when this AI Employee is deployed.
-                </p>
-              </div>
-              <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 uppercase">
-                Schema v{recipe.configurationSchema.version}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
-              {recipe.configurationSchema.fields.map((field) => (
-                <div
-                  key={field.name}
-                  className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-900">{field.label}</span>
-                    <span
-                      className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                        field.required
-                          ? 'bg-rose-50 text-rose-600 border border-rose-100'
-                          : 'bg-slate-200 text-slate-600'
-                      }`}
-                    >
-                      {field.required ? 'Required' : 'Optional'}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-slate-500 mt-1">{field.description || field.placeholder}</p>
-                </div>
-              ))}
-            </div>
+          <div id="configure" className="mb-6">
+            <EmployeeConfigurationForm recipeSlug={recipe.slug} />
           </div>
         )}
 
