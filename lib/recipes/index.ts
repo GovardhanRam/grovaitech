@@ -7,3 +7,4 @@
 
 export * from './types'
 export * from './registry'
+export type * from './social-media-runner'

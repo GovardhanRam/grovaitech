@@ -149,8 +149,8 @@ export const SOCIAL_MEDIA_CONFIG_SCHEMA: EmployeeConfigurationSchema = {
 export const SOCIAL_MEDIA_WORKFLOW_STAGES: WorkflowStage[] = [
   {
     id: 'stage_1_research',
-    name: 'Research',
-    description: 'Scans industry news, competitive trends, and audience discussions to discover high-affinity topics.',
+    name: 'Research Synthesis',
+    description: 'Synthesizes industry topics, audience pain points, and supplied brand knowledge to discover high-affinity content themes.',
     order: 1,
     requiredCapability: 'content research',
     inputs: ['contentTopics', 'industry', 'knowledgeSources'],
@@ -158,7 +158,7 @@ export const SOCIAL_MEDIA_WORKFLOW_STAGES: WorkflowStage[] = [
     isImplemented: true,
     implementationStatus: 'implemented',
     providerSupport: ['native', 'n8n'],
-    notes: 'Uses Gemini RAG search and knowledge base indexing.',
+    notes: 'Synthesizes verified Brand Brain knowledge, recipe configuration, and LLM domain knowledge without live web scraping.',
   },
   {
     id: 'stage_2_content_ideas',

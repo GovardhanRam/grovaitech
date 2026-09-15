@@ -7,7 +7,14 @@
  * Conforms to installed @google/generative-ai SDK specifications.
  */
 
-import { GoogleGenerativeAI, type FunctionDeclaration } from "@google/generative-ai"
+import {
+  GoogleGenerativeAI,
+  type FunctionDeclaration,
+  type ResponseSchema,
+  SchemaType,
+} from "@google/generative-ai"
+
+export { SchemaType, type ResponseSchema }
 
 // Model resolution order: GEMINI_MODEL -> MODEL_NAME (ignoring obsolete models) -> gemini-3.6-flash
 const envModel = process.env.GEMINI_MODEL || process.env.MODEL_NAME
@@ -30,6 +37,9 @@ export interface GenerateTextOptions {
   maxOutputTokens?: number
   systemInstruction?: string
   timeoutMs?: number
+  responseMimeType?: 'application/json' | 'text/plain'
+  responseSchema?: ResponseSchema
+  throwOnError?: boolean
 }
 
 export interface GenerateTextResponse {
@@ -365,6 +375,13 @@ export class Gemini {
   }
 
   /**
+   * Returns true if Gemini client is initialized with valid credentials.
+   */
+  isAvailable(): boolean {
+    return !!this.genAI
+  }
+
+  /**
    * Generates text content using Gemini with detailed logging and graceful fallback
    */
   async generateText(options: GenerateTextOptions): Promise<GenerateTextResponse> {
@@ -374,19 +391,30 @@ export class Gemini {
     const timeoutMs = options.timeoutMs ?? DEFAULT_GEMINI_TIMEOUT_MS
 
     if (!this.genAI) {
+      if (options.throwOnError) {
+        throw new Error('Gemini API credentials unavailable: GEMINI_API_KEY is missing or invalid.')
+      }
       return {
         text: getSimulatedResponse(options.prompt, options.systemInstruction),
       }
     }
 
     try {
+      const generationConfig: Record<string, any> = {
+        temperature,
+        maxOutputTokens: options.maxOutputTokens,
+      }
+      if (options.responseMimeType) {
+        generationConfig.responseMimeType = options.responseMimeType
+      }
+      if (options.responseSchema) {
+        generationConfig.responseSchema = options.responseSchema
+      }
+
       const model = this.genAI.getGenerativeModel(
         {
           model: modelName,
-          generationConfig: {
-            temperature,
-            maxOutputTokens: options.maxOutputTokens,
-          },
+          generationConfig,
           systemInstruction: options.systemInstruction,
         },
         { timeout: timeoutMs }
@@ -411,6 +439,10 @@ export class Gemini {
         message: sanitizeLogMessage(error?.message || String(error)),
         errorDetails: error?.errorDetails,
       })
+
+      if (options.throwOnError) {
+        throw error
+      }
 
       return {
         text: getSimulatedResponse(options.prompt, options.systemInstruction),

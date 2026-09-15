@@ -195,7 +195,7 @@ describe('AI Employee Marketplace & Recipe Foundation', () => {
       expect(stages).toHaveLength(8)
 
       const expectedStageNames = [
-        'Research',
+        'Research Synthesis',
         'Content Ideas',
         'Content Generation',
         'Brand QA',
