@@ -1,25 +1,30 @@
 // app/ai-employees/page.tsx
 //
 // AI Employees Marketplace Page.
-// Renders the full catalog of AI Employees sourced from the canonical workforce registry
-// (and Supabase ai_employees table if populated).
+// Renders the canonical 15 AI Employees sourced from the workforce registry.
 
-import { getAllEmployees, CANONICAL_EMPLOYEES, type AIEmployee } from '@/lib/employees'
+import {
+  getAllEmployees,
+  getMarketplaceEmployees,
+  type AIEmployee,
+} from '@/lib/employees'
 import { WorkforceMarketplace } from '@/components/employee/WorkforceMarketplace'
 import ShellLayout from '@/components/shell/ShellLayout'
 
 export const metadata = {
   title: 'AI Employees Marketplace | Grovaitech',
-  description: 'Deploy specialized AI Employees across conversations, leads, and business operations.',
+  description:
+    'Explore and deploy specialized AI Employees across marketing, sales, customer support, operations, finance, and healthcare.',
 }
 
 export default async function EmployeesPage() {
   const dbEmployees = await getAllEmployees()
+  const marketplaceEmployees = getMarketplaceEmployees()
 
-  // Use DB data if populated with full workforce, otherwise use the canonical registry
+  // Prefer database records if populated with full workforce, otherwise use the canonical marketplace definitions
   const employees: AIEmployee[] =
-    dbEmployees.length >= CANONICAL_EMPLOYEES.length ? dbEmployees : CANONICAL_EMPLOYEES
-  const isDemo = dbEmployees.length < CANONICAL_EMPLOYEES.length
+    dbEmployees.length >= marketplaceEmployees.length ? dbEmployees : marketplaceEmployees
+  const isDemo = dbEmployees.length < marketplaceEmployees.length
 
   return (
     <ShellLayout>

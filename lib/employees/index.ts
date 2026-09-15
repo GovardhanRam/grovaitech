@@ -9,9 +9,11 @@
 import { createServerClient } from '@/lib/supabase/server'
 import {
   CANONICAL_EMPLOYEES,
+  MARKETPLACE_EMPLOYEES,
   getCanonicalEmployeeBySlug,
   getCanonicalEmployeeById,
   getCanonicalEmployees,
+  getMarketplaceEmployees,
 } from './registry'
 import {
   getEmployees,
@@ -23,13 +25,17 @@ import type {
   AIEmployeeStatus,
   AIEmployeePricing,
   AIEmployeeDemoConfig,
+  MarketplaceCategory,
+  DeploymentMode,
 } from './types'
 
 export {
   CANONICAL_EMPLOYEES,
+  MARKETPLACE_EMPLOYEES,
   getCanonicalEmployeeBySlug,
   getCanonicalEmployeeById,
   getCanonicalEmployees,
+  getMarketplaceEmployees,
   getEmployees,
   getEmployeeBySlug,
   getEmployeeById,
@@ -37,6 +43,8 @@ export {
   type AIEmployeeStatus,
   type AIEmployeePricing,
   type AIEmployeeDemoConfig,
+  type MarketplaceCategory,
+  type DeploymentMode,
 }
 
 /**

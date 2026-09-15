@@ -5,39 +5,28 @@
  * Canonical In-Memory Workforce Registry.
  * Single source of truth for AI Employee definitions, tool bindings, system prompts,
  * pricing, and operational capabilities across UI, runtime, and API channels.
+ *
+ * Supports 15 Canonical Marketplace Employees (Phase 2 & Phase 3) while
+ * preserving 100% backward compatibility with legacy employee IDs and slugs.
  */
 
-export interface AIEmployeePricing {
-  monthly: number
-  setup: number
+import type {
+  AIEmployee,
+  AIEmployeePricing,
+  AIEmployeeDemoConfig,
+  MarketplaceCategory,
+  DeploymentMode,
+} from './types'
+
+export type {
+  AIEmployee,
+  AIEmployeePricing,
+  AIEmployeeDemoConfig,
+  MarketplaceCategory,
+  DeploymentMode,
 }
 
-export interface AIEmployeeDemoConfig {
-  enabled: boolean
-}
-
-export interface AIEmployee {
-  id: string
-  name: string
-  slug: string
-  title: string
-  department: string
-  industry: string
-  description: string
-  status: 'live' | 'beta' | 'demo' | 'in_development' | 'planned'
-  capabilities: string[]
-  responsibilities: string[]
-  integrations: string[]
-  channels: string[]
-  tools: string[]
-  system_prompt: string
-  pricing: AIEmployeePricing
-  demo_config: AIEmployeeDemoConfig
-  avatar_url: string | null
-  version: string
-  created_at: string
-  updated_at: string
-}
+// ─── 12 CANONICAL WORKFORCE EMPLOYEES (CORE CONTROL PLANE) ───────────────────
 
 export const CANONICAL_EMPLOYEES: AIEmployee[] = [
   // ── LIVE & OPERATIONAL ───────────────────────────────────────────────────
@@ -45,12 +34,24 @@ export const CANONICAL_EMPLOYEES: AIEmployee[] = [
     id: 'emp-001',
     name: 'Real Estate Lead Receptionist',
     slug: 'real-estate-lead-receptionist',
+    displayName: 'Lead Generation AI Employee',
     title: 'AI Real Estate Receptionist',
     department: 'Sales',
+    category: 'Sales',
     industry: 'Real Estate',
+    shortDescription:
+      'Handles property enquiries via web chat and WhatsApp. Qualifies buyers and sellers, captures lead details, and creates CRM leads.',
     description:
       'Handles property enquiries via web chat and WhatsApp. Qualifies buyers and sellers, captures lead details (name, phone, budget, location, timeline), supports site-visit scheduling, and creates structured leads directly in the CRM.',
     status: 'live',
+    priority: 2,
+    keywords: [
+      'AI lead generation',
+      'lead generation automation',
+      'sales automation',
+      'AI sales agent',
+      'lead qualification',
+    ],
     capabilities: [
       'Lead qualification',
       'Budget capture',
@@ -67,6 +68,8 @@ export const CANONICAL_EMPLOYEES: AIEmployee[] = [
       'Escalate to agent',
     ],
     integrations: ['Supabase (live)', 'WhatsApp (live)', 'Google Calendar (live)', 'n8n Workflows (live)'],
+    requiredIntegrations: ['Supabase CRM (live)', 'n8n Workflows (live)'],
+    optionalIntegrations: ['WhatsApp (live)', 'Google Calendar (live)'],
     channels: ['Web Chat', 'WhatsApp'],
     tools: ['create_lead', 'schedule_site_visit', 'search_knowledge_base'],
     system_prompt: `You are GrovAI, an elite AI Real Estate Lead Receptionist for Grovaitech Real Estate.
@@ -81,6 +84,8 @@ Your goal is to warmly assist prospective property buyers, answer questions inte
     demo_config: { enabled: true },
     avatar_url: null,
     version: '1.0.0',
+    deploymentMode: 'hybrid',
+    workflowTemplateId: 'wf-001',
     created_at: '2026-07-01T00:00:00Z',
     updated_at: '2026-09-01T00:00:00Z',
   },
@@ -88,12 +93,24 @@ Your goal is to warmly assist prospective property buyers, answer questions inte
     id: 'emp-002',
     name: 'Clinic Receptionist',
     slug: 'clinic-receptionist',
+    displayName: 'AI Appointment Booking Employee',
     title: 'AI Medical Front-Desk',
     department: 'Operations',
+    category: 'Healthcare',
     industry: 'Healthcare',
+    shortDescription:
+      'Handles patient appointment requests, answers clinic FAQs, and manages booking confirmations via Google Calendar and WhatsApp.',
     description:
       'Handles patient appointment requests, answers clinic FAQs, and manages booking confirmations. Integrates with Google Calendar, Supabase clinic bookings, and sends appointment reminders via WhatsApp.',
     status: 'live',
+    priority: 14,
+    keywords: [
+      'AI appointment booking',
+      'clinic scheduling automation',
+      'medical receptionist AI',
+      'calendar booking bot',
+      'reminder notifications',
+    ],
     capabilities: [
       'Appointment booking',
       'Patient intake',
@@ -108,6 +125,8 @@ Your goal is to warmly assist prospective property buyers, answer questions inte
       'Send reminder notifications',
     ],
     integrations: ['Google Calendar (live)', 'WhatsApp (live)', 'Supabase (live)', 'n8n Workflows (live)'],
+    requiredIntegrations: ['Google Calendar (live)', 'Supabase (live)', 'n8n Workflows (live)'],
+    optionalIntegrations: ['WhatsApp (live)'],
     channels: ['Web Chat', 'WhatsApp (planned)'],
     tools: ['book_clinic_appointment', 'search_knowledge_base'],
     system_prompt: `You are GrovAI, an elite Medical & Dental Clinic AI Front-Desk Receptionist.
@@ -121,21 +140,33 @@ Your goal is to assist patients, answer inquiries regarding clinic hours/doctors
     demo_config: { enabled: true },
     avatar_url: null,
     version: '1.0.0',
+    deploymentMode: 'native',
+    workflowTemplateId: 'wf-002',
     created_at: '2026-08-01T00:00:00Z',
     updated_at: '2026-09-01T00:00:00Z',
   },
-
-  // ── IN PROGRESS & PLANNED CATALOG ─────────────────────────────────────────
   {
     id: 'emp-003',
     name: 'WhatsApp Lead Agent',
     slug: 'whatsapp-lead-agent',
+    displayName: 'WhatsApp Lead Generation AI Employee',
     title: 'AI WhatsApp Sales Agent',
     department: 'Sales',
+    category: 'Sales',
     industry: 'General',
+    shortDescription:
+      'Responds to inbound WhatsApp messages 24/7, qualifies customer intent, collects contact information, and routes hot leads to human agents.',
     description:
       'Responds to inbound WhatsApp messages 24/7, qualifies customer intent, collects contact information, and routes hot leads to human agents. Handles initial objections and answers product questions.',
     status: 'live',
+    priority: 13,
+    keywords: [
+      'WhatsApp lead generation',
+      'WhatsApp sales bot',
+      'WhatsApp automation AI',
+      'AI WhatsApp agent',
+      'inbound messaging sales',
+    ],
     capabilities: [
       'WhatsApp integration',
       'Inbound lead qualification',
@@ -150,6 +181,7 @@ Your goal is to assist patients, answer inquiries regarding clinic hours/doctors
       'Register structured leads in the CRM',
     ],
     integrations: ['WhatsApp Business API (live)', 'Supabase (live)', 'n8n Multi-CRM Sync (live)'],
+    requiredIntegrations: ['WhatsApp Business API (live)', 'Supabase CRM (live)', 'n8n Workflows (live)'],
     channels: ['WhatsApp'],
     tools: ['create_lead', 'search_knowledge_base'],
     system_prompt: `You are GrovAI, an elite 24/7 AI WhatsApp Sales & Lead Qualification Specialist for Grovaitech AI Workforce OS.
@@ -165,6 +197,7 @@ Your goal is to warmly engage inbound WhatsApp prospects, answer product/service
     demo_config: { enabled: true },
     avatar_url: null,
     version: '1.0.0',
+    deploymentMode: 'native',
     created_at: '2026-08-10T00:00:00Z',
     updated_at: '2026-09-01T00:00:00Z',
   },
@@ -172,12 +205,23 @@ Your goal is to warmly engage inbound WhatsApp prospects, answer product/service
     id: 'emp-004',
     name: 'Salon & Spa Receptionist',
     slug: 'salon-spa-receptionist',
+    displayName: 'Salon & Spa AI Receptionist',
     title: 'AI Hospitality Receptionist',
     department: 'Operations',
+    category: 'Operations',
     industry: 'Salons & Spas',
+    shortDescription:
+      'Books appointments for salon and spa services, answers service queries, sends reminders, and handles rescheduling.',
     description:
       'Books appointments for salon and spa services, answers service queries, sends reminders, and handles rescheduling. Reduces front-desk workload by handling routine booking interactions autonomously.',
     status: 'live',
+    priority: 14,
+    keywords: [
+      'salon booking bot',
+      'spa scheduling AI',
+      'hospitality receptionist',
+      'automated booking reminders',
+    ],
     capabilities: [
       'Service booking',
       'Stylist scheduling',
@@ -192,6 +236,7 @@ Your goal is to warmly engage inbound WhatsApp prospects, answer product/service
       'Coordinate calendar and WhatsApp appointment confirmations',
     ],
     integrations: ['Google Calendar (live)', 'WhatsApp (live)', 'Supabase (live)', 'n8n Workflows (live)'],
+    requiredIntegrations: ['Google Calendar (live)', 'Supabase (live)', 'n8n Workflows (live)'],
     channels: ['WhatsApp', 'Web Chat'],
     tools: ['book_salon_service', 'search_knowledge_base'],
     system_prompt: `You are GrovAI, an elite Salon & Spa Front-Desk & Hospitality Specialist for Grovaitech AI Workforce OS.
@@ -206,6 +251,7 @@ Your goal is to warmly assist clients, provide verified service details and pric
     demo_config: { enabled: true },
     avatar_url: null,
     version: '1.0.0',
+    deploymentMode: 'native',
     created_at: '2026-08-15T00:00:00Z',
     updated_at: '2026-09-01T00:00:00Z',
   },
@@ -213,12 +259,24 @@ Your goal is to warmly assist clients, provide verified service details and pric
     id: 'emp-005',
     name: 'Customer Support Agent',
     slug: 'customer-support-agent',
+    displayName: 'Customer Support AI Employee',
     title: 'AI Tier-1 Support Specialist',
     department: 'Customer Support',
+    category: 'Customer Support',
     industry: 'General',
+    shortDescription:
+      'Handles tier-1 support queries using a RAG knowledge base, creates tickets for unresolved issues, and escalates to human agents.',
     description:
       'Handles tier-1 support queries using a RAG knowledge base, creates tickets for unresolved issues, and escalates to human agents with full conversation context and sentiment summary.',
     status: 'live',
+    priority: 4,
+    keywords: [
+      'AI customer support',
+      'AI customer service',
+      'customer support automation',
+      'AI support agent',
+      'customer service automation',
+    ],
     capabilities: [
       'RAG knowledge base',
       'Ticket creation',
@@ -233,6 +291,7 @@ Your goal is to warmly assist clients, provide verified service details and pric
       'Escalate complex/urgent issues to on-duty team',
     ],
     integrations: ['Supabase (live)', 'n8n Workflows (live)', 'Slack (live)', 'WhatsApp (live)'],
+    requiredIntegrations: ['Supabase (live)', 'Slack (live)'],
     channels: ['Web Chat', 'Email', 'WhatsApp'],
     tools: ['search_knowledge_base', 'escalate_to_human'],
     system_prompt: `You are GrovAI, an elite Tier-1 Customer Support Specialist for Grovaitech AI Workforce OS.
@@ -247,6 +306,7 @@ Your goal is to assist customers accurately, resolve support queries using verif
     demo_config: { enabled: true },
     avatar_url: null,
     version: '1.0.0',
+    deploymentMode: 'native',
     created_at: '2026-09-01T00:00:00Z',
     updated_at: '2026-09-01T00:00:00Z',
   },
@@ -254,12 +314,23 @@ Your goal is to assist customers accurately, resolve support queries using verif
     id: 'emp-006',
     name: 'AI QA Inspector',
     slug: 'ai-qa-inspector',
+    displayName: 'AI QA Inspector',
     title: 'AI Quality Assurance Specialist',
     department: 'Operations',
+    category: 'Operations',
     industry: 'General',
+    shortDescription:
+      'Reviews conversation logs, scores AI Employee interactions against quality rubrics, and flags policy deviations.',
     description:
       'Reviews conversation logs, scores AI Employee interactions against quality rubrics, flags non-compliant or harmful responses, and generates daily quality reports for the operations team.',
     status: 'live',
+    priority: 8,
+    keywords: [
+      'AI quality assurance',
+      'conversation auditing',
+      'compliance scoring',
+      'AI safety inspection',
+    ],
     capabilities: [
       'Conversation scoring',
       'Compliance checking',
@@ -274,6 +345,7 @@ Your goal is to assist customers accurately, resolve support queries using verif
       'Generate executive quality reports for management',
     ],
     integrations: ['Supabase (live)', 'n8n Workflows (live)', 'AI Evaluator (live)'],
+    requiredIntegrations: ['Supabase (live)', 'AI Evaluator (live)'],
     channels: ['Internal Dashboard', 'Web Chat'],
     tools: ['audit_conversation_quality', 'search_knowledge_base'],
     system_prompt: `You are GrovAI, an elite AI Quality Assurance & Compliance Inspector for Grovaitech AI Workforce OS.
@@ -293,6 +365,7 @@ Your role is to rigorously inspect and score AI employee conversation transcript
     demo_config: { enabled: true },
     avatar_url: null,
     version: '1.0.0',
+    deploymentMode: 'native',
     created_at: '2026-09-01T00:00:00Z',
     updated_at: '2026-09-01T00:00:00Z',
   },
@@ -300,12 +373,23 @@ Your role is to rigorously inspect and score AI employee conversation transcript
     id: 'emp-007',
     name: 'Legal Intake Agent',
     slug: 'legal-intake-agent',
+    displayName: 'Legal Intake AI Employee',
     title: 'AI Legal Intake Coordinator',
     department: 'Sales',
+    category: 'Operations',
     industry: 'Law Firms',
+    shortDescription:
+      'Handles initial inquiries for law firms, collects structured case details, screens for conflicts, and schedules attorney consultations.',
     description:
       'Handles initial client inquiries for law firms. Collects structured case details, practice area, and opposing party information for conflict screening, answers firm process FAQs using verified knowledge, and schedules preliminary attorney consultations.',
     status: 'live',
+    priority: 8,
+    keywords: [
+      'legal intake automation',
+      'law firm AI receptionist',
+      'conflict screening AI',
+      'attorney consultation booking',
+    ],
     capabilities: [
       'Case qualification',
       'Client intake',
@@ -321,6 +405,7 @@ Your role is to rigorously inspect and score AI employee conversation transcript
       'Escalate urgent matters or deadlines to senior counsel',
     ],
     integrations: ['Google Calendar (live)', 'Supabase (live)', 'n8n Workflows (live)', 'WhatsApp (planned)'],
+    requiredIntegrations: ['Google Calendar (live)', 'Supabase (live)', 'n8n Workflows (live)'],
     channels: ['Web Chat', 'WhatsApp', 'Email'],
     tools: ['book_legal_consultation', 'search_knowledge_base', 'escalate_to_human'],
     system_prompt: `You are GrovAI, an elite AI Legal Intake & Consultation Coordinator for Grovaitech Law Chambers.
@@ -342,6 +427,7 @@ Your goal is to warmly assist prospective clients, collect structured matter int
     demo_config: { enabled: true },
     avatar_url: null,
     version: '1.0.0',
+    deploymentMode: 'native',
     created_at: '2026-09-01T00:00:00Z',
     updated_at: '2026-09-01T00:00:00Z',
   },
@@ -349,12 +435,23 @@ Your goal is to warmly assist prospective clients, collect structured matter int
     id: 'emp-008',
     name: 'E-Commerce Support Agent',
     slug: 'ecommerce-support-agent',
+    displayName: 'E-Commerce Support AI Employee',
     title: 'AI E-Commerce Support Specialist',
     department: 'Customer Support',
+    category: 'Customer Support',
     industry: 'E-Commerce',
+    shortDescription:
+      'Handles real-time order tracking, return requests, exchange processing, and shipping inquiries for e-commerce stores.',
     description:
       'Handles real-time order tracking, return requests, exchange processing, and shipping inquiries for e-commerce stores. Verifies customer order identity, checks carrier logistics, evaluates store policy eligibility, and coordinates with store platforms.',
     status: 'live',
+    priority: 5,
+    keywords: [
+      'e-commerce customer support',
+      'order tracking automation',
+      'return processing AI',
+      'Shopify support bot',
+    ],
     capabilities: [
       'Order tracking & logistics sync',
       'Return & exchange request processing',
@@ -370,6 +467,7 @@ Your goal is to warmly assist prospective clients, collect structured matter int
       'Escalate complex fulfillment disputes to human support',
     ],
     integrations: ['Shopify (live)', 'WooCommerce (live)', 'Supabase (live)', 'n8n Workflows (live)', 'WhatsApp (live)'],
+    requiredIntegrations: ['Supabase (live)', 'n8n Workflows (live)'],
     channels: ['Web Chat', 'WhatsApp', 'Email'],
     tools: ['lookup_order_and_support', 'search_knowledge_base', 'escalate_to_human'],
     system_prompt: `You are GrovAI, an elite AI E-Commerce Support Specialist for Grovaitech AI Workforce OS.
@@ -389,6 +487,7 @@ Your goal is to warmly assist customers with order tracking, return/exchange req
     demo_config: { enabled: true },
     avatar_url: null,
     version: '1.0.0',
+    deploymentMode: 'native',
     created_at: '2026-09-01T00:00:00Z',
     updated_at: '2026-09-01T00:00:00Z',
   },
@@ -396,12 +495,23 @@ Your goal is to warmly assist customers with order tracking, return/exchange req
     id: 'emp-009',
     name: 'HR Onboarding Agent',
     slug: 'hr-onboarding-agent',
+    displayName: 'HR Onboarding AI Employee',
     title: 'AI HR & Onboarding Specialist',
     department: 'Operations',
+    category: 'Operations',
     industry: 'General',
+    shortDescription:
+      'Guides new employee onboarding, answers HR policy questions, collects compliance documents, and schedules inductions.',
     description:
       'Guides new employee onboarding by answering HR policy questions, collecting required compliance documents, scheduling induction sessions, and tracking onboarding task completion through a conversational interface.',
     status: 'live',
+    priority: 7,
+    keywords: [
+      'HR onboarding automation',
+      'new hire induction AI',
+      'employee handbook assistant',
+      'HR policy FAQ bot',
+    ],
     capabilities: [
       'HR policy & benefits FAQ answering',
       'Onboarding document verification & checklist tracking',
@@ -417,6 +527,7 @@ Your goal is to warmly assist customers with order tracking, return/exchange req
       'Escalate compensation disputes or compliance exceptions to human HR officers',
     ],
     integrations: ['Google Calendar (live)', 'HR Database (live)', 'Supabase (live)', 'n8n Workflows (live)', 'WhatsApp (live)'],
+    requiredIntegrations: ['Google Calendar (live)', 'Supabase (live)', 'n8n Workflows (live)'],
     channels: ['Web Chat', 'Email', 'Internal', 'WhatsApp'],
     tools: ['schedule_onboarding_induction', 'search_knowledge_base', 'escalate_to_human'],
     system_prompt: `You are GrovAI, an elite AI HR & Onboarding Specialist for Grovaitech AI Workforce OS.
@@ -437,6 +548,7 @@ Your goal is to warmly assist new hires with onboarding document verification, c
     demo_config: { enabled: true },
     avatar_url: null,
     version: '1.0.0',
+    deploymentMode: 'native',
     created_at: '2026-09-01T00:00:00Z',
     updated_at: '2026-09-01T00:00:00Z',
   },
@@ -444,12 +556,23 @@ Your goal is to warmly assist new hires with onboarding document verification, c
     id: 'emp-010',
     name: 'Financial Advisory Agent',
     slug: 'financial-advisory-agent',
+    displayName: 'Financial Advisory AI Employee',
     title: 'AI Financial Consultation Coordinator',
     department: 'Sales',
+    category: 'Finance',
     industry: 'Financial Services',
+    shortDescription:
+      'Handles preliminary inquiries for financial products, qualifies customer intent, screens KYC readiness, and schedules consultations.',
     description:
       'Handles preliminary inquiries for financial products including insurance, home loans, mutual funds, and wealth management. Qualifies customer intent, collects KYC readiness parameters, answers policy FAQs, and schedules consultations with certified financial advisors.',
     status: 'live',
+    priority: 9,
+    keywords: [
+      'financial consultation AI',
+      'loan qualification bot',
+      'insurance intake automation',
+      'KYC screening assistant',
+    ],
     capabilities: [
       'Financial product qualification (Insurance, Loans, Wealth, Mutual Funds)',
       'KYC readiness & compliance screening',
@@ -465,6 +588,7 @@ Your goal is to warmly assist new hires with onboarding document verification, c
       'Escalate high-net-worth inquiries or distressed debt cases to human specialists',
     ],
     integrations: ['Certified Advisor Calendar (live)', 'CRM (live)', 'Supabase (live)', 'n8n Workflows (live)', 'WhatsApp (live)'],
+    requiredIntegrations: ['Certified Advisor Calendar (live)', 'CRM (live)', 'Supabase (live)'],
     channels: ['Web Chat', 'WhatsApp', 'Email', 'Voice (planned)'],
     tools: ['book_financial_consultation', 'search_knowledge_base', 'escalate_to_human'],
     system_prompt: `You are GrovAI, an elite AI Financial Consultation Coordinator for Grovaitech AI Workforce OS.
@@ -485,6 +609,7 @@ Your goal is to assist clients with financial product inquiries (Insurance, Home
     demo_config: { enabled: true },
     avatar_url: null,
     version: '1.0.0',
+    deploymentMode: 'native',
     created_at: '2026-09-01T00:00:00Z',
     updated_at: '2026-09-01T00:00:00Z',
   },
@@ -492,12 +617,24 @@ Your goal is to assist clients with financial product inquiries (Insurance, Home
     id: 'emp-011',
     name: 'HVAC Lead Recovery Employee',
     slug: 'hvac-lead-recovery',
+    displayName: 'Website Lead Capture AI Employee',
     title: 'AI HVAC & Home Services Receptionist',
     department: 'Sales & Dispatch',
+    category: 'Sales',
     industry: 'Home Services / HVAC',
+    shortDescription:
+      'Captures, qualifies, and recovers missed homeowner enquiries for residential heating and cooling contractors.',
     description:
       'Captures, qualifies, and recovers missed homeowner enquiries for residential heating, ventilation, and air conditioning contractors. Triages urgent heating/cooling failures, captures service address and contact details, and logs verified service requests into the CRM.',
     status: 'live',
+    priority: 12,
+    keywords: [
+      'website lead capture',
+      'AI website receptionist',
+      'inbound chat conversion',
+      'lead capture bot',
+      'emergency lead triage',
+    ],
     capabilities: [
       'Lead capture and recovery',
       'Emergency vs routine service triage',
@@ -518,6 +655,7 @@ Your goal is to assist clients with financial product inquiries (Insurance, Home
       'Record structured lead intake records in CRM via create_lead tool',
     ],
     integrations: ['CRM (live)', 'Supabase (live)', 'WhatsApp (live)', 'n8n Workflows (live)'],
+    requiredIntegrations: ['CRM (live)', 'Supabase (live)', 'n8n Workflows (live)'],
     channels: ['Web Chat', 'WhatsApp', 'SMS (planned)'],
     tools: ['create_lead', 'search_knowledge_base', 'escalate_to_human'],
     system_prompt: `You are GrovAI, an elite AI Home Services Receptionist and Lead Recovery Coordinator for residential HVAC contractors.
@@ -541,6 +679,7 @@ Your goal is to warmly engage homeowners who reach out about heating, cooling, v
     demo_config: { enabled: true },
     avatar_url: null,
     version: '1.0.0',
+    deploymentMode: 'native',
     created_at: '2026-09-05T00:00:00Z',
     updated_at: '2026-09-05T00:00:00Z',
   },
@@ -548,12 +687,23 @@ Your goal is to warmly engage homeowners who reach out about heating, cooling, v
     id: 'emp-012',
     name: 'GBP Growth & Reputation Manager',
     slug: 'gbp-growth-manager',
+    displayName: 'Google Business Profile AI Employee',
     title: 'GBP Growth & Reputation Manager',
     department: 'Marketing & Local SEO',
+    category: 'Marketing',
     industry: 'Local Businesses',
+    shortDescription:
+      'Audits Google Business Profile listings, drafts high-converting local posts, monitors customer reviews, and writes review responses.',
     description:
       'Audits Google Business Profile listings, drafts high-converting local posts, monitors customer reviews, drafts brand-aligned review responses, and provides actionable recommendations to maximize local 3-pack visibility.',
     status: 'live',
+    priority: 15,
+    keywords: [
+      'Google Business Profile AI',
+      'local SEO automation',
+      'review reply generator',
+      'GBP management AI',
+    ],
     capabilities: [
       'Google Business Profile audit',
       'Local visibility optimization',
@@ -572,6 +722,7 @@ Your goal is to warmly engage homeowners who reach out about heating, cooling, v
       'Never claim or promise that a live Google profile has been published or modified without verified API integration',
     ],
     integrations: ['Google Business Profile (sandbox)', 'Supabase (live)', 'n8n Workflows (live)'],
+    requiredIntegrations: ['Google Business Profile (sandbox)', 'Supabase (live)', 'n8n Workflows (live)'],
     channels: ['Web Chat', 'Dashboard', 'WhatsApp (planned)'],
     tools: ['audit_gbp_profile', 'draft_review_reply', 'create_gbp_post', 'search_knowledge_base'],
     system_prompt: `You are GrovAI, an elite AI Google Business Profile Growth & Reputation Manager for Grovaitech AI Workforce OS.
@@ -591,12 +742,783 @@ Your goal is to assist local business owners and multi-location brands in auditi
     demo_config: { enabled: true },
     avatar_url: null,
     version: '1.0.0',
+    deploymentMode: 'native',
     created_at: '2026-09-10T00:00:00Z',
     updated_at: '2026-09-10T00:00:00Z',
   },
 ]
 
-// ─── Pre-Indexed Canonical Workforce Lookups ─────────────────────────────────
+// ─── 15 CANONICAL MARKETPLACE DEFINITIONS (PHASE 2) ──────────────────────────
+
+export const MARKETPLACE_EMPLOYEES: AIEmployee[] = [
+  // 1. Social Media Marketing AI Employee
+  {
+    id: 'social_media_marketing',
+    name: 'Social Media Marketing AI Employee',
+    slug: 'social-media-marketing',
+    displayName: 'Social Media Marketing AI Employee',
+    title: 'AI Social Media Marketing Specialist',
+    category: 'Marketing',
+    department: 'Marketing',
+    industry: 'Marketing & Advertising',
+    shortDescription:
+      'Researches industry trends, generates platform-tailored social copy, enforces brand rules, and schedules multi-platform posts with human approval.',
+    description:
+      'Researches industry trends, ideates high-converting content, drafts multi-platform social posts (LinkedIn, X, Instagram), enforces brand guidelines, and manages human review and scheduling.',
+    status: 'live',
+    priority: 1,
+    keywords: [
+      'AI social media',
+      'social media marketing',
+      'social media automation',
+      'AI content creation',
+      'content automation',
+      'social media AI employee',
+    ],
+    capabilities: [
+      'content research',
+      'content ideation',
+      'social media content generation',
+      'content repurposing',
+      'brand voice enforcement',
+      'brand QA',
+      'media generation',
+      'publishing',
+      'analytics',
+    ],
+    responsibilities: [
+      'Research trending industry discussions',
+      'Draft platform-tailored social posts',
+      'Enforce brand voice & compliance guidelines',
+      'Coordinate human sign-off before publishing',
+      'Track post performance & audience engagement',
+    ],
+    integrations: ['Gemini LLM Engine (live)', 'Brand Knowledge Base (live)'],
+    requiredIntegrations: ['Gemini LLM Engine (live)', 'Brand Knowledge Base (live)'],
+    optionalIntegrations: ['LinkedIn API (planned)', 'Meta Graph API (planned)', 'X API (planned)', 'n8n Workflows (live)'],
+    channels: ['Web Chat', 'Slack', 'WhatsApp'],
+    tools: ['search_knowledge_base', 'audit_conversation_quality'],
+    system_prompt: `You are GrovAI, an elite AI Social Media Marketing Specialist for Grovaitech AI Workforce OS.
+Your goal is to assist marketing leaders and brand managers in researching trending topics, ideating content angles, drafting high-converting social media posts, and enforcing brand voice guidelines.`,
+    pricing: { monthly: 6000, setup: 4000 },
+    demo_config: { enabled: true },
+    avatar_url: null,
+    version: '1.0.0',
+    deploymentMode: 'native',
+    workflowTemplateId: 'spec_social_media_marketing_v1',
+    created_at: '2026-09-15T00:00:00Z',
+    updated_at: '2026-09-15T00:00:00Z',
+  },
+
+  // 2. Lead Generation AI Employee
+  {
+    id: 'lead_generation',
+    name: 'Lead Generation AI Employee',
+    slug: 'lead-generation',
+    displayName: 'Lead Generation AI Employee',
+    title: 'AI Inbound Lead Specialist',
+    category: 'Sales',
+    department: 'Sales',
+    industry: 'Real Estate & High-Ticket Sales',
+    shortDescription:
+      'Captures inbound inquiries, qualifies buyer budget and timeline, and synchronizes qualified leads with your CRM.',
+    description:
+      'Handles inbound enquiries via web chat and messaging. Qualifies prospective buyers and clients, captures lead details (budget, location, timeline), and creates structured leads directly in CRM.',
+    status: 'live',
+    priority: 2,
+    keywords: [
+      'AI lead generation',
+      'lead generation automation',
+      'sales automation',
+      'AI sales agent',
+      'lead qualification',
+      'CRM automation',
+    ],
+    capabilities: [
+      'Lead qualification',
+      'Budget capture',
+      'Location capture',
+      'Site-visit scheduling',
+      'CRM lead creation',
+      'Multi-turn conversation',
+    ],
+    responsibilities: [
+      'Capture inbound leads',
+      'Qualify buyer requirements',
+      'Schedule consultation or site visit',
+      'Register verified lead in CRM',
+      'Follow up on warm prospects',
+    ],
+    integrations: ['Supabase CRM (live)', 'n8n Workflows (live)', 'WhatsApp (live)', 'Google Calendar (live)'],
+    requiredIntegrations: ['Supabase CRM (live)', 'n8n Workflows (live)'],
+    optionalIntegrations: ['WhatsApp (live)', 'Google Calendar (live)'],
+    channels: ['Web Chat', 'WhatsApp'],
+    tools: ['create_lead', 'schedule_site_visit', 'search_knowledge_base'],
+    system_prompt: `You are GrovAI, an elite AI Lead Generation Specialist for Grovaitech AI Workforce OS.`,
+    pricing: { monthly: 5000, setup: 5000 },
+    demo_config: { enabled: true },
+    avatar_url: null,
+    version: '1.0.0',
+    deploymentMode: 'hybrid',
+    workflowTemplateId: 'wf-001',
+    created_at: '2026-07-01T00:00:00Z',
+    updated_at: '2026-09-15T00:00:00Z',
+  },
+
+  // 3. LinkedIn Lead Generation AI Employee
+  {
+    id: 'linkedin_lead_generation',
+    name: 'LinkedIn Lead Generation AI Employee',
+    slug: 'linkedin-lead-generation',
+    displayName: 'LinkedIn Lead Generation AI Employee',
+    title: 'AI B2B Pipeline Specialist',
+    category: 'Sales',
+    department: 'Sales',
+    industry: 'B2B Services & Technology',
+    shortDescription:
+      'Identifies high-value B2B prospects, crafts personalized outreach, and qualifies decision-makers on LinkedIn.',
+    description:
+      'Identifies target accounts and decision-makers on LinkedIn, researches company pain points, crafts tailored connection requests and follow-ups, and books sales discovery calls.',
+    status: 'demo',
+    priority: 3,
+    keywords: [
+      'LinkedIn lead generation',
+      'LinkedIn lead generation automation',
+      'LinkedIn leads',
+      'B2B lead generation',
+      'AI sales prospector',
+    ],
+    capabilities: [
+      'Prospect research',
+      'Personalized message crafting',
+      'B2B qualification',
+      'Meeting scheduling',
+      'CRM sync',
+    ],
+    responsibilities: [
+      'Analyze target profile persona',
+      'Draft personalized connection and outreach copy',
+      'Qualify prospect budget and authority',
+      'Coordinate calendar booking links',
+    ],
+    integrations: ['LinkedIn API (sandbox)', 'Supabase CRM (live)', 'Google Calendar (live)'],
+    requiredIntegrations: ['LinkedIn API (sandbox)', 'Supabase CRM (live)'],
+    optionalIntegrations: ['Google Calendar (live)', 'HubSpot (planned)'],
+    channels: ['LinkedIn', 'Web Chat'],
+    tools: ['create_lead', 'search_knowledge_base'],
+    system_prompt: `You are GrovAI, an elite AI LinkedIn Lead Generation & B2B Pipeline Specialist for Grovaitech AI Workforce OS.`,
+    pricing: { monthly: 6500, setup: 4500 },
+    demo_config: { enabled: true },
+    avatar_url: null,
+    version: '1.0.0',
+    deploymentMode: 'n8n',
+    created_at: '2026-09-15T00:00:00Z',
+    updated_at: '2026-09-15T00:00:00Z',
+  },
+
+  // 4. Customer Support AI Employee
+  {
+    id: 'customer_support',
+    name: 'Customer Support AI Employee',
+    slug: 'customer-support',
+    displayName: 'Customer Support AI Employee',
+    title: 'AI Tier-1 Support Specialist',
+    category: 'Customer Support',
+    department: 'Customer Support',
+    industry: 'General',
+    shortDescription:
+      'Resolves tier-1 support inquiries 24/7 using grounded company knowledge and escalates complex issues to human agents.',
+    description:
+      'Handles tier-1 support queries using a RAG knowledge base, creates tickets for unresolved issues, and escalates to human agents with full conversation context and sentiment summary.',
+    status: 'live',
+    priority: 4,
+    keywords: [
+      'AI customer support',
+      'AI customer service',
+      'customer support automation',
+      'AI support agent',
+      'customer service automation',
+    ],
+    capabilities: [
+      'RAG knowledge base',
+      'Ticket creation',
+      'Human escalation',
+      'Sentiment analysis',
+      'FAQ resolution',
+    ],
+    responsibilities: [
+      'Answer support queries',
+      'Resolve common enterprise FAQs',
+      'Search knowledge base',
+      'Escalate complex issues with full context to human team',
+    ],
+    integrations: ['Supabase (live)', 'n8n Workflows (live)', 'Slack (live)', 'WhatsApp (live)'],
+    requiredIntegrations: ['Supabase (live)', 'Slack (live)'],
+    optionalIntegrations: ['WhatsApp (live)', 'Zendesk (planned)'],
+    channels: ['Web Chat', 'Email', 'WhatsApp'],
+    tools: ['search_knowledge_base', 'escalate_to_human'],
+    system_prompt: `You are GrovAI, an elite Tier-1 Customer Support Specialist for Grovaitech AI Workforce OS.`,
+    pricing: { monthly: 5500, setup: 4000 },
+    demo_config: { enabled: true },
+    avatar_url: null,
+    version: '1.0.0',
+    deploymentMode: 'native',
+    created_at: '2026-09-01T00:00:00Z',
+    updated_at: '2026-09-15T00:00:00Z',
+  },
+
+  // 5. Email Management AI Employee
+  {
+    id: 'email_management',
+    name: 'Email Management AI Employee',
+    slug: 'email-management',
+    displayName: 'Email Management AI Employee',
+    title: 'AI Inbox Operations Specialist',
+    category: 'Operations',
+    department: 'Operations',
+    industry: 'General Business',
+    shortDescription:
+      'Triages incoming emails, categorizes priority, drafts context-aware replies, and extracts actionable tasks.',
+    description:
+      'Monitors shared or executive inboxes, categorizes inquiries, filters noise, drafts high-accuracy replies referencing company policies, and creates follow-up reminders.',
+    status: 'demo',
+    priority: 5,
+    keywords: [
+      'AI email management',
+      'email automation',
+      'inbox triage',
+      'AI email assistant',
+      'email classification',
+    ],
+    capabilities: [
+      'Inbox triage',
+      'Email classification',
+      'Draft response generation',
+      'Action item extraction',
+      'Spam & newsletter filtering',
+    ],
+    responsibilities: [
+      'Categorize incoming messages by priority and topic',
+      'Draft response options for human review',
+      'Flag urgent inquiries requiring immediate attention',
+      'Extract calendar events and tasks',
+    ],
+    integrations: ['Gmail / Google Workspace (sandbox)', 'Supabase (live)', 'Slack (live)'],
+    requiredIntegrations: ['Gmail / Google Workspace (sandbox)', 'Supabase (live)'],
+    optionalIntegrations: ['Outlook 365 (planned)', 'Slack (live)'],
+    channels: ['Email', 'Web Chat'],
+    tools: ['search_knowledge_base', 'escalate_to_human'],
+    system_prompt: `You are GrovAI, an elite AI Email Management & Inbox Operations Specialist for Grovaitech AI Workforce OS.`,
+    pricing: { monthly: 4500, setup: 3000 },
+    demo_config: { enabled: true },
+    avatar_url: null,
+    version: '1.0.0',
+    deploymentMode: 'hybrid',
+    created_at: '2026-09-15T00:00:00Z',
+    updated_at: '2026-09-15T00:00:00Z',
+  },
+
+  // 6. AI Content Creation Employee
+  {
+    id: 'ai_content_creation',
+    name: 'AI Content Creation Employee',
+    slug: 'ai-content-creation',
+    displayName: 'AI Content Creation Employee',
+    title: 'AI Long-Form Content Strategist',
+    category: 'Marketing',
+    department: 'Marketing',
+    industry: 'Digital Media & Marketing',
+    shortDescription:
+      'Writes SEO-optimized blog articles, case studies, newsletters, and whitepapers grounded in your product expertise.',
+    description:
+      'Researches subject matter, outlines narrative structure, drafts high-ranking SEO blog posts and articles, incorporates brand guidelines, and formats content for CMS publication.',
+    status: 'live',
+    priority: 6,
+    keywords: [
+      'AI content creation',
+      'SEO content automation',
+      'blog post generator',
+      'AI copywriter',
+      'content marketing AI',
+    ],
+    capabilities: [
+      'SEO article drafting',
+      'Keyword optimization',
+      'Content outline generation',
+      'Brand tone calibration',
+      'Case study creation',
+    ],
+    responsibilities: [
+      'Draft structured 1,500+ word articles',
+      'Optimize headings and meta descriptions for search rankings',
+      'Ground factual claims in verified source documents',
+      'Repurpose whitepapers into multi-part newsletters',
+    ],
+    integrations: ['Gemini Engine (live)', 'Enterprise Knowledge Base (live)'],
+    requiredIntegrations: ['Gemini Engine (live)', 'Enterprise Knowledge Base (live)'],
+    optionalIntegrations: ['WordPress / Ghost CMS (planned)', 'Google Docs (planned)'],
+    channels: ['Web Chat', 'Dashboard'],
+    tools: ['search_knowledge_base', 'audit_conversation_quality'],
+    system_prompt: `You are GrovAI, an elite AI Long-Form Content Strategist for Grovaitech AI Workforce OS.`,
+    pricing: { monthly: 5000, setup: 3500 },
+    demo_config: { enabled: true },
+    avatar_url: null,
+    version: '1.0.0',
+    deploymentMode: 'native',
+    created_at: '2026-09-15T00:00:00Z',
+    updated_at: '2026-09-15T00:00:00Z',
+  },
+
+  // 7. AI Video Creation Employee
+  {
+    id: 'ai_video_creation',
+    name: 'AI Video Creation Employee',
+    slug: 'ai-video-creation',
+    displayName: 'AI Video Creation Employee',
+    title: 'AI Short-Form Video Producer',
+    category: 'Marketing',
+    department: 'Marketing',
+    industry: 'Creative & Social Media',
+    shortDescription:
+      'Generates video scripts, scene-by-scene storyboards, and voiceover prompts for Reels, Shorts, and TikTok.',
+    description:
+      'Transforms long-form content or product announcements into dynamic short-form video concepts, writing punchy hooks, visual scene directions, captions, and AI voiceover scripts.',
+    status: 'demo',
+    priority: 7,
+    keywords: [
+      'AI video creation',
+      'short-form video AI',
+      'Reels script generator',
+      'TikTok video automation',
+    ],
+    capabilities: [
+      'Video scriptwriting',
+      'Storyboard generation',
+      'Hook optimization',
+      'Voiceover timing',
+      'Visual prompt engineering',
+    ],
+    responsibilities: [
+      'Develop viral hooks for first 3 seconds',
+      'Draft word-for-word voiceover script with pacing cues',
+      'Specify visual assets and B-roll descriptions for each scene',
+      'Format subtitles and hashtags for mobile video platforms',
+    ],
+    integrations: ['Gemini Flash (live)', 'Knowledge Base (live)'],
+    requiredIntegrations: ['Gemini Flash (live)', 'Knowledge Base (live)'],
+    optionalIntegrations: ['HeyGen / Runway (planned)', 'YouTube (planned)'],
+    channels: ['Web Chat', 'Dashboard'],
+    tools: ['search_knowledge_base'],
+    system_prompt: `You are GrovAI, an elite AI Video Producer and Creative Scriptwriter for Grovaitech AI Workforce OS.`,
+    pricing: { monthly: 5500, setup: 4000 },
+    demo_config: { enabled: true },
+    avatar_url: null,
+    version: '1.0.0',
+    deploymentMode: 'native',
+    created_at: '2026-09-15T00:00:00Z',
+    updated_at: '2026-09-15T00:00:00Z',
+  },
+
+  // 8. AI Voice Agent
+  {
+    id: 'ai_voice_agent',
+    name: 'AI Voice Agent',
+    slug: 'ai-voice-agent',
+    displayName: 'AI Voice Agent',
+    title: 'AI Conversational Voice Receptionist',
+    category: 'Operations',
+    department: 'Operations & Support',
+    industry: 'Telecommunications & Customer Service',
+    shortDescription:
+      'Conducts ultra-low latency, bidirectional voice phone calls to answer FAQs, qualify callers, and book slots.',
+    description:
+      'Handles inbound and outbound telephony interactions with natural conversational voice. Qualifies caller intent, provides real-time answers, schedules appointments, and transfers callers when needed.',
+    status: 'live',
+    priority: 8,
+    keywords: [
+      'AI voice agent',
+      'conversational voice AI',
+      'phone call automation',
+      'AI receptionist phone',
+    ],
+    capabilities: [
+      'Bidirectional voice streaming',
+      'Natural speech synthesis',
+      'Live appointment coordination',
+      'Intent routing',
+      'Call summarization',
+    ],
+    responsibilities: [
+      'Greet callers with sub-second response times',
+      'Answer customer questions using verified business knowledge',
+      'Capture name, phone number, and booking preferences verbally',
+      'Log structured call transcripts and action items',
+    ],
+    integrations: ['Gemini Live / WebRTC (live)', 'Twilio / Voice Carrier (live)', 'Supabase (live)', 'Google Calendar (live)'],
+    requiredIntegrations: ['Gemini Live / WebRTC (live)', 'Twilio / Voice Carrier (live)', 'Supabase (live)'],
+    optionalIntegrations: ['Google Calendar (live)'],
+    channels: ['Phone', 'Voice WebRTC', 'Web Chat'],
+    tools: ['create_lead', 'search_knowledge_base', 'escalate_to_human'],
+    system_prompt: `You are GrovAI, an elite conversational AI Voice Receptionist for Grovaitech AI Workforce OS.`,
+    pricing: { monthly: 8000, setup: 6000 },
+    demo_config: { enabled: true },
+    avatar_url: null,
+    version: '1.0.0',
+    deploymentMode: 'native',
+    created_at: '2026-09-15T00:00:00Z',
+    updated_at: '2026-09-15T00:00:00Z',
+  },
+
+  // 9. Invoice Management AI Employee
+  {
+    id: 'invoice_management',
+    name: 'Invoice Management AI Employee',
+    slug: 'invoice-management',
+    displayName: 'Invoice Management AI Employee',
+    title: 'AI Accounts Receivable & Payable Specialist',
+    category: 'Finance',
+    department: 'Finance',
+    industry: 'Accounting & Finance',
+    shortDescription:
+      'Extracts data from incoming invoices, tracks payment schedules, and automates friendly customer payment reminders.',
+    description:
+      'Processes vendor invoices and client billing, checks line-item math, matches purchase orders, monitors aging receivables, and drafts respectful payment reminders.',
+    status: 'demo',
+    priority: 9,
+    keywords: [
+      'AI invoice management',
+      'accounts receivable automation',
+      'invoice OCR AI',
+      'payment reminder automation',
+    ],
+    capabilities: [
+      'Invoice OCR extraction',
+      'Aging report tracking',
+      'Overdue reminder dispatch',
+      'Discrepancy detection',
+      'Payment ledger sync',
+    ],
+    responsibilities: [
+      'Parse PDF invoices and extract vendor, total, and due dates',
+      'Identify overdue accounts and draft tiered reminder sequences',
+      'Verify billing calculations against work orders',
+      'Provide payment status answers to vendor inquiries',
+    ],
+    integrations: ['Supabase (live)', 'Document Storage (live)', 'WhatsApp (live)'],
+    requiredIntegrations: ['Supabase (live)', 'Document Storage (live)'],
+    optionalIntegrations: ['QuickBooks (planned)', 'Stripe (planned)', 'WhatsApp (live)'],
+    channels: ['Web Chat', 'Email', 'WhatsApp'],
+    tools: ['search_knowledge_base', 'escalate_to_human'],
+    system_prompt: `You are GrovAI, an elite AI Accounts Receivable & Invoice Operations Specialist for Grovaitech AI Workforce OS.`,
+    pricing: { monthly: 6000, setup: 4000 },
+    demo_config: { enabled: true },
+    avatar_url: null,
+    version: '1.0.0',
+    deploymentMode: 'hybrid',
+    created_at: '2026-09-15T00:00:00Z',
+    updated_at: '2026-09-15T00:00:00Z',
+  },
+
+  // 10. YouTube Content AI Employee
+  {
+    id: 'youtube_content',
+    name: 'YouTube Content AI Employee',
+    slug: 'youtube-content',
+    displayName: 'YouTube Content AI Employee',
+    title: 'AI YouTube Channel Strategist',
+    category: 'Marketing',
+    department: 'Marketing',
+    industry: 'Media & Video Production',
+    shortDescription:
+      'Researches high-CTR video topics, drafts structured YouTube scripts, generates titles, and writes SEO descriptions.',
+    description:
+      'Optimizes YouTube channel growth by discovering high-demand video ideas, crafting retention-focused full video scripts with timestamped chapter outlines, and generating clickable titles and descriptions.',
+    status: 'demo',
+    priority: 10,
+    keywords: [
+      'YouTube AI employee',
+      'YouTube script generator',
+      'video SEO automation',
+      'YouTube channel growth AI',
+    ],
+    capabilities: [
+      'CTR-optimized title generation',
+      'Full video scriptwriting',
+      'Chapter timestamp creation',
+      'YouTube description & tag SEO',
+      'Thumbnail concept briefing',
+    ],
+    responsibilities: [
+      'Generate 10 high-CTR video title variations per topic',
+      'Draft comprehensive 10-15 minute video scripts with visual cues',
+      'Format YouTube descriptions with keyword placement and links',
+      'Analyze audience comments for recurring video requests',
+    ],
+    integrations: ['Gemini Engine (live)', 'Knowledge Base (live)'],
+    requiredIntegrations: ['Gemini Engine (live)', 'Knowledge Base (live)'],
+    optionalIntegrations: ['YouTube Data API (planned)'],
+    channels: ['Web Chat', 'Dashboard'],
+    tools: ['search_knowledge_base'],
+    system_prompt: `You are GrovAI, an elite AI YouTube Channel Strategist for Grovaitech AI Workforce OS.`,
+    pricing: { monthly: 5000, setup: 3500 },
+    demo_config: { enabled: true },
+    avatar_url: null,
+    version: '1.0.0',
+    deploymentMode: 'native',
+    created_at: '2026-09-15T00:00:00Z',
+    updated_at: '2026-09-15T00:00:00Z',
+  },
+
+  // 11. AI Ad Creative Employee
+  {
+    id: 'ai_ad_creative',
+    name: 'AI Ad Creative Employee',
+    slug: 'ai-ad-creative',
+    displayName: 'AI Ad Creative Employee',
+    title: 'AI Paid Media Copywriter',
+    category: 'Marketing',
+    department: 'Marketing',
+    industry: 'Digital Advertising',
+    shortDescription:
+      'Drafts high-converting ad copy, headlines, and creative angles for Google Ads, Meta Ads, and LinkedIn Ads.',
+    description:
+      'Engineers direct-response advertising campaigns across search and social channels. Produces varied headlines, benefit-driven body copy, hook variations, and CTA copy tailored to target persona pain points.',
+    status: 'live',
+    priority: 11,
+    keywords: [
+      'AI ad creative',
+      'paid ads automation',
+      'Meta ads copywriter AI',
+      'Google ads headline generator',
+    ],
+    capabilities: [
+      'Ad headline generation',
+      'Primary text variation',
+      'Creative angle ideation',
+      'Policy compliance check',
+      'Audience persona targeting',
+    ],
+    responsibilities: [
+      'Draft 5+ headline and primary text variations per campaign angle',
+      'Enforce character limit constraints across Meta, Google, and LinkedIn',
+      'Check copy against ad platform compliance rules',
+      'Create paired visual briefing prompts for design teams',
+    ],
+    integrations: ['Gemini Engine (live)', 'Brand Guidelines (live)'],
+    requiredIntegrations: ['Gemini Engine (live)', 'Brand Guidelines (live)'],
+    optionalIntegrations: ['Google Ads API (planned)', 'Meta Ads API (planned)'],
+    channels: ['Web Chat', 'Dashboard'],
+    tools: ['search_knowledge_base', 'audit_conversation_quality'],
+    system_prompt: `You are GrovAI, an elite AI Paid Media Copywriter for Grovaitech AI Workforce OS.`,
+    pricing: { monthly: 5500, setup: 3500 },
+    demo_config: { enabled: true },
+    avatar_url: null,
+    version: '1.0.0',
+    deploymentMode: 'native',
+    created_at: '2026-09-15T00:00:00Z',
+    updated_at: '2026-09-15T00:00:00Z',
+  },
+
+  // 12. Website Lead Capture AI Employee
+  {
+    id: 'website_lead_capture',
+    name: 'Website Lead Capture AI Employee',
+    slug: 'website-lead-capture',
+    displayName: 'Website Lead Capture AI Employee',
+    title: 'AI Interactive Conversion Specialist',
+    category: 'Sales',
+    department: 'Sales',
+    industry: 'Local & Home Services / B2B',
+    shortDescription:
+      'Engages website visitors in real-time, triages their urgency, and converts casual traffic into verified leads.',
+    description:
+      'Proactively greets visitors on your website, answers immediate questions, triages urgent vs routine requirements, collects contact and service address details, and passes qualified leads to your sales team.',
+    status: 'live',
+    priority: 12,
+    keywords: [
+      'website lead capture',
+      'AI website receptionist',
+      'inbound chat conversion',
+      'lead capture bot',
+    ],
+    capabilities: [
+      'Visitor greeting & triage',
+      'Contact capture',
+      'Service qualification',
+      'Knowledge base Q&A',
+      'Immediate CRM notification',
+    ],
+    responsibilities: [
+      'Engage website visitors before they bounce',
+      'Diagnose service requirements and urgency',
+      'Collect homeowner or buyer contact details',
+      'Log qualified leads into CRM instantly',
+    ],
+    integrations: ['CRM (live)', 'Supabase (live)', 'WhatsApp (live)', 'n8n Workflows (live)'],
+    requiredIntegrations: ['Supabase CRM (live)', 'n8n Workflows (live)'],
+    optionalIntegrations: ['WhatsApp (live)', 'SMS (planned)'],
+    channels: ['Web Chat', 'WhatsApp'],
+    tools: ['create_lead', 'search_knowledge_base', 'escalate_to_human'],
+    system_prompt: `You are GrovAI, an elite AI Website Lead Capture & Inbound Receptionist for Grovaitech AI Workforce OS.`,
+    pricing: { monthly: 4500, setup: 3000 },
+    demo_config: { enabled: true },
+    avatar_url: null,
+    version: '1.0.0',
+    deploymentMode: 'native',
+    created_at: '2026-09-05T00:00:00Z',
+    updated_at: '2026-09-15T00:00:00Z',
+  },
+
+  // 13. WhatsApp Lead Generation AI Employee
+  {
+    id: 'whatsapp_lead_generation',
+    name: 'WhatsApp Lead Generation AI Employee',
+    slug: 'whatsapp-lead-generation',
+    displayName: 'WhatsApp Lead Generation AI Employee',
+    title: 'AI WhatsApp Sales Agent',
+    category: 'Sales',
+    department: 'Sales',
+    industry: 'Retail, Services & E-Commerce',
+    shortDescription:
+      'Engages inbound WhatsApp prospects 24/7, answers product questions, qualifies intent, and captures lead details.',
+    description:
+      'Responds to inbound WhatsApp messages 24/7, qualifies customer intent, collects contact information, and routes hot leads to human sales reps while answering product FAQs accurately.',
+    status: 'live',
+    priority: 13,
+    keywords: [
+      'WhatsApp lead generation',
+      'WhatsApp sales bot',
+      'WhatsApp automation AI',
+      'AI WhatsApp agent',
+    ],
+    capabilities: [
+      'WhatsApp messaging integration',
+      'Lead qualification',
+      'Lead scoring',
+      'CRM synchronization',
+      'Product FAQ answering',
+    ],
+    responsibilities: [
+      'Engage inbound WhatsApp prospects 24/7',
+      'Qualify buyer requirements and intent',
+      'Search product knowledge base for accurate answers',
+      'Register structured leads in the CRM',
+    ],
+    integrations: ['WhatsApp Business API (live)', 'Supabase (live)', 'n8n Multi-CRM Sync (live)'],
+    requiredIntegrations: ['WhatsApp Business API (live)', 'Supabase CRM (live)', 'n8n Workflows (live)'],
+    channels: ['WhatsApp'],
+    tools: ['create_lead', 'search_knowledge_base'],
+    system_prompt: `You are GrovAI, an elite 24/7 AI WhatsApp Sales & Lead Qualification Specialist for Grovaitech AI Workforce OS.`,
+    pricing: { monthly: 6000, setup: 3000 },
+    demo_config: { enabled: true },
+    avatar_url: null,
+    version: '1.0.0',
+    deploymentMode: 'native',
+    created_at: '2026-08-10T00:00:00Z',
+    updated_at: '2026-09-15T00:00:00Z',
+  },
+
+  // 14. AI Appointment Booking Employee
+  {
+    id: 'ai_appointment_booking',
+    name: 'AI Appointment Booking Employee',
+    slug: 'ai-appointment-booking',
+    displayName: 'AI Appointment Booking Employee',
+    title: 'AI Front-Desk Scheduling Specialist',
+    category: 'Healthcare',
+    department: 'Operations',
+    industry: 'Clinics, Salons & Professional Services',
+    shortDescription:
+      'Books client appointments, confirms doctor or stylist availability, sends reminders, and prevents no-shows.',
+    description:
+      'Coordinates calendar scheduling across clinics, salons, and practices. Answers scheduling FAQs, checks practitioner slots, reserves calendar events, and dispatches automated reminder notifications.',
+    status: 'live',
+    priority: 14,
+    keywords: [
+      'AI appointment booking',
+      'scheduling automation',
+      'AI clinic receptionist',
+      'salon booking bot',
+    ],
+    capabilities: [
+      'Appointment booking',
+      'Calendar schedule lookup',
+      'Intake qualification',
+      'FAQ answering',
+      'Reminder notification queue',
+    ],
+    responsibilities: [
+      'Check availability and reserve confirmed time slots',
+      'Collect client contact details and consultation reason',
+      'Block practitioner Google Calendar in real time',
+      'Queue automated confirmation and reminder messages',
+    ],
+    integrations: ['Google Calendar (live)', 'WhatsApp (live)', 'Supabase (live)', 'n8n Workflows (live)'],
+    requiredIntegrations: ['Google Calendar (live)', 'Supabase (live)', 'n8n Workflows (live)'],
+    channels: ['Web Chat', 'WhatsApp'],
+    tools: ['book_clinic_appointment', 'book_salon_service', 'search_knowledge_base'],
+    system_prompt: `You are GrovAI, an elite Medical & Front-Desk AI Appointment Booking Specialist for Grovaitech AI Workforce OS.`,
+    pricing: { monthly: 4000, setup: 4000 },
+    demo_config: { enabled: true },
+    avatar_url: null,
+    version: '1.0.0',
+    deploymentMode: 'native',
+    workflowTemplateId: 'wf-002',
+    created_at: '2026-08-01T00:00:00Z',
+    updated_at: '2026-09-15T00:00:00Z',
+  },
+
+  // 15. Google Business Profile AI Employee
+  {
+    id: 'google_business_profile',
+    name: 'Google Business Profile AI Employee',
+    slug: 'google-business-profile',
+    displayName: 'Google Business Profile AI Employee',
+    title: 'AI Local SEO & Reputation Manager',
+    category: 'Marketing',
+    department: 'Marketing',
+    industry: 'Local Businesses & Multi-Location Brands',
+    shortDescription:
+      'Audits GBP listings, drafts local posts, monitors customer reviews, and writes brand-aligned responses.',
+    description:
+      'Audits Google Business Profile listings, drafts high-converting local posts, monitors customer reviews, drafts brand-aligned review responses, and provides actionable recommendations to maximize local 3-pack visibility.',
+    status: 'live',
+    priority: 15,
+    keywords: [
+      'Google Business Profile AI',
+      'local SEO automation',
+      'review reply generator',
+      'GBP management AI',
+    ],
+    capabilities: [
+      'Google Business Profile audit',
+      'Local visibility optimization',
+      'Review monitoring & sentiment analysis',
+      'Review reply drafting',
+      'Local update post drafting',
+    ],
+    responsibilities: [
+      'Audit listings for completeness and NAP consistency',
+      'Monitor customer reviews and draft empathetic responses',
+      'Draft engaging local promotional posts and updates',
+      'Provide recommendations to improve local rankings',
+    ],
+    integrations: ['Google Business Profile (sandbox)', 'Supabase (live)', 'n8n Workflows (live)'],
+    requiredIntegrations: ['Google Business Profile (sandbox)', 'Supabase (live)', 'n8n Workflows (live)'],
+    channels: ['Web Chat', 'Dashboard'],
+    tools: ['audit_gbp_profile', 'draft_review_reply', 'create_gbp_post', 'search_knowledge_base'],
+    system_prompt: `You are GrovAI, an elite AI Google Business Profile Growth & Reputation Manager for Grovaitech AI Workforce OS.`,
+    pricing: { monthly: 4500, setup: 3000 },
+    demo_config: { enabled: true },
+    avatar_url: null,
+    version: '1.0.0',
+    deploymentMode: 'native',
+    created_at: '2026-09-10T00:00:00Z',
+    updated_at: '2026-09-15T00:00:00Z',
+  },
+]
+
+// ─── Pre-Indexed Workforce Lookups ──────────────────────────────────────────
 
 const CANONICAL_EMPLOYEES_BY_SLUG = new Map<string, AIEmployee>(
   CANONICAL_EMPLOYEES.map((emp) => [emp.slug.toLowerCase(), emp])
@@ -606,16 +1528,64 @@ const CANONICAL_EMPLOYEES_BY_ID = new Map<string, AIEmployee>(
   CANONICAL_EMPLOYEES.map((emp) => [emp.id.toLowerCase(), emp])
 )
 
+const MARKETPLACE_EMPLOYEES_BY_SLUG = new Map<string, AIEmployee>(
+  MARKETPLACE_EMPLOYEES.map((emp) => [emp.slug.toLowerCase(), emp])
+)
+
+const MARKETPLACE_EMPLOYEES_BY_ID = new Map<string, AIEmployee>(
+  MARKETPLACE_EMPLOYEES.map((emp) => [emp.id.toLowerCase(), emp])
+)
+
 export function getCanonicalEmployees(): AIEmployee[] {
   return [...CANONICAL_EMPLOYEES]
 }
 
+export function getMarketplaceEmployees(): AIEmployee[] {
+  return [...MARKETPLACE_EMPLOYEES]
+}
+
 export function getCanonicalEmployeeBySlug(slug: string): AIEmployee | undefined {
   if (!slug) return undefined
-  return CANONICAL_EMPLOYEES_BY_SLUG.get(slug.trim().toLowerCase())
+  const normalized = slug.trim().toLowerCase()
+
+  // 1. Check Canonical Employees first (preserves legacy test behavior)
+  const canonical = CANONICAL_EMPLOYEES_BY_SLUG.get(normalized)
+  if (canonical) return canonical
+
+  // 2. Check Marketplace Employees
+  const marketplace = MARKETPLACE_EMPLOYEES_BY_SLUG.get(normalized)
+  if (marketplace) return marketplace
+
+  // 3. Aliases
+  if (normalized === 'customer-support') return CANONICAL_EMPLOYEES_BY_SLUG.get('customer-support-agent')
+  if (normalized === 'lead-generation') return CANONICAL_EMPLOYEES_BY_SLUG.get('real-estate-lead-receptionist')
+  if (normalized === 'whatsapp-lead-generation') return CANONICAL_EMPLOYEES_BY_SLUG.get('whatsapp-lead-agent')
+  if (normalized === 'ai-appointment-booking') return CANONICAL_EMPLOYEES_BY_SLUG.get('clinic-receptionist')
+  if (normalized === 'website-lead-capture') return CANONICAL_EMPLOYEES_BY_SLUG.get('hvac-lead-recovery')
+  if (normalized === 'google-business-profile') return CANONICAL_EMPLOYEES_BY_SLUG.get('gbp-growth-manager')
+
+  return undefined
 }
 
 export function getCanonicalEmployeeById(id: string): AIEmployee | undefined {
   if (!id) return undefined
-  return CANONICAL_EMPLOYEES_BY_ID.get(id.trim().toLowerCase())
+  const normalized = id.trim().toLowerCase()
+
+  // 1. Check Canonical Employees first
+  const canonical = CANONICAL_EMPLOYEES_BY_ID.get(normalized)
+  if (canonical) return canonical
+
+  // 2. Check Marketplace Employees
+  const marketplace = MARKETPLACE_EMPLOYEES_BY_ID.get(normalized)
+  if (marketplace) return marketplace
+
+  // 3. Aliases
+  if (normalized === 'lead_generation') return CANONICAL_EMPLOYEES_BY_ID.get('emp-001')
+  if (normalized === 'customer_support') return CANONICAL_EMPLOYEES_BY_ID.get('emp-005')
+  if (normalized === 'whatsapp_lead_generation') return CANONICAL_EMPLOYEES_BY_ID.get('emp-003')
+  if (normalized === 'ai_appointment_booking') return CANONICAL_EMPLOYEES_BY_ID.get('emp-002')
+  if (normalized === 'website_lead_capture') return CANONICAL_EMPLOYEES_BY_ID.get('emp-011')
+  if (normalized === 'google_business_profile') return CANONICAL_EMPLOYEES_BY_ID.get('emp-012')
+
+  return undefined
 }
