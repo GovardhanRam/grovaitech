@@ -192,8 +192,18 @@ export async function updateLeadStatus(id: string, status: string) {
     return { success: false, error: `Invalid status. Allowed values: ${ALLOWED_STATUSES.join(', ')}` }
   }
 
+  if (!id || typeof id !== 'string' || id.trim() === '') {
+    return { success: false, error: 'Lead ID is required' }
+  }
+
   try {
     const supabase = await createServerClient()
+
+    // Require an authenticated session before allowing status mutations
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return { success: false, error: 'Authentication required to update lead status' }
+    }
 
     const { data, error } = await supabase
       .from('real_estate_leads')

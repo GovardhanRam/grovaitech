@@ -76,22 +76,15 @@ export async function getDashboardData(): Promise<GetDashboardDataResult> {
 
     const documentsCount = documents.length
 
-    // Revenue estimate based on registered leads and bookings
-    let estimatedRevenue = '₹0'
-    if (totalLeads > 0 || totalAppointments > 0) {
-      const lakhEstimate = (totalLeads * 0.4 + totalAppointments * 0.1).toFixed(1)
-      estimatedRevenue = `₹${lakhEstimate} Lakhs`
-    }
-
     const stats: DashboardStats = {
       totalConversations,
       totalLeads,
       totalAppointments,
       totalWorkflowRuns,
       workflowSuccessRate,
-      activeAgentsCount: 2,
+      activeAgentsCount: 0,
       documentsCount,
-      revenuePipelineEstimate: estimatedRevenue,
+      revenuePipelineEstimate: undefined,
     }
 
     // ── 3. Format Recent Leads ───────────────────────────────────────────────

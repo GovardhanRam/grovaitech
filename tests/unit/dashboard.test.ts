@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { getDashboardData } from '@/app/actions/dashboard'
-import { CANONICAL_FALLBACK_DASHBOARD } from '@/lib/dashboard/utils'
 import { createServerClient } from '@/lib/supabase/server'
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -12,7 +11,7 @@ describe('app/actions/dashboard - getDashboardData()', () => {
     vi.clearAllMocks()
   })
 
-  it('1. returns canonical fallback dashboard when database has zero live records', async () => {
+  it('1. returns honest empty-state fallback when database has zero live records (no fake data)', async () => {
     const mockSupabase = {
       from: vi.fn((table: string) => ({
         select: vi.fn(() => ({
@@ -27,10 +26,10 @@ describe('app/actions/dashboard - getDashboardData()', () => {
 
     expect(result.success).toBe(true)
     expect(result.isFallback).toBe(true)
-    expect(result.stats.totalConversations).toBe(1248)
-    expect(result.stats.totalLeads).toBe(94)
-    expect(result.recentLeads).toHaveLength(4)
-    expect(result.recentWorkflows).toHaveLength(3)
+    expect(result.stats.totalConversations).toBe(0)
+    expect(result.stats.totalLeads).toBe(0)
+    expect(result.recentLeads).toHaveLength(0)
+    expect(result.recentWorkflows).toHaveLength(0)
   })
 
   it('2. accurately aggregates live counts from chats, leads, bookings, and workflow executions', async () => {

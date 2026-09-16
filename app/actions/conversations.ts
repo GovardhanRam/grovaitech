@@ -22,7 +22,6 @@ import {
   getInitials,
   formatRelativeTime,
   formatMessageTime,
-  DEMO_CONVERSATIONS,
 } from '@/lib/conversations/utils'
 
 // ─── Primary Server Action: getConversations() ───────────────────────────────
@@ -38,10 +37,10 @@ export async function getConversations(): Promise<GetConversationsResult> {
       .order('created_at', { ascending: false })
 
     if (chatsError) {
-      console.warn('[getConversations] Chats fetch notice, applying demo fallback:', chatsError.message)
+      console.warn('[getConversations] Chats fetch error:', chatsError.message)
       return {
-        success: true,
-        conversations: DEMO_CONVERSATIONS,
+        success: false,
+        conversations: [],
         isFallback: true,
         error: chatsError.message,
       }
@@ -117,11 +116,11 @@ export async function getConversations(): Promise<GetConversationsResult> {
       }
     }
 
-    // If completely empty (no chats and no messages), return isolated demo fallback
+    // If completely empty (no chats and no messages), return honest empty state
     if (chatMap.size === 0) {
       return {
         success: true,
-        conversations: DEMO_CONVERSATIONS,
+        conversations: [],
         isFallback: true,
       }
     }
@@ -291,7 +290,7 @@ export async function getConversations(): Promise<GetConversationsResult> {
     console.error('[getConversations Exception]', error)
     return {
       success: false,
-      conversations: DEMO_CONVERSATIONS,
+      conversations: [],
       isFallback: true,
       error: error?.message || String(error),
     }
@@ -313,8 +312,7 @@ export async function getConversationMessages(chatId: string): Promise<Conversat
 
     if (error || !messages) {
       console.warn('[getConversationMessages] Error fetching messages:', error?.message)
-      const demo = DEMO_CONVERSATIONS.find((c) => c.id === chatId)
-      return demo?.messages || []
+      return []
     }
 
     return messages.map((m: any, idx: number) => ({

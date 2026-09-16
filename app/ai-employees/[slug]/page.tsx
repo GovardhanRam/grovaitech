@@ -122,27 +122,8 @@ export default async function EmployeeProfilePage({
             </div>
           </div>
 
-          {/* Pricing & Primary CTAs */}
-          <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-6">
-              <div>
-                <span className="text-xs text-slate-500 font-medium">Monthly Retainer</span>
-                <p className="text-xl sm:text-2xl font-black text-slate-900">
-                  ₹{employee.pricing?.monthly?.toLocaleString() || 0}
-                </p>
-              </div>
-
-              <div className="h-8 w-px bg-slate-200" />
-
-              <div>
-                <span className="text-xs text-slate-500 font-medium">Deployment Setup</span>
-                <p className="text-xl sm:text-2xl font-black text-slate-900">
-                  ₹{employee.pricing?.setup?.toLocaleString() || 0}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
+          {/* Primary CTAs */}
+          <div className="mt-8 pt-6 border-t border-slate-100 flex items-center gap-3">
               {isDeployable ? (
                 <Link
                   href={`/deploy?employee=${employee.slug}`}
@@ -161,7 +142,6 @@ export default async function EmployeeProfilePage({
                   Try Interactive Demo
                 </a>
               ) : null}
-            </div>
           </div>
         </div>
 

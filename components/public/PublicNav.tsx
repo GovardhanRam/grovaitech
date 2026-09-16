@@ -15,7 +15,6 @@ export default function PublicNav() {
     { name: 'How It Works', href: '#how-it-works' },
     { name: 'Technology', href: '#technology' },
     { name: 'Blog', href: '/blog' },
-    { name: 'Pricing', href: '/ai-employees' },
   ]
 
   return (

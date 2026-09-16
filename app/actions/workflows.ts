@@ -29,10 +29,10 @@ export async function getWorkflows(): Promise<GetWorkflowsResult> {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.warn('[getWorkflows] Database fetch notice, using fallback:', error.message)
+      console.warn('[getWorkflows] Database fetch error:', error.message)
       return {
-        success: true,
-        workflows: CANONICAL_DEMO_WORKFLOWS,
+        success: false,
+        workflows: [],
         isFallback: true,
         error: error.message,
       }
@@ -43,7 +43,7 @@ export async function getWorkflows(): Promise<GetWorkflowsResult> {
     if (liveExecutions.length === 0) {
       return {
         success: true,
-        workflows: CANONICAL_DEMO_WORKFLOWS,
+        workflows: [],
         isFallback: true,
       }
     }
@@ -107,7 +107,7 @@ export async function getWorkflows(): Promise<GetWorkflowsResult> {
     console.error('[getWorkflows Exception]', err)
     return {
       success: false,
-      workflows: CANONICAL_DEMO_WORKFLOWS,
+      workflows: [],
       isFallback: true,
       error: err?.message || String(err),
     }

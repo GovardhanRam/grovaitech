@@ -6,7 +6,6 @@ import {
 import {
   formatRelativeTime,
   formatMessageTime,
-  DEMO_CONVERSATIONS,
 } from '@/lib/conversations/utils'
 import { createServerClient } from '@/lib/supabase/server'
 
@@ -234,7 +233,7 @@ describe('app/actions/conversations - Data Access Layer', () => {
 
   // ─── 3. Fallback & Error Resilience ─────────────────────────────────────────
   describe('Fallback & Isolated Mock Handling', () => {
-    it('falls back to DEMO_CONVERSATIONS when Supabase tables are completely empty', async () => {
+    it('returns honest empty state when Supabase tables are completely empty (no demo injection)', async () => {
       const mockSupabase = {
         from: vi.fn(() => ({
           select: vi.fn().mockReturnValue({
@@ -249,11 +248,10 @@ describe('app/actions/conversations - Data Access Layer', () => {
 
       expect(result.success).toBe(true)
       expect(result.isFallback).toBe(true)
-      expect(result.conversations).toEqual(DEMO_CONVERSATIONS)
-      expect(result.conversations.length).toBeGreaterThan(0)
+      expect(result.conversations).toEqual([])
     })
 
-    it('falls back safely to DEMO_CONVERSATIONS when Supabase throws an exception or query error', async () => {
+    it('returns empty state when Supabase throws an exception or query error (no demo injection)', async () => {
       const mockSupabase = {
         from: vi.fn(() => ({
           select: vi.fn().mockReturnValue({
@@ -266,9 +264,9 @@ describe('app/actions/conversations - Data Access Layer', () => {
 
       const result = await getConversations()
 
-      expect(result.success).toBe(true)
+      expect(result.success).toBe(false)
       expect(result.isFallback).toBe(true)
-      expect(result.conversations).toEqual(DEMO_CONVERSATIONS)
+      expect(result.conversations).toEqual([])
       expect(result.error).toBe('Database connection timeout')
     })
 

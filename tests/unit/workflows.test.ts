@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { getWorkflows, triggerTestWorkflow } from '@/app/actions/workflows'
 import { saveWorkflowExecution } from '@/lib/workflows/executor'
 import { createServerClient } from '@/lib/supabase/server'
-import { CANONICAL_DEMO_WORKFLOWS } from '@/lib/workflows/utils'
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: vi.fn(),
@@ -36,13 +35,12 @@ describe('Workflows & Execution Persistence Layer', () => {
     vi.mocked(createServerClient).mockResolvedValue(mockSupabase)
   })
 
-  it('falls back cleanly to canonical demo workflows when database is empty', async () => {
+  it('returns an honest empty state when database is empty (no demo injection)', async () => {
     const result = await getWorkflows()
 
     expect(result.success).toBe(true)
     expect(result.isFallback).toBe(true)
-    expect(result.workflows.length).toBe(CANONICAL_DEMO_WORKFLOWS.length)
-    expect(result.workflows[0].id).toBe('wf-001')
+    expect(result.workflows).toEqual([])
   })
 
   it('merges live Supabase workflow_executions into wf-001 with calculated metrics', async () => {
@@ -177,14 +175,14 @@ describe('Workflows & Execution Persistence Layer', () => {
     expect(mockDbData.length).toBeGreaterThanOrEqual(1)
   })
 
-  it('handles database exceptions gracefully and returns fallback data without throwing', async () => {
+  it('handles database exceptions gracefully and returns empty state without throwing', async () => {
     vi.mocked(createServerClient).mockRejectedValue(new Error('Connection timeout'))
 
     const result = await getWorkflows()
 
     expect(result.success).toBe(false)
     expect(result.isFallback).toBe(true)
-    expect(result.workflows).toEqual(CANONICAL_DEMO_WORKFLOWS)
+    expect(result.workflows).toEqual([])
     expect(result.error).toContain('Connection timeout')
   })
 })

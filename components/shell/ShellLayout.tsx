@@ -54,11 +54,9 @@ const menuItems = [
   { name: 'Settings',      href: '/settings',       icon: Settings },
 ]
 
-const mockNotifications = [
-  { id: 1, text: 'AI Receptionist booked a new appointment at Apollo Dental Clinic', time: '5 mins ago', unread: true },
-  { id: 2, text: 'New lead qualified via WhatsApp: Ram Charan (Nellore)', time: '1 hour ago', unread: true },
-  { id: 3, text: 'Invoice #INV-2026-004 paid successfully', time: '1 day ago', unread: false },
-]
+// No mock notifications — notifications will be sourced from real activity only.
+// Until live notification infrastructure is connected, the panel shows an empty state.
+const mockNotifications: { id: number; text: string; time: string; unread: boolean }[] = []
 
 export default function ShellLayout({ children }: ShellLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -267,24 +265,26 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
                 className="p-2 rounded-xl text-slate-500 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-all duration-200 relative"
               >
                 <Bell className="w-4 h-4" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-blue-600 ring-2 ring-white" />
               </button>
               {notificationsOpen && (
                 <div className="absolute right-0 mt-2 w-80 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl z-50 text-slate-800">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
                     <span className="text-xs font-bold text-slate-800">Notifications</span>
-                    <button className="text-[10px] font-bold text-blue-600 hover:text-blue-700">Mark all read</button>
                   </div>
                   <div className="space-y-3">
-                    {mockNotifications.map((notif) => (
-                      <div key={notif.id} className="flex gap-2.5 items-start p-1.5 rounded-lg hover:bg-slate-50 transition-colors">
-                        <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${notif.unread ? 'bg-blue-600' : 'bg-transparent'}`} />
-                        <div className="flex-1">
-                          <p className="text-[11px] text-slate-600 leading-normal">{notif.text}</p>
-                          <span className="text-[9px] text-slate-400 mt-1 block">{notif.time}</span>
+                    {mockNotifications.length === 0 ? (
+                      <p className="text-[11px] text-slate-400 text-center py-3">No new notifications</p>
+                    ) : (
+                      mockNotifications.map((notif) => (
+                        <div key={notif.id} className="flex gap-2.5 items-start p-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+                          <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${notif.unread ? 'bg-blue-600' : 'bg-transparent'}`} />
+                          <div className="flex-1">
+                            <p className="text-[11px] text-slate-600 leading-normal">{notif.text}</p>
+                            <span className="text-[9px] text-slate-400 mt-1 block">{notif.time}</span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
                 </div>
               )}

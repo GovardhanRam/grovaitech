@@ -13,7 +13,7 @@ export interface DashboardStats {
   workflowSuccessRate: number
   activeAgentsCount: number
   documentsCount: number
-  revenuePipelineEstimate: string
+  revenuePipelineEstimate?: string
 }
 
 export interface DashboardLeadItem {

@@ -51,34 +51,16 @@ export default function EmployeeProfile({ employee }: EmployeeProfileProps) {
           {employee.description}
         </p>
 
-        <div className="mt-8 pt-6 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-          <div className="flex gap-8">
-            <div>
-              <span className="text-sm text-gray-500">Monthly</span>
-              <p className="text-2xl font-bold text-gray-900">
-                ₹{employee.pricing?.monthly || 0}
-              </p>
-            </div>
-
-            <div>
-              <span className="text-sm text-gray-500">Setup</span>
-              <p className="text-2xl font-bold text-gray-900">
-                ₹{employee.pricing?.setup || 0}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {employee.demo_config?.enabled && (
-              <button className="px-6 py-3 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition font-medium text-sm">
-                Try Demo
-              </button>
-            )}
-
-            <button className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm">
-              Deploy Now
+        <div className="mt-8 pt-6 border-t border-gray-100 flex items-center gap-3">
+          {employee.demo_config?.enabled && (
+            <button className="px-6 py-3 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition font-medium text-sm">
+              Try Demo
             </button>
-          </div>
+          )}
+
+          <button className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm">
+            Deploy Now
+          </button>
         </div>
       </div>
 
