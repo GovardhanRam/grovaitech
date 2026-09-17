@@ -142,7 +142,7 @@ function mapPostRow(row: any): ContentPostItem {
 export async function persistContentPackage(
   pkg: SocialMediaContentPackage,
   config: Record<string, any>,
-  clientId: string = 'client-default',
+  clientId: string,
   deploymentId?: string
 ): Promise<{ package: ContentPackageItem; posts: ContentPostItem[] }> {
   const packageId = pkg.executionId || `pkg-${Date.now()}`

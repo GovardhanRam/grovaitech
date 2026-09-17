@@ -70,6 +70,13 @@ async function resolveTenantContext(rawClientId?: string): Promise<string | unde
 }
 
 /**
+ * The canonical demo tenant identifier permitted by executeSocialMediaRecipe().
+ * Satisfies the `startsWith('demo-')` check in app/actions/recipes.ts.
+ * Used ONLY when the caller explicitly signals demo/mock context via isDemoContext.
+ */
+const DEMO_TENANT_ID = 'demo-default'
+
+/**
  * Server action to fetch initial Content Hub data (packages, posts, overview KPIs).
  */
 export async function getContentHubData(clientId?: string): Promise<GetContentHubDataResult> {
@@ -81,6 +88,12 @@ export interface GenerateContentRunParams {
   config: Record<string, any>
   clientId?: string
   deploymentId?: string
+  /**
+   * Set to true ONLY for explicit demo/mock sessions (e.g. the public AI Employee demo page).
+   * When true and no real authenticated client is found, resolves to DEMO_TENANT_ID ('demo-default').
+   * Never set this flag based on an unauthenticated user reaching a real customer's workspace.
+   */
+  isDemoContext?: boolean
 }
 
 export interface GenerateContentRunResult {
@@ -95,13 +108,36 @@ export interface GenerateContentRunResult {
  * Server action to trigger a new Social Media Generation Run.
  * Strictly reuses the canonical executeSocialMediaRecipe() server action,
  * then durably persists the generated package and platform-specific drafts.
+ *
+ * Tenant resolution order:
+ *   1. Caller-supplied clientId validated by resolveTenantContext()
+ *   2. Authenticated user's associated client from the 'clients' table
+ *   3. Explicit demo context (isDemoContext=true) → DEMO_TENANT_ID ('demo-default')
+ *   4. No valid tenant → authorization error (never invents or selects a tenant)
  */
 export async function generateContentRunAction(
   params: GenerateContentRunParams
 ): Promise<GenerateContentRunResult> {
   try {
-    const { config, clientId: rawClientId, deploymentId } = params || {}
-    const verifiedClientId = (await resolveTenantContext(rawClientId)) || rawClientId || 'client-default'
+    const { config, clientId: rawClientId, deploymentId, isDemoContext } = params || {}
+    const resolvedClientId = await resolveTenantContext(rawClientId)
+
+    let verifiedClientId: string
+
+    if (resolvedClientId) {
+      // Case A: Authenticated user with a real client, or valid caller-supplied ID
+      verifiedClientId = resolvedClientId
+    } else if (isDemoContext === true) {
+      // Case B: Explicit demo/mock session — use canonical permitted demo tenant
+      verifiedClientId = DEMO_TENANT_ID
+    } else {
+      // Case C: No valid authenticated client and no explicit demo context — reject
+      return {
+        success: false,
+        error:
+          'Unauthorized: No valid client context found. Please sign in or provide a valid client identifier.',
+      }
+    }
 
     // 1. Invoke canonical Social Media Recipe runner
     const recipeResult = await executeSocialMediaRecipe({

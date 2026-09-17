@@ -365,7 +365,7 @@ describe('Grovaitech Social Media Content Hub & Human Approval Workspace', () =>
       expect(spy).toHaveBeenCalledWith({
         recipeSlug: 'social-media-marketing',
         config: expect.any(Object),
-        clientId: expect.any(String),
+        clientId: 'client-apex-101',
       })
       expect(res.success).toBe(true)
       expect(res.package?.id).toBe('exec-test-content-001')
@@ -398,6 +398,133 @@ describe('Grovaitech Social Media Content Hub & Human Approval Workspace', () =>
       expect(data.success).toBe(true)
       expect(data.overview.totalPostsCount).toBeGreaterThanOrEqual(2)
       expect(data.packages.length).toBeGreaterThanOrEqual(1)
+    })
+  })
+
+  // ── 6. Tenant Resolution Security (Production Bug Fix) ──────────────────────
+  describe('6. Tenant Resolution Security — client-default bug fix', () => {
+    it('T1: "client-default" is never produced — no-context call is rejected, not silently assigned a tenant', async () => {
+      // Mock: authenticated user found (usr-test-123), but no client record associated
+      // (the default mock already returns data:[] for limit(1) on clients table)
+      const spy = vi.spyOn(recipesActionModule, 'executeSocialMediaRecipe')
+
+      const res = await generateContentRunAction({
+        config: { businessName: 'Test Co' },
+        // No clientId, no isDemoContext — should be rejected
+      })
+
+      expect(res.success).toBe(false)
+      expect(res.error).toContain('Unauthorized')
+      // Critically: executeSocialMediaRecipe must NOT have been called with 'client-default'
+      expect(spy).not.toHaveBeenCalledWith(
+        expect.objectContaining({ clientId: 'client-default' })
+      )
+      spy.mockRestore()
+    })
+
+    it('T2: explicit demo context resolves to the canonical permitted demo tenant "demo-default"', async () => {
+      const spy = vi.spyOn(recipesActionModule, 'executeSocialMediaRecipe').mockResolvedValue({
+        success: true,
+        contentPackage: MOCK_CONTENT_PACKAGE,
+        executionId: 'exec-demo-001',
+      })
+
+      const res = await generateContentRunAction({
+        config: { businessName: 'Demo Co' },
+        isDemoContext: true,
+        // No clientId provided
+      })
+
+      expect(res.success).toBe(true)
+      // Must have been called with exactly 'demo-default', not 'client-default' or any invented ID
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({ clientId: 'demo-default' })
+      )
+      // Persisted package must carry the demo tenant ID, not an invented one
+      expect(res.package?.clientId).toBe('demo-default')
+
+      spy.mockRestore()
+    })
+
+    it('T3: authenticated user with a supplied clientId resolves to their actual client', async () => {
+      const spy = vi.spyOn(recipesActionModule, 'executeSocialMediaRecipe').mockResolvedValue({
+        success: true,
+        contentPackage: MOCK_CONTENT_PACKAGE,
+        executionId: 'exec-real-client-001',
+      })
+
+      const res = await generateContentRunAction({
+        config: { businessName: 'Real Corp' },
+        clientId: 'client-real-tenant-xyz',
+      })
+
+      expect(res.success).toBe(true)
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({ clientId: 'client-real-tenant-xyz' })
+      )
+      expect(res.package?.clientId).toBe('client-real-tenant-xyz')
+
+      spy.mockRestore()
+    })
+
+    it('T4: no valid client and no isDemoContext → authorization error, no generation attempted', async () => {
+      const spy = vi.spyOn(recipesActionModule, 'executeSocialMediaRecipe')
+
+      const res = await generateContentRunAction({
+        config: { businessName: 'Ghost Corp' },
+        // Deliberately omit clientId and isDemoContext
+      })
+
+      expect(res.success).toBe(false)
+      expect(res.error).toContain('Unauthorized')
+      // Generation must never be attempted for an unresolved tenant
+      expect(spy).not.toHaveBeenCalled()
+
+      spy.mockRestore()
+    })
+
+    it('T5: cross-tenant mutation protection — tenant B cannot modify posts belonging to tenant A', async () => {
+      await persistContentPackage(MOCK_CONTENT_PACKAGE, {}, 'client-tenant-secure-a')
+
+      const attemptStatus = await updatePostStatus(
+        'post-test-li-1',
+        'approved',
+        {},
+        'client-tenant-secure-b'
+      )
+      expect(attemptStatus.success).toBe(false)
+      expect(attemptStatus.error).toContain('Unauthorized')
+
+      const attemptEdit = await updatePostContent(
+        'post-test-li-1',
+        'Injected content from tenant B',
+        'client-tenant-secure-b'
+      )
+      expect(attemptEdit.success).toBe(false)
+      expect(attemptEdit.error).toContain('Unauthorized')
+    })
+
+    it('T6: isDemoContext=true cannot elevate to a real customer tenant — demo resolves only to "demo-default"', async () => {
+      const spy = vi.spyOn(recipesActionModule, 'executeSocialMediaRecipe').mockResolvedValue({
+        success: true,
+        contentPackage: MOCK_CONTENT_PACKAGE,
+        executionId: 'exec-demo-isolation',
+      })
+
+      // isDemoContext=true with a real-looking clientId: the explicit clientId wins (Case A),
+      // isDemoContext is only the fallback when no client resolves.
+      const resWithClientId = await generateContentRunAction({
+        config: {},
+        clientId: 'client-real-tenant-xyz',
+        isDemoContext: true,
+      })
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({ clientId: 'client-real-tenant-xyz' })
+      )
+      // Must NOT silently override a real clientId with demo-default
+      expect(resWithClientId.package?.clientId).toBe('client-real-tenant-xyz')
+
+      spy.mockRestore()
     })
   })
 })
