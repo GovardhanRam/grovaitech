@@ -8,11 +8,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase/server'
-import { runAgentTurn } from '@/lib/ai/runtime'
+import { createServerClient, createAdminClient } from '@/lib/supabase/server'
+import { runAgentTurn, resolveAuthorizedTools } from '@/lib/ai/runtime'
+import { getCanonicalEmployeeBySlug } from '@/lib/employees/registry'
 import { extractRealEstateLead } from '@/lib/leads/extractor'
 import { executeRealEstateWorkflow, getSiteVisitCustomerMessage } from '@/lib/workflows/executor'
 import { createLead } from '@/app/actions/leads'
+import type { ClientDeployment } from '@/lib/deployment/types'
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,9 +31,60 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const { message, chatId, history } = body
-    const employeeSlug = body.employeeSlug || body.slug || 'real-estate-lead-receptionist'
+    const rawDeploymentId = typeof body.deploymentId === 'string' ? body.deploymentId.trim() : null
 
-    // 2. Resolve or create chat conversation session
+    // 2. Resolve deployment securely if deploymentId is provided
+    let deploymentRecord: ClientDeployment | null = null
+    let effectiveEmployeeSlug = body.employeeSlug || body.slug || 'real-estate-lead-receptionist'
+    let systemInstruction: string | undefined = undefined
+    let authorizedTools: any[] | undefined = undefined
+    let executionMode: 'sandbox' | 'live' = 'sandbox'
+
+    if (rawDeploymentId) {
+      const adminSupabase = await createAdminClient()
+      const { data: depData, error: depError } = await adminSupabase
+        .from('client_deployments')
+        .select('*')
+        .eq('id', rawDeploymentId)
+        .single()
+
+      if (depError || !depData) {
+        return NextResponse.json(
+          { error: `Deployment with ID "${rawDeploymentId}" was not found.` },
+          { status: 404 }
+        )
+      }
+
+      const foundDeployment = depData as ClientDeployment
+      if (foundDeployment.status !== 'active') {
+        return NextResponse.json(
+          {
+            error: `Authorization Error: Deployment "${rawDeploymentId}" is in status "${foundDeployment.status}" and cannot execute live turns. Must be "active".`,
+          },
+          { status: 403 }
+        )
+      }
+
+      deploymentRecord = foundDeployment
+      effectiveEmployeeSlug = deploymentRecord.assigned_employee_slug
+      executionMode = 'live'
+
+      // Compose persona: Canonical master prompt + client-specific runtime instructions
+      const canonicalEmployee = getCanonicalEmployeeBySlug(effectiveEmployeeSlug)
+      const clientInstruction = deploymentRecord.runtime_config?.system_context_instruction || ''
+      if (canonicalEmployee) {
+        systemInstruction = clientInstruction
+          ? `${canonicalEmployee.system_prompt}\n\n${clientInstruction}`
+          : canonicalEmployee.system_prompt
+      }
+
+      // Restrict live tools to safe allowlist: create_lead, search_knowledge_base
+      const canonicalTools = resolveAuthorizedTools(effectiveEmployeeSlug)
+      const LIVE_EXECUTION_TOOL_ALLOWLIST = new Set(['create_lead', 'search_knowledge_base'])
+      authorizedTools = canonicalTools.filter((t) => LIVE_EXECUTION_TOOL_ALLOWLIST.has(t.name))
+    }
+
+    // 3. Resolve or create chat conversation session
     let currentChatId = chatId
     if (!currentChatId) {
       const chatPayload: any = {
@@ -55,7 +108,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 3. Persist incoming user message to database
+    // 4. Persist incoming user message to database
     try {
       await supabase.from('messages').insert({
         chat_id: currentChatId,
@@ -66,23 +119,32 @@ export async function POST(request: NextRequest) {
       console.warn('[Chat API] User message log notice:', msgErr)
     }
 
-    // 4. Delegate to Unified Headless Agent Runtime
+    // 5. Delegate to Unified Headless Agent Runtime with authoritative server context
+    const customerContext: any = {
+      userId: user?.id || null,
+    }
+    if (deploymentRecord) {
+      customerContext.clientId = deploymentRecord.client_id
+      customerContext.deploymentId = deploymentRecord.id
+    }
+
     const turnResult = await runAgentTurn({
-      employeeSlug,
+      employeeSlug: effectiveEmployeeSlug,
       message,
       history,
       channel: 'web_chat',
-      customerContext: {
-        userId: user?.id,
-      },
+      customerContext,
+      systemInstruction,
+      tools: authorizedTools,
+      executionMode,
     })
 
     let finalText = turnResult.replyText
     let capturedLead = turnResult.leadResult
     let capturedWorkflow = turnResult.workflowResult
 
-    // 5. Vertical Safety Net: Real Estate Passive Extraction Fallback (when 0 tools executed)
-    if (employeeSlug === 'real-estate-lead-receptionist' && turnResult.executedTools.length === 0) {
+    // 6. Vertical Safety Net: Real Estate Passive Extraction Fallback (when 0 tools executed)
+    if (effectiveEmployeeSlug === 'real-estate-lead-receptionist' && turnResult.executedTools.length === 0) {
       try {
         const turnHistory = [
           ...(history || []),
@@ -92,9 +154,10 @@ export async function POST(request: NextRequest) {
 
         const extractedLead = await extractRealEstateLead(turnHistory)
         if (
-          extractedLead.qualification_status === 'qualified' ||
-          extractedLead.phone ||
-          extractedLead.site_visit_requested
+          extractedLead &&
+          (extractedLead.qualification_status === 'qualified' ||
+            extractedLead.phone ||
+            extractedLead.site_visit_requested)
         ) {
           const leadRecord = {
             name: extractedLead.name || 'Interested Buyer',
@@ -112,6 +175,8 @@ export async function POST(request: NextRequest) {
             notes: `Extracted by Real Estate Lead Receptionist. Score: ${extractedLead.qualification_score}/100.`,
             source: 'ai_demo' as const,
             user_id: user?.id || null,
+            client_id: deploymentRecord?.client_id || undefined,
+            deployment_id: deploymentRecord?.id || undefined,
           }
 
           const saveRes = await createLead(leadRecord)
@@ -133,7 +198,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 6. Persist assistant message to database
+    // 7. Persist assistant message to database
     try {
       await supabase.from('messages').insert({
         chat_id: currentChatId,
@@ -144,10 +209,11 @@ export async function POST(request: NextRequest) {
       console.warn('[Chat API] Assistant message log notice:', aiMsgErr)
     }
 
-    // 7. Return structured response to frontend
+    // 8. Return structured response to frontend
     return NextResponse.json({
       message: finalText,
       chatId: currentChatId,
+      deploymentId: deploymentRecord?.id || undefined,
       toolResults: turnResult.executedTools.length > 0 ? turnResult.executedTools : undefined,
       lead: capturedLead,
       workflow: capturedWorkflow,
