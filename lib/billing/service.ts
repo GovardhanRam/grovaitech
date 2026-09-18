@@ -34,7 +34,19 @@ import type {
   AdminQuoteContext,
   AdminQuoteTenantOption,
   AdminQuoteDeploymentOption,
+  CreatePaymentInput,
+  PaymentOrderResult,
+  ReconcilePaymentInput,
+  WebhookProcessResult,
 } from './types'
+import {
+  createRazorpayOrder,
+  getRazorpayOrder,
+  getRazorpayOrderPayments,
+  verifyRazorpayWebhookSignature,
+  verifyRazorpayPaymentSignature,
+  getRazorpayConfig,
+} from './razorpay'
 
 async function getDbClient() {
   if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -773,6 +785,511 @@ export async function getAdminQuoteContext(
     data: {
       tenants: (tenants || []) as AdminQuoteTenantOption[],
       deployments: (deployments || []) as AdminQuoteDeploymentOption[],
+    },
+  }
+}
+
+// ============================================================================
+// 6. RAZORPAY PAYMENT GATEWAY WORKFLOWS
+// ============================================================================
+
+/**
+ * Creates or retrieves a payable Razorpay order for an issued invoice.
+ * Security Invariants:
+ *   - Identity and tenant ownership strictly verified server-side.
+ *   - Amount is strictly derived from invoice.total_inr (never from client input).
+ *   - Paid, void, or cross-tenant invoices are strictly rejected.
+ *   - Idempotent: returns existing valid gateway order if already created.
+ */
+export async function createPaymentForInvoice(
+  input: CreatePaymentInput,
+  user: AuthenticatedUser | null
+): Promise<BillingActionResult<PaymentOrderResult>> {
+  if (!user) {
+    return { success: false, error: 'Authentication required.', status: 401 }
+  }
+
+  const cleanInvoiceId = input.invoice_id?.trim()
+  if (!cleanInvoiceId) {
+    return { success: false, error: 'Invoice ID is required.', status: 400 }
+  }
+
+  const db = await getDbClient()
+  const { data: invoice, error: fetchErr } = await db
+    .from('billing_invoices')
+    .select('*')
+    .eq('id', cleanInvoiceId)
+    .maybeSingle()
+
+  if (fetchErr || !invoice) {
+    return { success: false, error: 'Invoice not found.', status: 404 }
+  }
+
+  // Authorize tenant access
+  const authResult = await resolveAuthorizedTenant({
+    requestedTenantId: invoice.tenant_id,
+  })
+
+  if (!authResult.success) {
+    return { success: false, error: authResult.error, status: authResult.status }
+  }
+
+  if (!authResult.isPlatformAdmin && authResult.tenantId !== invoice.tenant_id) {
+    return {
+      success: false,
+      error: 'Forbidden: You do not have permission to pay this invoice.',
+      status: 403,
+    }
+  }
+
+  // Validate invoice payability
+  if (invoice.status === 'paid') {
+    return { success: false, error: 'Invoice has already been paid.', status: 400 }
+  }
+  if (invoice.status === 'void') {
+    return { success: false, error: 'Cannot pay a void invoice.', status: 400 }
+  }
+  if (invoice.status !== 'issued' && invoice.status !== 'draft') {
+    return { success: false, error: `Invoice is in non-payable status: ${invoice.status}`, status: 400 }
+  }
+
+  // Cross-tenant check for linked subscription if present
+  if (invoice.subscription_id) {
+    const { data: sub } = await db
+      .from('billing_subscriptions')
+      .select('id, tenant_id')
+      .eq('id', invoice.subscription_id)
+      .maybeSingle()
+
+    if (sub && sub.tenant_id !== invoice.tenant_id) {
+      return { success: false, error: 'Cross-tenant subscription alignment violation.', status: 400 }
+    }
+  }
+
+  const config = getRazorpayConfig()
+  const keyId = config?.keyId || 'rzp_live_placeholder'
+
+  // Derive payable amount strictly from database invoice total
+  const amountPaise = invoice.total_inr * 100
+
+  // Idempotency: If gateway_order_id already exists, verify if still valid
+  if (invoice.gateway_order_id) {
+    try {
+      const existingOrderRes = await getRazorpayOrder(invoice.gateway_order_id)
+      if (existingOrderRes.success && existingOrderRes.data) {
+        const order = existingOrderRes.data
+        if (order.status === 'created' || order.status === 'attempted') {
+          return {
+            success: true,
+            data: {
+              order_id: order.id,
+              amount_inr: invoice.total_inr,
+              amount_paise: amountPaise,
+              currency: 'INR',
+              key_id: keyId,
+              invoice_number: invoice.invoice_number,
+              notes: order.notes,
+            },
+          }
+        }
+      }
+    } catch {
+      // Fall through to recreate order if expired/unreachable
+    }
+  }
+
+  // Create new order on Razorpay
+  const orderRes = await createRazorpayOrder({
+    amount_paise: amountPaise,
+    currency: 'INR',
+    receipt: invoice.invoice_number,
+    notes: {
+      invoice_id: invoice.id,
+      tenant_id: invoice.tenant_id,
+      invoice_number: invoice.invoice_number,
+    },
+  })
+
+  if (!orderRes.success || !orderRes.data) {
+    return {
+      success: false,
+      error: orderRes.error || 'Failed to initialize payment with gateway.',
+      status: 502,
+    }
+  }
+
+  const order = orderRes.data
+
+  // Persist gateway order ID to invoice record
+  await db
+    .from('billing_invoices')
+    .update({
+      gateway_order_id: order.id,
+    })
+    .eq('id', invoice.id)
+
+  return {
+    success: true,
+    data: {
+      order_id: order.id,
+      amount_inr: invoice.total_inr,
+      amount_paise: amountPaise,
+      currency: 'INR',
+      key_id: keyId,
+      invoice_number: invoice.invoice_number,
+      notes: order.notes,
+    },
+  }
+}
+
+/**
+ * Reconciles invoice status by checking verified Razorpay order and payment status.
+ * Can be called synchronously post-checkout or as an internal check.
+ */
+export async function reconcilePaymentForInvoice(
+  input: ReconcilePaymentInput,
+  user: AuthenticatedUser | null
+): Promise<BillingActionResult<BillingInvoice>> {
+  if (!user) {
+    return { success: false, error: 'Authentication required.', status: 401 }
+  }
+
+  const cleanInvoiceId = input.invoice_id?.trim()
+  if (!cleanInvoiceId) {
+    return { success: false, error: 'Invoice ID is required.', status: 400 }
+  }
+
+  const db = await getDbClient()
+  const { data: invoice, error } = await db
+    .from('billing_invoices')
+    .select('*')
+    .eq('id', cleanInvoiceId)
+    .maybeSingle()
+
+  if (error || !invoice) {
+    return { success: false, error: 'Invoice not found.', status: 404 }
+  }
+
+  // Authorize tenant access
+  const authResult = await resolveAuthorizedTenant({
+    requestedTenantId: invoice.tenant_id,
+  })
+
+  if (!authResult.success) {
+    return { success: false, error: authResult.error, status: authResult.status }
+  }
+
+  if (!authResult.isPlatformAdmin && authResult.tenantId !== invoice.tenant_id) {
+    return {
+      success: false,
+      error: 'Forbidden: You do not have access to this invoice.',
+      status: 403,
+    }
+  }
+
+  // Idempotent: already paid
+  if (invoice.status === 'paid') {
+    return { success: true, data: invoice as BillingInvoice }
+  }
+
+  let gatewayPaymentId: string | null = null
+  let paymentMethod = 'online'
+  let paidAt = new Date().toISOString()
+
+  // If post-checkout signature is provided, verify it
+  if (input.gateway_signature) {
+    if (input.gateway_order_id && invoice.gateway_order_id && input.gateway_order_id !== invoice.gateway_order_id) {
+      return {
+        success: false,
+        error: 'Gateway order ID does not match invoice records.',
+        status: 400,
+      }
+    }
+    if (!input.gateway_payment_id) {
+      return {
+        success: false,
+        error: 'Gateway payment ID is required when validating signature.',
+        status: 400,
+      }
+    }
+
+    const orderIdToVerify = input.gateway_order_id || invoice.gateway_order_id || ''
+    const sigCheck = verifyRazorpayPaymentSignature({
+      orderId: orderIdToVerify,
+      paymentId: input.gateway_payment_id,
+      signature: input.gateway_signature,
+    })
+
+    if (!sigCheck.isValid) {
+      return {
+        success: false,
+        error: `Cryptographic signature verification failed: ${sigCheck.reason || 'Invalid signature.'}`,
+        status: 400,
+      }
+    }
+
+    gatewayPaymentId = input.gateway_payment_id
+    paymentMethod = 'razorpay'
+  } else {
+    // Check order status on Razorpay API directly
+    if (!invoice.gateway_order_id) {
+      return {
+        success: false,
+        error: 'Cannot reconcile payment: No gateway order associated with this invoice.',
+        status: 400,
+      }
+    }
+
+    const orderRes = await getRazorpayOrder(invoice.gateway_order_id)
+    if (!orderRes.success || !orderRes.data) {
+      return {
+        success: false,
+        error: orderRes.error || 'Failed to verify order on payment gateway.',
+        status: 502,
+      }
+    }
+
+    const order = orderRes.data
+    if (order.status !== 'paid') {
+      return {
+        success: false,
+        error: `Gateway order status is "${order.status}", not "paid".`,
+        status: 400,
+      }
+    }
+
+    // Fetch payments to extract payment transaction details
+    const paymentsRes = await getRazorpayOrderPayments(invoice.gateway_order_id)
+    const payments = paymentsRes.success && paymentsRes.data ? paymentsRes.data : []
+    const capturedPayment = payments.find((p) => p.status === 'captured') || payments[0]
+
+    paidAt = capturedPayment?.created_at
+      ? new Date(capturedPayment.created_at * 1000).toISOString()
+      : new Date().toISOString()
+    paymentMethod = capturedPayment?.method || 'online'
+    gatewayPaymentId = capturedPayment?.id || null
+  }
+
+  // Update invoice to paid
+  const { data: updatedInvoice, error: updateErr } = await db
+    .from('billing_invoices')
+    .update({
+      status: 'paid',
+      gateway_payment_id: gatewayPaymentId,
+      payment_method: paymentMethod,
+      paid_at: paidAt,
+    })
+    .eq('id', invoice.id)
+    .select('*')
+    .single()
+
+  if (updateErr || !updatedInvoice) {
+    return {
+      success: false,
+      error: `Failed to update invoice status: ${updateErr?.message || 'Database error'}`,
+      status: 500,
+    }
+  }
+
+  // Activate associated subscription if incomplete, trial, or past_due
+  if (updatedInvoice.subscription_id) {
+    const now = new Date()
+    const periodEnd = new Date(now)
+    periodEnd.setMonth(periodEnd.getMonth() + 1)
+
+    await db
+      .from('billing_subscriptions')
+      .update({
+        status: 'active',
+        current_period_start: now.toISOString(),
+        current_period_end: periodEnd.toISOString(),
+        updated_at: now.toISOString(),
+      })
+      .eq('id', updatedInvoice.subscription_id)
+      .in('status', ['incomplete', 'trial', 'past_due', 'trialing'])
+  }
+
+  return { success: true, data: updatedInvoice as BillingInvoice }
+}
+
+/**
+ * Handles incoming Razorpay webhook events securely.
+ * Security Invariants:
+ *   - Verifies HMAC-SHA256 signature using raw body and timingSafeEqual.
+ *   - Does not trust tenant IDs from payload; resolves invoice strictly via gateway_order_id.
+ *   - Confirms amount in paise matches invoice.total_inr * 100.
+ *   - Idempotent: duplicate webhook delivers 200 without double-updating.
+ *   - Failed payments never mark invoice paid.
+ */
+export async function processRazorpayWebhookEvent(
+  rawBody: string,
+  signatureHeader: string | null
+): Promise<BillingActionResult<WebhookProcessResult>> {
+  // 1. Verify HMAC signature
+  const sigCheck = verifyRazorpayWebhookSignature(rawBody, signatureHeader)
+  if (!sigCheck.isValid) {
+    return {
+      success: false,
+      error: `Webhook signature verification failed: ${sigCheck.reason}`,
+      status: 401,
+    }
+  }
+
+  // 2. Parse payload
+  let payload: any
+  try {
+    payload = JSON.parse(rawBody)
+  } catch {
+    return {
+      success: false,
+      error: 'Malformed JSON payload.',
+      status: 400,
+    }
+  }
+
+  const eventType = payload.event
+  const paymentEntity = payload.payload?.payment?.entity
+  const orderEntity = payload.payload?.order?.entity
+
+  const orderId = paymentEntity?.order_id || orderEntity?.id
+  if (!orderId) {
+    return {
+      success: true,
+      data: {
+        processed: false,
+        action: 'ignored',
+        message: `No order_id present in event ${eventType}`,
+      },
+    }
+  }
+
+  const db = await getDbClient()
+
+  // 3. Resolve invoice by gateway_order_id stored in database
+  const { data: invoice, error: invoiceErr } = await db
+    .from('billing_invoices')
+    .select('*')
+    .eq('gateway_order_id', orderId)
+    .maybeSingle()
+
+  if (invoiceErr || !invoice) {
+    return {
+      success: false,
+      error: `No invoice found associated with gateway order "${orderId}".`,
+      status: 404,
+    }
+  }
+
+  // 4. Verify amount and currency if payment entity provided
+  if (paymentEntity) {
+    const expectedPaise = invoice.total_inr * 100
+    if (paymentEntity.amount !== expectedPaise || (paymentEntity.currency && paymentEntity.currency !== 'INR')) {
+      return {
+        success: false,
+        error: `Amount mismatch: gateway amount ${paymentEntity.amount} paise does not match invoice ${expectedPaise} paise.`,
+        status: 400,
+      }
+    }
+  }
+
+  // 5. Idempotency check: if invoice is already paid, do not re-process
+  if (invoice.status === 'paid') {
+    return {
+      success: true,
+      data: {
+        processed: true,
+        action: 'already_processed',
+        invoice_id: invoice.id,
+        invoice_number: invoice.invoice_number,
+        order_id: orderId,
+        payment_id: paymentEntity?.id || invoice.gateway_payment_id || undefined,
+        message: 'Invoice already marked as paid.',
+      },
+    }
+  }
+
+  // 6. Handle event types
+  if (eventType === 'order.paid' || eventType === 'payment.captured') {
+    const paidAt = paymentEntity?.created_at
+      ? new Date(paymentEntity.created_at * 1000).toISOString()
+      : new Date().toISOString()
+    const paymentMethod = paymentEntity?.method || 'online'
+    const gatewayPaymentId = paymentEntity?.id || null
+
+    // Update invoice to paid
+    await db
+      .from('billing_invoices')
+      .update({
+        status: 'paid',
+        gateway_payment_id: gatewayPaymentId,
+        payment_method: paymentMethod,
+        paid_at: paidAt,
+      })
+      .eq('id', invoice.id)
+
+    // Activate associated subscription if incomplete, trial, or past_due
+    if (invoice.subscription_id) {
+      const now = new Date()
+      const periodEnd = new Date(now)
+      periodEnd.setMonth(periodEnd.getMonth() + 1)
+
+      await db
+        .from('billing_subscriptions')
+        .update({
+          status: 'active',
+          current_period_start: now.toISOString(),
+          current_period_end: periodEnd.toISOString(),
+          updated_at: now.toISOString(),
+        })
+        .eq('id', invoice.subscription_id)
+        .in('status', ['incomplete', 'trial', 'past_due', 'trialing'])
+    }
+
+    return {
+      success: true,
+      data: {
+        processed: true,
+        action: 'paid',
+        invoice_id: invoice.id,
+        invoice_number: invoice.invoice_number,
+        order_id: orderId,
+        payment_id: gatewayPaymentId || undefined,
+        message: 'Payment successfully captured and invoice marked paid.',
+      },
+    }
+  }
+
+  if (eventType === 'payment.failed') {
+    // Record failure identifier on invoice without marking as paid
+    const failedPaymentId = paymentEntity?.id || null
+    await db
+      .from('billing_invoices')
+      .update({
+        gateway_payment_id: failedPaymentId,
+      })
+      .eq('id', invoice.id)
+      .neq('status', 'paid')
+
+    return {
+      success: true,
+      data: {
+        processed: true,
+        action: 'failed',
+        invoice_id: invoice.id,
+        invoice_number: invoice.invoice_number,
+        order_id: orderId,
+        payment_id: failedPaymentId || undefined,
+        message: `Payment failed on gateway: ${paymentEntity?.error_description || 'Unknown failure'}`,
+      },
+    }
+  }
+
+  return {
+    success: true,
+    data: {
+      processed: false,
+      action: 'ignored',
+      message: `Unhandled event type: ${eventType}`,
     },
   }
 }

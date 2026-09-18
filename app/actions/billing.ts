@@ -19,6 +19,8 @@ import {
   createInvoiceForSubscription,
   getTenantBillingOverview,
   getAdminQuoteContext,
+  createPaymentForInvoice,
+  reconcilePaymentForInvoice,
 } from '@/lib/billing/service'
 import type {
   CreateCustomQuoteInput,
@@ -31,6 +33,9 @@ import type {
   BillingInvoice,
   TenantBillingOverview,
   AdminQuoteContext,
+  CreatePaymentInput,
+  PaymentOrderResult,
+  ReconcilePaymentInput,
 } from '@/lib/billing/types'
 
 /**
@@ -173,6 +178,42 @@ export async function getAdminQuoteContextAction(): Promise<
     return {
       success: false,
       error: err.message || 'An unexpected error occurred while loading quote context.',
+      status: 500,
+    }
+  }
+}
+
+/**
+ * Tenant Action: Initialize a payable Razorpay order for an issued invoice.
+ */
+export async function createPaymentForInvoiceAction(
+  input: CreatePaymentInput
+): Promise<BillingActionResult<PaymentOrderResult>> {
+  try {
+    const user = await getAuthenticatedUser()
+    return await createPaymentForInvoice(input, user)
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err.message || 'An unexpected error occurred while creating payment order.',
+      status: 500,
+    }
+  }
+}
+
+/**
+ * Tenant Action: Reconcile an invoice's payment status against verified gateway records.
+ */
+export async function reconcilePaymentForInvoiceAction(
+  input: ReconcilePaymentInput
+): Promise<BillingActionResult<BillingInvoice>> {
+  try {
+    const user = await getAuthenticatedUser()
+    return await reconcilePaymentForInvoice(input, user)
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err.message || 'An unexpected error occurred while reconciling payment.',
       status: 500,
     }
   }

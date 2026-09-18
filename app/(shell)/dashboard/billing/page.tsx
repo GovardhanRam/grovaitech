@@ -30,8 +30,30 @@ import {
   Plus,
   ExternalLink,
 } from 'lucide-react'
-import { getTenantBillingOverviewAction } from '@/app/actions/billing'
+import {
+  getTenantBillingOverviewAction,
+  createPaymentForInvoiceAction,
+  reconcilePaymentForInvoiceAction,
+} from '@/app/actions/billing'
 import type { TenantBillingOverview, BillingQuote } from '@/lib/billing/types'
+
+declare global {
+  interface Window {
+    Razorpay?: any
+  }
+}
+
+function loadRazorpayScript(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined') return resolve(false)
+    if (window.Razorpay) return resolve(true)
+    const script = document.createElement('script')
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+    script.onload = () => resolve(true)
+    script.onerror = () => resolve(false)
+    document.body.appendChild(script)
+  })
+}
 
 function formatINR(amount: number): string {
   return new Intl.NumberFormat('en-IN', {
@@ -45,6 +67,11 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true)
   const [overview, setOverview] = useState<TenantBillingOverview | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [payingInvoiceId, setPayingInvoiceId] = useState<string | null>(null)
+  const [paymentNotice, setPaymentNotice] = useState<{
+    type: 'success' | 'error' | 'info'
+    message: string
+  } | null>(null)
 
   const loadBillingOverview = async () => {
     setLoading(true)
@@ -60,6 +87,102 @@ export default function BillingPage() {
       setErrorMessage(err.message || 'An unexpected error occurred while loading billing.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handlePayInvoice = async (invoiceId: string) => {
+    setPayingInvoiceId(invoiceId)
+    setPaymentNotice(null)
+    try {
+      const loaded = await loadRazorpayScript()
+      if (!loaded) {
+        setPaymentNotice({
+          type: 'error',
+          message: 'Unable to initialize secure Razorpay gateway. Please check your network connection.',
+        })
+        setPayingInvoiceId(null)
+        return
+      }
+
+      const res = await createPaymentForInvoiceAction({ invoice_id: invoiceId })
+      if (!res.success || !res.data) {
+        setPaymentNotice({
+          type: 'error',
+          message: res.error || 'Failed to initialize payment gateway order.',
+        })
+        setPayingInvoiceId(null)
+        return
+      }
+
+      const {
+        order_id: orderId,
+        amount_paise: amountPaise,
+        currency,
+        key_id: keyId,
+        invoice_number: invoiceNumber,
+      } = res.data
+
+      const options = {
+        key: keyId,
+        amount: amountPaise,
+        currency,
+        name: 'Grovaitech AI Workforce',
+        description: `Settlement for Invoice ${invoiceNumber}`,
+        order_id: orderId,
+        handler: async function (response: {
+          razorpay_order_id: string
+          razorpay_payment_id: string
+          razorpay_signature: string
+        }) {
+          setPaymentNotice({
+            type: 'info',
+            message: 'Payment authorized. Reconciling settlement with billing ledger...',
+          })
+          const reconcileRes = await reconcilePaymentForInvoiceAction({
+            invoice_id: invoiceId,
+            gateway_order_id: response.razorpay_order_id,
+            gateway_payment_id: response.razorpay_payment_id,
+            gateway_signature: response.razorpay_signature,
+          })
+
+          if (reconcileRes.success) {
+            setPaymentNotice({
+              type: 'success',
+              message: `Payment successful! Invoice ${invoiceNumber} marked PAID and subscription activated.`,
+            })
+            await loadBillingOverview()
+          } else {
+            setPaymentNotice({
+              type: 'error',
+              message: reconcileRes.error || 'Payment received but reconciliation failed. Support has been notified.',
+            })
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            setPayingInvoiceId(null)
+          },
+        },
+        theme: {
+          color: '#0f172a',
+        },
+      }
+
+      const rzp = new window.Razorpay(options)
+      rzp.on('payment.failed', function (resp: any) {
+        setPaymentNotice({
+          type: 'error',
+          message: `Payment failed: ${resp.error?.description || 'Gateway transaction declined.'}`,
+        })
+        setPayingInvoiceId(null)
+      })
+      rzp.open()
+    } catch (err: any) {
+      setPaymentNotice({
+        type: 'error',
+        message: err.message || 'An unexpected error occurred during payment checkout.',
+      })
+      setPayingInvoiceId(null)
     }
   }
 
@@ -151,6 +274,32 @@ export default function BillingPage() {
           GST (18%) Compliant • India-First
         </span>
       </div>
+
+      {/* Payment Notice Banner */}
+      {paymentNotice && (
+        <div
+          className={`p-4 rounded-2xl border flex items-center justify-between gap-3 text-xs font-semibold ${
+            paymentNotice.type === 'success'
+              ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+              : paymentNotice.type === 'error'
+              ? 'bg-red-50 text-red-900 border-red-200'
+              : 'bg-blue-50 text-blue-900 border-blue-200'
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            {paymentNotice.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+            {paymentNotice.type === 'error' && <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />}
+            {paymentNotice.type === 'info' && <Loader2 className="w-4 h-4 text-blue-600 animate-spin shrink-0" />}
+            <span>{paymentNotice.message}</span>
+          </div>
+          <button
+            onClick={() => setPaymentNotice(null)}
+            className="text-slate-400 hover:text-slate-600 text-xs px-2 py-0.5 rounded-lg"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Primary Overview Cards Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -393,6 +542,7 @@ export default function BillingPage() {
                   <th className="pb-3">GST (18%)</th>
                   <th className="pb-3">Total (INR)</th>
                   <th className="pb-3">Status</th>
+                  <th className="pb-3 text-right">Payment</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -417,6 +567,34 @@ export default function BillingPage() {
                       >
                         {inv.status}
                       </span>
+                    </td>
+                    <td className="py-3 text-right">
+                      {inv.status === 'issued' ? (
+                        <button
+                          onClick={() => handlePayInvoice(inv.id)}
+                          disabled={payingInvoiceId === inv.id}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold text-[11px] shadow-xs transition-colors"
+                        >
+                          {payingInvoiceId === inv.id ? (
+                            <>
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              <span>Processing...</span>
+                            </>
+                          ) : (
+                            <>
+                              <CreditCard className="w-3 h-3" />
+                              <span>Pay {formatINR(inv.total_inr)}</span>
+                            </>
+                          )}
+                        </button>
+                      ) : inv.status === 'paid' ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Settled
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-slate-400">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}

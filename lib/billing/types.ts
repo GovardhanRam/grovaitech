@@ -134,6 +134,37 @@ export interface AdminQuoteContext {
   deployments: AdminQuoteDeploymentOption[]
 }
 
+export interface CreatePaymentInput {
+  invoice_id: string
+}
+
+export interface PaymentOrderResult {
+  order_id: string
+  amount_inr: number
+  amount_paise: number
+  currency: string
+  key_id: string
+  invoice_number: string
+  notes?: Record<string, string>
+}
+
+export interface ReconcilePaymentInput {
+  invoice_id: string
+  gateway_order_id?: string
+  gateway_payment_id?: string
+  gateway_signature?: string
+}
+
+export interface WebhookProcessResult {
+  processed: boolean
+  action: 'paid' | 'failed' | 'ignored' | 'already_processed'
+  invoice_id?: string
+  invoice_number?: string
+  order_id?: string
+  payment_id?: string
+  message?: string
+}
+
 export interface BillingActionResult<T = any> {
   success: boolean
   data?: T
