@@ -60,8 +60,81 @@ describe('Tenant-Scoped Grounded Business Knowledge & Adversarial Hardening', ()
       let insertedPayload: any = null
       let isDelete = false
 
+      if (table === 'tenant_memberships') {
+        const memBuilder = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockImplementation((field: string, val: any) => {
+            filters.push({ field, val })
+            return memBuilder
+          }),
+          then: (onfulfilled: any) => {
+            const userId = filters.find(f => f.field === 'user_id')?.val
+            if (userId === 'admin-user-001') {
+              return onfulfilled({
+                data: [
+                  {
+                    id: 'mem-admin-001',
+                    tenant_id: 'internal-admin-tenant',
+                    user_id: 'admin-user-001',
+                    role: 'platform_super_admin',
+                    status: 'active',
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                  },
+                ],
+                error: null,
+              })
+            }
+            return onfulfilled({ data: [], error: null })
+          },
+        }
+        return memBuilder
+      }
+
+      if (table === 'tenants') {
+        const tenantBuilder = {
+          select: vi.fn().mockReturnThis(),
+          in: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: {
+              id: 'internal-admin-tenant',
+              name: 'Grovaitech Internal',
+              slug: 'grovaitech-internal',
+              type: 'internal',
+              status: 'active',
+            },
+            error: null,
+          }),
+          then: (onfulfilled: any) => {
+            return onfulfilled({
+              data: [
+                {
+                  id: 'internal-admin-tenant',
+                  name: 'Grovaitech Internal',
+                  slug: 'grovaitech-internal',
+                  type: 'internal',
+                  status: 'active',
+                },
+                {
+                  id: TENANT_B,
+                  name: 'Zenith Realty',
+                  slug: 'zenith-realty',
+                  type: 'customer',
+                  status: 'active',
+                },
+              ],
+              error: null,
+            })
+          },
+        }
+        return tenantBuilder
+      }
+
       const builder = {
         select: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
         eq: vi.fn().mockImplementation((field: string, val: any) => {
           filters.push({ field, val })
           return builder

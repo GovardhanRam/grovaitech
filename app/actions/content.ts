@@ -29,44 +29,57 @@ import type {
   ContentPostItem,
 } from '@/types/content'
 
+import { resolveAuthorizedTenant } from '@/lib/auth'
+
+export interface ResolvedTenantContext {
+  success: boolean
+  tenantId?: string
+  error?: string
+}
+
 /**
  * Resolves and validates authenticated user context and tenant identifier.
+ * Authoritatively validates tenant access via database-backed resolveAuthorizedTenant().
+ * Caller-supplied tenant IDs are strictly verified against the user's active memberships.
  */
-async function resolveTenantContext(rawClientId?: string): Promise<string | undefined> {
+async function resolveTenantContext(
+  rawClientId?: string,
+  allowDemo: boolean = false
+): Promise<ResolvedTenantContext> {
   try {
-    const supabase = await createServerClient()
-    let user: any = null
-    try {
-      const { data: authData } = await supabase.auth.getUser()
-      user = authData?.user || null
-    } catch {
-      user = null
+    const cleanId = rawClientId?.trim()
+
+    // Explicit demo context bypass only when explicitly permitted
+    if (allowDemo && (!cleanId || cleanId === DEMO_TENANT_ID || cleanId.startsWith('demo-') || cleanId.startsWith('client-demo-'))) {
+      return { success: true, tenantId: cleanId || DEMO_TENANT_ID }
     }
 
-    if (rawClientId && typeof rawClientId === 'string') {
-      const clean = rawClientId.trim()
-      if (isValidTenantId(clean)) {
-        return clean
-      }
-      return undefined
-    }
-
-    if (user) {
-      const { data: userClients } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('user_id', user.id)
-        .limit(1)
-
-      if (Array.isArray(userClients) && userClients.length > 0) {
-        return userClients[0].id
+    if (cleanId && !isValidTenantId(cleanId)) {
+      return {
+        success: false,
+        error: 'Invalid client tenant identifier format.',
       }
     }
-  } catch (err) {
-    console.warn('[Content Action] Tenant resolution notice:', err)
+
+    const auth = await resolveAuthorizedTenant({ requestedTenantId: cleanId })
+    if (!auth.success) {
+      return {
+        success: false,
+        error: auth.error || 'Forbidden: You do not have permission to access this workspace.',
+      }
+    }
+
+    return {
+      success: true,
+      tenantId: auth.tenantId,
+    }
+  } catch (err: any) {
+    console.warn('[Content Action] Tenant resolution notice:', err?.message || err)
+    return {
+      success: false,
+      error: 'Failed to verify tenant authorization.',
+    }
   }
-
-  return undefined
 }
 
 /**
@@ -80,8 +93,26 @@ const DEMO_TENANT_ID = 'demo-default'
  * Server action to fetch initial Content Hub data (packages, posts, overview KPIs).
  */
 export async function getContentHubData(clientId?: string): Promise<GetContentHubDataResult> {
-  const verifiedClientId = await resolveTenantContext(clientId)
-  return fetchContentHubData(verifiedClientId)
+  const tenantRes = await resolveTenantContext(clientId, true)
+  if (!tenantRes.success || !tenantRes.tenantId) {
+    return {
+      success: false,
+      error: tenantRes.error || 'Unauthorized tenant access.',
+      packages: [],
+      posts: [],
+      overview: {
+        pendingCount: 0,
+        approvedCount: 0,
+        scheduledCount: 0,
+        publishedCount: 0,
+        rejectedCount: 0,
+        totalPostsCount: 0,
+        latestQaScore: 0,
+        latestRunAt: null,
+      },
+    }
+  }
+  return fetchContentHubData(tenantRes.tenantId)
 }
 
 export interface GenerateContentRunParams {
@@ -111,33 +142,28 @@ export interface GenerateContentRunResult {
  *
  * Tenant resolution order:
  *   1. Caller-supplied clientId validated by resolveTenantContext()
- *   2. Authenticated user's associated client from the 'clients' table
- *   3. Explicit demo context (isDemoContext=true) → DEMO_TENANT_ID ('demo-default')
- *   4. No valid tenant → authorization error (never invents or selects a tenant)
+ *   2. Authenticated user's associated client from tenant_memberships
+ *   3. Explicit demo context (isDemoContext=true) -> DEMO_TENANT_ID ('demo-default')
+ *   4. No valid tenant -> authorization error (never invents or selects a tenant)
  */
 export async function generateContentRunAction(
   params: GenerateContentRunParams
 ): Promise<GenerateContentRunResult> {
   try {
     const { config, clientId: rawClientId, deploymentId, isDemoContext } = params || {}
-    const resolvedClientId = await resolveTenantContext(rawClientId)
+    const tenantRes = await resolveTenantContext(rawClientId, isDemoContext === true)
 
-    let verifiedClientId: string
-
-    if (resolvedClientId) {
-      // Case A: Authenticated user with a real client, or valid caller-supplied ID
-      verifiedClientId = resolvedClientId
-    } else if (isDemoContext === true) {
-      // Case B: Explicit demo/mock session — use canonical permitted demo tenant
-      verifiedClientId = DEMO_TENANT_ID
-    } else {
-      // Case C: No valid authenticated client and no explicit demo context — reject
+    if (!tenantRes.success || !tenantRes.tenantId) {
       return {
         success: false,
         error:
-          'Unauthorized: No valid client context found. Please sign in or provide a valid client identifier.',
+          tenantRes.error
+            ? (tenantRes.error.startsWith('Unauthorized') ? tenantRes.error : `Unauthorized: ${tenantRes.error}`)
+            : 'Unauthorized: No valid client context found. Please sign in or provide a valid client identifier.',
       }
     }
+
+    const verifiedClientId = tenantRes.tenantId
 
     // 1. Invoke canonical Social Media Recipe runner
     const recipeResult = await executeSocialMediaRecipe({
@@ -187,7 +213,20 @@ export async function approvePostAction(
     return { success: false, error: 'Post ID is required.' }
   }
 
-  const verifiedClientId = await resolveTenantContext(rawClientId)
+  let verifiedClientId: string | undefined = undefined
+  if (rawClientId) {
+    const tenantRes = await resolveTenantContext(rawClientId, true)
+    if (!tenantRes.success || !tenantRes.tenantId) {
+      return { success: false, error: tenantRes.error || 'Unauthorized workspace access.' }
+    }
+    verifiedClientId = tenantRes.tenantId
+  } else {
+    const tenantRes = await resolveTenantContext(undefined, false)
+    if (tenantRes.success) {
+      verifiedClientId = tenantRes.tenantId
+    }
+  }
+
   return updatePostStatus(postId, 'approved', { approvedAt: new Date().toISOString() }, verifiedClientId)
 }
 
@@ -202,7 +241,20 @@ export async function rejectPostAction(
     return { success: false, error: 'Post ID is required.' }
   }
 
-  const verifiedClientId = await resolveTenantContext(rawClientId)
+  let verifiedClientId: string | undefined = undefined
+  if (rawClientId) {
+    const tenantRes = await resolveTenantContext(rawClientId, true)
+    if (!tenantRes.success || !tenantRes.tenantId) {
+      return { success: false, error: tenantRes.error || 'Unauthorized workspace access.' }
+    }
+    verifiedClientId = tenantRes.tenantId
+  } else {
+    const tenantRes = await resolveTenantContext(undefined, false)
+    if (tenantRes.success) {
+      verifiedClientId = tenantRes.tenantId
+    }
+  }
+
   return updatePostStatus(postId, 'rejected', { rejectionReason }, verifiedClientId)
 }
 
@@ -221,7 +273,20 @@ export async function editPostAction(
     return { success: false, error: 'Refined post content cannot be empty.' }
   }
 
-  const verifiedClientId = await resolveTenantContext(rawClientId)
+  let verifiedClientId: string | undefined = undefined
+  if (rawClientId) {
+    const tenantRes = await resolveTenantContext(rawClientId, true)
+    if (!tenantRes.success || !tenantRes.tenantId) {
+      return { success: false, error: tenantRes.error || 'Unauthorized workspace access.' }
+    }
+    verifiedClientId = tenantRes.tenantId
+  } else {
+    const tenantRes = await resolveTenantContext(undefined, false)
+    if (tenantRes.success) {
+      verifiedClientId = tenantRes.tenantId
+    }
+  }
+
   return updatePostContent(postId, editedContent, verifiedClientId)
 }
 
@@ -246,6 +311,19 @@ export async function schedulePostAction(
     return { success: false, error: 'Scheduled time must be in the future.' }
   }
 
-  const verifiedClientId = await resolveTenantContext(rawClientId)
+  let verifiedClientId: string | undefined = undefined
+  if (rawClientId) {
+    const tenantRes = await resolveTenantContext(rawClientId, true)
+    if (!tenantRes.success || !tenantRes.tenantId) {
+      return { success: false, error: tenantRes.error || 'Unauthorized workspace access.' }
+    }
+    verifiedClientId = tenantRes.tenantId
+  } else {
+    const tenantRes = await resolveTenantContext(undefined, false)
+    if (tenantRes.success) {
+      verifiedClientId = tenantRes.tenantId
+    }
+  }
+
   return updatePostStatus(postId, 'scheduled', { scheduledAt: targetDate.toISOString() }, verifiedClientId)
 }

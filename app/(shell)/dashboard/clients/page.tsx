@@ -12,6 +12,7 @@ import {
   X,
   Bot
 } from 'lucide-react'
+import { provisionTenantClientAction } from '@/app/actions/onboarding'
 
 interface ClientContract {
   id: string
@@ -47,12 +48,37 @@ export default function ClientsPage() {
   const supabase = createClient()
 
   const loadClients = async () => {
-    const { data } = await supabase
-      .from('clients')
-      .select()
-      .order('created_at', { ascending: false })
-    if (data) {
-      setClients(data)
+    try {
+      // Try canonical tenants table first
+      const { data: tenantData } = await supabase
+        .from('tenants')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (tenantData && tenantData.length > 0) {
+        const mapped = tenantData.map((t: any) => ({
+          id: t.id,
+          name: t.name,
+          email: t.email || '',
+          industry: t.industry || 'General',
+          status: (t.status === 'active' ? 'Active' : 'Inactive') as 'Active' | 'Inactive',
+          services: [],
+          created_at: t.created_at,
+        }))
+        setClients(mapped)
+        return
+      }
+
+      // Fallback for legacy clients table
+      const { data } = await supabase
+        .from('clients')
+        .select()
+        .order('created_at', { ascending: false })
+      if (data) {
+        setClients(data)
+      }
+    } catch {
+      // Ignore load error in offline/mock mode
     }
   }
 
@@ -62,28 +88,31 @@ export default function ClientsPage() {
 
   const handleAddClient = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newClientName || !newClientEmail || selectedServices.length === 0) return
+    if (!newClientName || selectedServices.length === 0) return
 
     setIsSaving(true)
-    const newClient = {
-      name: newClientName,
-      email: newClientEmail,
-      industry: newClientIndustry,
-      status: newClientStatus,
-      services: selectedServices
-    }
+    try {
+      const res = await provisionTenantClientAction({
+        name: newClientName,
+        email: newClientEmail,
+        industry: newClientIndustry,
+        services: selectedServices,
+      })
 
-    const { error } = await supabase.from('clients').insert(newClient)
-    setIsSaving(false)
-    
-    if (!error) {
-      // Clear form & close
-      setNewClientName('')
-      setNewClientEmail('')
-      setNewClientIndustry('Clinics')
-      setSelectedServices([])
-      setIsModalOpen(false)
-      loadClients()
+      if (!res.success) {
+        alert(res.error || 'Failed to provision client workspace.')
+      } else {
+        setNewClientName('')
+        setNewClientEmail('')
+        setNewClientIndustry('Clinics')
+        setSelectedServices([])
+        setIsModalOpen(false)
+        loadClients()
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Error provisioning client workspace.')
+    } finally {
+      setIsSaving(false)
     }
   }
 

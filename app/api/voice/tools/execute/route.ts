@@ -11,8 +11,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { dispatchToolCall, type DispatcherContext } from '@/lib/ai/dispatcher'
 import { GOVA_VOICE_TOOL_ALLOWLIST } from '@/lib/voice/types'
-import { createServerClient } from '@/lib/supabase/server'
 import { isValidTenantId } from '@/lib/knowledge'
+import { resolveAuthorizedTenant } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
@@ -49,23 +49,47 @@ export async function POST(request: NextRequest) {
 
     // 3. Resolve server-authoritative user and tenant context
     let authorizedClientId: string | null = null
-    try {
-      const supabase = await createServerClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
 
-      if (user) {
-        authorizedClientId =
-          user.app_metadata?.client_id || user.user_metadata?.client_id || null
+    if (clientId && typeof clientId === 'string') {
+      const cleanClientId = clientId.trim()
+      if (!isValidTenantId(cleanClientId)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Invalid client tenant identifier format.',
+            durationMs: Date.now() - startTime,
+          },
+          { status: 400 }
+        )
       }
-    } catch (sessionErr) {
-      // Offline/mock or stateless fallback
-    }
 
-    // If session did not yield client_id, accept validated client identifier
-    if (!authorizedClientId && clientId && isValidTenantId(clientId)) {
-      authorizedClientId = clientId.trim()
+      const isPermittedDemo = cleanClientId.startsWith('demo-') || cleanClientId.startsWith('client-demo-')
+      if (isPermittedDemo) {
+        authorizedClientId = cleanClientId
+      } else {
+        const tenantAuth = await resolveAuthorizedTenant({ requestedTenantId: cleanClientId })
+        if (!tenantAuth.success) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: tenantAuth.error || `Forbidden: Unauthorized access to tenant "${cleanClientId}".`,
+              durationMs: Date.now() - startTime,
+            },
+            { status: tenantAuth.status || 403 }
+          )
+        }
+        authorizedClientId = tenantAuth.tenantId
+      }
+    } else {
+      // No explicit clientId: attempt to resolve active tenant from session
+      try {
+        const tenantAuth = await resolveAuthorizedTenant()
+        if (tenantAuth.success) {
+          authorizedClientId = tenantAuth.tenantId
+        }
+      } catch {
+        authorizedClientId = null
+      }
     }
 
     const dispatcherContext: DispatcherContext = {

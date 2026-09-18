@@ -112,23 +112,55 @@ export async function provisionClientDeployment(
   try {
     const supabase = await createServerClient()
 
-    // 5. Idempotent Client Account Resolution
+    // 5. Idempotent Client/Tenant Account Resolution
     const cleanCompanyName = companyName.toLowerCase()
     const cleanEmail = prospect.email?.trim().toLowerCase() || ''
 
     let existingClient: any = null
 
-    // Search by company name
-    const { data: nameMatches } = await supabase
-      .from('clients')
-      .select('*')
+    // Search by company name in canonical tenants table first
+    try {
+      const { data: tenantMatches } = await supabase
+        .from('tenants')
+        .select('*')
 
-    if (Array.isArray(nameMatches)) {
-      existingClient = nameMatches.find(
-        (c: any) =>
-          c.name?.trim().toLowerCase() === cleanCompanyName ||
-          (cleanEmail && c.email?.trim().toLowerCase() === cleanEmail)
-      )
+      if (Array.isArray(tenantMatches) && tenantMatches.length > 0) {
+        const found = tenantMatches.find(
+          (t: any) =>
+            t.name?.trim().toLowerCase() === cleanCompanyName ||
+            t.slug === cleanCompanyName.replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+        )
+        if (found) {
+          existingClient = {
+            id: found.id,
+            name: found.name,
+            industry: found.industry,
+            status: found.status === 'active' ? 'Active' : 'Inactive',
+            created_at: found.created_at,
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    // Fallback search in legacy clients table
+    if (!existingClient) {
+      try {
+        const { data: nameMatches } = await supabase
+          .from('clients')
+          .select('*')
+
+        if (Array.isArray(nameMatches)) {
+          existingClient = nameMatches.find(
+            (c: any) =>
+              c.name?.trim().toLowerCase() === cleanCompanyName ||
+              (cleanEmail && c.email?.trim().toLowerCase() === cleanEmail)
+          )
+        }
+      } catch {
+        // ignore
+      }
     }
 
     const clientId =
@@ -167,16 +199,47 @@ export async function provisionClientDeployment(
       created_at: existingClient?.created_at || new Date().toISOString(),
     }
 
-    // Upsert / Insert Client record
-    if (existingClient) {
-      await supabase
-        .from('clients')
-        .update(clientRecord)
-        .eq('id', clientId)
-    } else {
-      await supabase
-        .from('clients')
-        .insert(clientRecord)
+    // Upsert / Insert into canonical tenants table
+    try {
+      const slug = companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+      const tenantPayload = {
+        id: clientId,
+        name: companyName,
+        slug: `${slug}-${clientId.replace('client-', '')}`,
+        type: 'customer',
+        industry,
+        status: 'active',
+        updated_at: new Date().toISOString(),
+      }
+
+      if (existingClient) {
+        await supabase
+          .from('tenants')
+          .update(tenantPayload)
+          .eq('id', clientId)
+      } else {
+        await supabase
+          .from('tenants')
+          .insert(tenantPayload)
+      }
+    } catch {
+      // ignore
+    }
+
+    // Upsert / Insert Client record in legacy clients table
+    try {
+      if (existingClient) {
+        await supabase
+          .from('clients')
+          .update(clientRecord)
+          .eq('id', clientId)
+      } else {
+        await supabase
+          .from('clients')
+          .insert(clientRecord)
+      }
+    } catch {
+      // ignore
     }
 
     // 6. Build Client Runtime Configuration

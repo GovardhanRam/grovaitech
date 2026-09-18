@@ -31,12 +31,40 @@ import type { SocialMediaContentPackage } from '@/lib/recipes/social-media-runne
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
-vi.mock('@/lib/supabase/server', () => ({
-  createServerClient: vi.fn().mockResolvedValue({
-    auth: {
-      getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'usr-test-123' } }, error: null }),
-    },
-    from: vi.fn().mockReturnValue({
+const { mockGetUser, createMockFrom } = vi.hoisted(() => {
+  const mockGetUser = vi.fn().mockResolvedValue({ data: { user: { id: 'usr-test-123' } }, error: null })
+
+  const createMockFrom = () => vi.fn((table: string) => {
+    if (table === 'tenant_memberships') {
+      const memBuilder = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn((field: string, val: any) => ({
+          eq: vi.fn().mockResolvedValue({
+            data: val === 'usr-unassigned' ? [] : [
+              { id: 'mem-1', tenant_id: 'client-apex-101', user_id: 'usr-test-123', role: 'owner', status: 'active' },
+              { id: 'mem-2', tenant_id: 'client-real-tenant-xyz', user_id: 'usr-test-123', role: 'owner', status: 'active' },
+            ],
+            error: null,
+          }),
+        })),
+      }
+      return memBuilder
+    }
+    if (table === 'tenants') {
+      const tenantBuilder = {
+        select: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockResolvedValue({
+          data: [
+            { id: 'client-apex-101', name: 'Apex', slug: 'client-apex-101', type: 'customer', status: 'active' },
+            { id: 'client-real-tenant-xyz', name: 'Real', slug: 'client-real-tenant-xyz', type: 'customer', status: 'active' },
+          ],
+          error: null,
+        }),
+      }
+      return tenantBuilder
+    }
+    return {
       select: vi.fn().mockReturnThis(),
       insert: vi.fn().mockResolvedValue({ data: null, error: null }),
       update: vi.fn().mockReturnThis(),
@@ -44,16 +72,21 @@ vi.mock('@/lib/supabase/server', () => ({
       order: vi.fn().mockReturnThis(),
       limit: vi.fn().mockResolvedValue({ data: [], error: null }),
       single: vi.fn().mockResolvedValue({ data: null, error: null }),
-    }),
+    }
+  })
+
+  return { mockGetUser, createMockFrom }
+})
+
+vi.mock('@/lib/supabase/server', () => ({
+  createServerClient: vi.fn().mockResolvedValue({
+    auth: {
+      getUser: mockGetUser,
+    },
+    from: createMockFrom(),
   }),
   createAdminClient: vi.fn().mockResolvedValue({
-    from: vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      insert: vi.fn().mockResolvedValue({ data: null, error: null }),
-      update: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ data: null, error: null }),
-    }),
+    from: createMockFrom(),
   }),
 }))
 
@@ -407,6 +440,7 @@ describe('Grovaitech Social Media Content Hub & Human Approval Workspace', () =>
       // Mock: authenticated user found (usr-test-123), but no client record associated
       // (the default mock already returns data:[] for limit(1) on clients table)
       const spy = vi.spyOn(recipesActionModule, 'executeSocialMediaRecipe')
+      mockGetUser.mockResolvedValueOnce({ data: { user: { id: 'usr-unassigned' } }, error: null })
 
       const res = await generateContentRunAction({
         config: { businessName: 'Test Co' },
@@ -469,6 +503,7 @@ describe('Grovaitech Social Media Content Hub & Human Approval Workspace', () =>
 
     it('T4: no valid client and no isDemoContext → authorization error, no generation attempted', async () => {
       const spy = vi.spyOn(recipesActionModule, 'executeSocialMediaRecipe')
+      mockGetUser.mockResolvedValueOnce({ data: { user: { id: 'usr-unassigned' } }, error: null })
 
       const res = await generateContentRunAction({
         config: { businessName: 'Ghost Corp' },

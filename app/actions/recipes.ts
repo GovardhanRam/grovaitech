@@ -14,8 +14,8 @@ import {
   executeSocialMediaRunner,
   type SocialMediaContentPackage,
 } from '@/lib/recipes/social-media-runner'
-import { createServerClient } from '@/lib/supabase/server'
 import { isValidTenantId } from '@/lib/knowledge'
+import { requireTenantAccess } from '@/lib/auth'
 
 export interface ValidateRecipeConfigurationResult {
   success: boolean
@@ -103,15 +103,6 @@ export async function executeSocialMediaRecipe(
   let verifiedClientId: string | undefined = undefined
 
   try {
-    const supabase = await createServerClient()
-    let user: any = null
-    try {
-      const { data: authData } = await supabase.auth.getUser()
-      user = authData?.user || null
-    } catch {
-      user = null
-    }
-
     if (rawClientId && typeof rawClientId === 'string') {
       const cleanClientId = rawClientId.trim()
       if (!isValidTenantId(cleanClientId)) {
@@ -121,43 +112,25 @@ export async function executeSocialMediaRecipe(
         }
       }
 
-      // Verify tenant exists in database (never trust arbitrary client IDs blindly)
-      const { data: clientRecord, error: clientErr } = await supabase
-        .from('clients')
-        .select('id, name, status')
-        .eq('id', cleanClientId)
-        .single()
-
-      if (clientErr || !clientRecord) {
-        // Fallback check against client_deployments or explicit demo prefix
-        const { data: depRecord } = await supabase
-          .from('client_deployments')
-          .select('id, client_id')
-          .eq('client_id', cleanClientId)
-          .limit(1)
-
-        const isKnownDep = Array.isArray(depRecord) && depRecord.length > 0
-        const isPermittedDemo = cleanClientId.startsWith('demo-') || cleanClientId.startsWith('client-demo-')
-
-        if (!isKnownDep && !isPermittedDemo) {
+      // Explicit demo prefix support for offline/demo workflows
+      const isPermittedDemo = cleanClientId.startsWith('demo-') || cleanClientId.startsWith('client-demo-')
+      if (isPermittedDemo) {
+        verifiedClientId = cleanClientId
+      } else {
+        const auth = await requireTenantAccess(cleanClientId)
+        if (!auth.success) {
           return {
             success: false,
-            error: `Unauthorized or unverified tenant identifier "${cleanClientId}".`,
+            error: `Unauthorized or unverified tenant identifier "${cleanClientId}": ${auth.error}`,
           }
         }
+        verifiedClientId = auth.tenantId
       }
-
-      verifiedClientId = cleanClientId
-    } else if (user) {
-      // Find client assigned to authenticated user
-      const { data: userClients } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('user_id', user.id)
-        .limit(1)
-
-      if (Array.isArray(userClients) && userClients.length > 0) {
-        verifiedClientId = userClients[0].id
+    } else {
+      // If no explicit clientId provided, attempt to resolve primary active tenant
+      const auth = await requireTenantAccess()
+      if (auth.success) {
+        verifiedClientId = auth.tenantId
       }
     }
   } catch (authErr: any) {

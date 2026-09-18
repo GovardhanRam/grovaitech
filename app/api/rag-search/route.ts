@@ -11,11 +11,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createServerClient } from '@/lib/supabase/server'
 import { searchClientKnowledge } from '@/lib/knowledge'
+import { requireTenantAccess, isPlatformAdmin, getActiveTenantMemberships } from '@/lib/auth'
 
 interface AuthenticatedOperator {
   id: string
   email?: string
-  role?: string
 }
 
 /**
@@ -33,7 +33,6 @@ async function getAuthenticatedOperator(request?: NextRequest): Promise<Authenti
         return {
           id: user.id,
           email: user.email,
-          role: (user.user_metadata as any)?.role || (user as any).role || 'operator',
         }
       }
     }
@@ -50,7 +49,6 @@ async function getAuthenticatedOperator(request?: NextRequest): Promise<Authenti
         return {
           id: parsed.id,
           email: parsed.email,
-          role: parsed.role || 'operator',
         }
       }
     }
@@ -66,7 +64,6 @@ async function getAuthenticatedOperator(request?: NextRequest): Promise<Authenti
         return {
           id: parsed.id,
           email: parsed.email,
-          role: parsed.role || 'operator',
         }
       }
     }
@@ -92,23 +89,31 @@ export async function POST(request: NextRequest) {
     }
 
     // Strict Tenant Identity Authorization Check
-    // An authenticated user can only query their own tenant (operator.id) unless they hold the Admin role.
+    // An authenticated user can only query tenants they are active members of (or self/database-backed platform admin).
     let targetClientId = operator.id
     if (clientId && typeof clientId === 'string' && clientId.trim()) {
       const requestedTenant = clientId.trim()
-      const isAdmin = operator.role?.toLowerCase() === 'admin'
+      const isAdmin = await isPlatformAdmin(operator.id)
       const isSelf = requestedTenant === operator.id
 
       if (!isAdmin && !isSelf) {
-        return NextResponse.json(
-          {
-            error: 'Forbidden: You are not authorized to query knowledge for another organization.',
-            errorCode: 'FORBIDDEN_CROSS_TENANT',
-          },
-          { status: 403 }
-        )
+        const access = await requireTenantAccess(requestedTenant)
+        if (!access.success) {
+          return NextResponse.json(
+            {
+              error: 'Forbidden: You are not authorized to query knowledge for another organization.',
+              errorCode: 'FORBIDDEN_CROSS_TENANT',
+            },
+            { status: 403 }
+          )
+        }
       }
       targetClientId = requestedTenant
+    } else {
+      const memberships = await getActiveTenantMemberships(operator.id)
+      if (memberships.length > 0) {
+        targetClientId = memberships[0].tenant_id
+      }
     }
 
     const searchResult = await searchClientKnowledge({
