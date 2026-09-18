@@ -18,6 +18,7 @@ import {
   createSubscriptionFromAcceptedQuote,
   createInvoiceForSubscription,
   getTenantBillingOverview,
+  getAdminQuoteContext,
 } from '@/lib/billing/service'
 import type {
   CreateCustomQuoteInput,
@@ -29,6 +30,7 @@ import type {
   BillingSubscription,
   BillingInvoice,
   TenantBillingOverview,
+  AdminQuoteContext,
 } from '@/lib/billing/types'
 
 /**
@@ -153,6 +155,24 @@ export async function getTenantBillingOverviewAction(
     return {
       success: false,
       error: err.message || 'An unexpected error occurred while loading billing overview.',
+      status: 500,
+    }
+  }
+}
+
+/**
+ * Platform Admin Action: Retrieve available tenants and deployments for quote builder.
+ */
+export async function getAdminQuoteContextAction(): Promise<
+  BillingActionResult<AdminQuoteContext>
+> {
+  try {
+    const user = await getAuthenticatedUser()
+    return await getAdminQuoteContext(user)
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err.message || 'An unexpected error occurred while loading quote context.',
       status: 500,
     }
   }

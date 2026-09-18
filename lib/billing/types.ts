@@ -111,6 +111,27 @@ export interface TenantBillingOverview {
   usageMeter: BillingUsageMeter | null
   deploymentId: string | null
   nextBillingDate: string | null
+  tenantName?: string
+  isPlatformAdmin?: boolean
+}
+
+export interface AdminQuoteTenantOption {
+  id: string
+  name: string
+  slug: string
+}
+
+export interface AdminQuoteDeploymentOption {
+  id: string
+  client_id: string
+  assigned_employee_name: string
+  assigned_employee_slug: string
+  status: string
+}
+
+export interface AdminQuoteContext {
+  tenants: AdminQuoteTenantOption[]
+  deployments: AdminQuoteDeploymentOption[]
 }
 
 export interface BillingActionResult<T = any> {

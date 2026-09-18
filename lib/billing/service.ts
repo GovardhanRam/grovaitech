@@ -31,6 +31,9 @@ import type {
   CreateInvoiceInput,
   TenantBillingOverview,
   BillingActionResult,
+  AdminQuoteContext,
+  AdminQuoteTenantOption,
+  AdminQuoteDeploymentOption,
 } from './types'
 
 async function getDbClient() {
@@ -702,7 +705,74 @@ export async function getTenantBillingOverview(
     usageMeter,
     deploymentId: activeSubscription?.deployment_id || null,
     nextBillingDate: activeSubscription?.next_billing_date || null,
+    tenantName: authResult.tenant?.name || 'Your Workspace',
+    isPlatformAdmin: authResult.isPlatformAdmin,
   }
 
   return { success: true, data: overview }
+}
+
+// ============================================================================
+// 5. ADMIN QUOTE CONTEXT
+// ============================================================================
+
+/**
+ * Retrieves available tenants and deployments for platform admins creating custom quotes.
+ * RESTRICTED: Platform Super Admin / Operator only.
+ */
+export async function getAdminQuoteContext(
+  user: AuthenticatedUser | null
+): Promise<BillingActionResult<AdminQuoteContext>> {
+  if (!user) {
+    return { success: false, error: 'Authentication required.', status: 401 }
+  }
+
+  const hasAdmin = await isPlatformAdmin(user.id)
+  if (!hasAdmin) {
+    return {
+      success: false,
+      error: 'Forbidden: Only platform administrators can access quote context.',
+      status: 403,
+    }
+  }
+
+  const db = await getDbClient()
+
+  // 1. Fetch active tenants
+  const { data: tenants, error: tenantErr } = await db
+    .from('tenants')
+    .select('id, name, slug')
+    .eq('status', 'active')
+    .order('name', { ascending: true })
+
+  if (tenantErr) {
+    return {
+      success: false,
+      error: `Failed to load tenants: ${tenantErr.message}`,
+      status: 500,
+    }
+  }
+
+  // 2. Fetch active deployments
+  const { data: deployments, error: depErr } = await db
+    .from('client_deployments')
+    .select('id, client_id, assigned_employee_name, assigned_employee_slug, status')
+    .in('status', ['active', 'paused', 'pending', 'provisioning'])
+    .order('created_at', { ascending: false })
+
+  if (depErr) {
+    return {
+      success: false,
+      error: `Failed to load deployments: ${depErr.message}`,
+      status: 500,
+    }
+  }
+
+  return {
+    success: true,
+    data: {
+      tenants: (tenants || []) as AdminQuoteTenantOption[],
+      deployments: (deployments || []) as AdminQuoteDeploymentOption[],
+    },
+  }
 }
