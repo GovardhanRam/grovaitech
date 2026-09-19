@@ -35,6 +35,7 @@ export type RevenueLeakCategory =
   | 'HR_ONBOARDING'
   | 'FINANCIAL_INTAKE'
   | 'AI_QA'
+  | 'LOCAL_SEO_REPUTATION'
 
 export interface RevenueLeak {
   category: RevenueLeakCategory

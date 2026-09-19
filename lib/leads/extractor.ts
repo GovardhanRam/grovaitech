@@ -26,18 +26,18 @@ export interface ExtractedRealEstateLead {
 }
 
 function extractNameFromText(text: string): string | null {
-  const introMatch = text.match(/(?:my name is|i am|this is|call me)\s+([A-Za-z]+)/i)
+  const introMatch = text.match(/(?:my name is|i am|this is|call me)\s+(?:dr\.?\s+|doctor\s+)?([A-Za-z]+)/i)
   if (introMatch && introMatch[1]) {
     const n = introMatch[1].trim()
-    const black = ['looking', 'interested', 'a', 'the', 'here', 'customer', 'user', 'buyer', 'my', 'and', 'number', 'phone', 'ready', 'booking', 'visiting', 'planning']
+    const black = ['looking', 'interested', 'a', 'the', 'here', 'customer', 'user', 'buyer', 'my', 'and', 'number', 'phone', 'ready', 'booking', 'visiting', 'planning', 'dr', 'doctor']
     if (n.length > 1 && !black.includes(n.toLowerCase())) {
       return n.charAt(0).toUpperCase() + n.slice(1)
     }
   }
-  const explicitMatch = text.match(/\bname\s*[:=]\s*([A-Za-z]+)/i)
+  const explicitMatch = text.match(/\bname\s*[:=]\s*(?:dr\.?\s+|doctor\s+)?([A-Za-z]+)/i)
   if (explicitMatch && explicitMatch[1]) {
     const n = explicitMatch[1].trim()
-    const black = ['is', 'looking', 'interested', 'a', 'the', 'here', 'customer', 'user', 'buyer']
+    const black = ['is', 'looking', 'interested', 'a', 'the', 'here', 'customer', 'user', 'buyer', 'dr', 'doctor']
     if (n.length > 1 && !black.includes(n.toLowerCase())) {
       return n.charAt(0).toUpperCase() + n.slice(1)
     }
@@ -251,5 +251,156 @@ function parseDeterministicFallback(text: string): Partial<ExtractedRealEstateLe
     site_visit_requested,
     site_visit_date,
     site_visit_time: null,
+  }
+}
+
+export interface ExtractedGbpLead {
+  contact_name: string | null
+  business_name: string | null
+  phone: string | null
+  email: string | null
+  location: string | null
+  business_category: string | null
+  is_lead_ready: boolean
+}
+
+export interface GbpAuditContext {
+  business_name?: string
+  category?: string
+  address_nap?: string
+}
+
+function extractProspectPhone(text: string): string | null {
+  // 1. Explicit self/contact phrasing (high confidence)
+  const explicitPatterns = [
+    /(?:my\s+(?:phone|number|mobile|contact|cell)(?:\s+(?:number|no\.?))?\s*(?:is|:|=)?)\s*([+\d\s().-]{7,25})/i,
+    /(?:call\s+me\s+(?:at|on)?)\s*([+\d\s().-]{7,25})/i,
+    /(?:contact\s+me\s+(?:at|on)?)\s*([+\d\s().-]{7,25})/i,
+    /(?:(?:you\s+can\s+)?reach\s+me\s+(?:at|on)?)\s*([+\d\s().-]{7,25})/i,
+    /(?:whatsapp\s+(?:me\s+)?(?:at|on)?)\s*([+\d\s().-]{7,25})/i,
+    /\b(?:phone|mobile|cell|whatsapp|contact)\s*[:=]\s*([+\d\s().-]{7,25})/i,
+  ]
+
+  for (const pat of explicitPatterns) {
+    const match = text.match(pat)
+    if (match && match[1]) {
+      const candidate = extractPhoneFromText(match[1])
+      if (candidate) return candidate
+    }
+  }
+
+  // 2. Reject if the phone is tied to listing/competitor context
+  const listingContextPattern = /(?:listing|competitor|google profile|profile|existing|business)\s+(?:phone|number|contact)/i
+  if (listingContextPattern.test(text)) {
+    return null
+  }
+
+  // 3. Fallback: if user supplied a phone number alongside self-introduction ("I am...", "My name is...")
+  const introMatch = text.match(/(?:my name is|i am|this is|call me)\s+[A-Za-z]/i)
+  if (introMatch) {
+    const generalPhone = extractPhoneFromText(text)
+    if (generalPhone) return generalPhone
+  }
+
+  return null
+}
+
+export async function extractGbpLead(
+  chatHistory: { role: string; content: string }[],
+  auditContext?: GbpAuditContext
+): Promise<ExtractedGbpLead> {
+  const userMessages = chatHistory.filter((m) => m.role === 'user').map((m) => m.content)
+  const fullUserText = userMessages.join('\n')
+
+  // Step 1: Rapid check for explicit contact signal before performing further processing
+  const phone = extractProspectPhone(fullUserText)
+  if (!phone) {
+    // Fast path: No usable contact signal provided by user -> Not lead ready
+    return {
+      contact_name: null,
+      business_name: auditContext?.business_name || null,
+      phone: null,
+      email: null,
+      location: auditContext?.address_nap || null,
+      business_category: auditContext?.category || null,
+      is_lead_ready: false,
+    }
+  }
+
+  // Step 2: Extract email if provided
+  const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/
+  const emailMatch = fullUserText.match(emailRegex)
+  const email: string | null = emailMatch ? emailMatch[0].trim() : null
+
+  // Step 3: Extract contact name (prioritize explicit self-introduction)
+  let contact_name: string | null = null
+  const docIntro = fullUserText.match(/(?:my name is|i am|this is|call me)\s+(?:dr\.?\s+|doctor\s+)([A-Za-z]+)/i)
+  if (docIntro && docIntro[1]) {
+    contact_name = `Dr. ${docIntro[1].charAt(0).toUpperCase() + docIntro[1].slice(1)}`
+  }
+  if (!contact_name) {
+    const rawName = extractNameFromText(fullUserText)
+    if (rawName && rawName.toLowerCase() !== 'dr' && rawName.toLowerCase() !== 'doctor') {
+      contact_name = rawName
+    }
+  }
+  if (!contact_name) {
+    const contactLabelMatch = fullUserText.match(/\b(?:contact(?:\s+person)?|owner|manager|founder)\s*(?:is\s+|[:=]\s*)([A-Za-z]+)/i)
+    if (contactLabelMatch && contactLabelMatch[1]) {
+      contact_name = contactLabelMatch[1].trim()
+    }
+  }
+
+  // Step 4: Extract business name
+  let business_name: string | null = null
+  const bizMatch = fullUserText.match(/\b(?:business|clinic|shop|store|company|hotel|restaurant|hospital|firm|agency|salon|listing)(?:\s+name)?(?:\s+is|\s*:)\s*([A-Za-z0-9\s&'-]{2,50}?)(?:\.|\n|,|$|in|near|at|my|phone)/i)
+  if (bizMatch && bizMatch[1]) {
+    business_name = bizMatch[1].trim()
+  }
+  if (!business_name) {
+    const auditForMatch = fullUserText.match(/\b(?:audit|optimize|check|review|manage|improve)\s+(?:our|my|the)?\s*([A-Za-z0-9\s&'-]{2,50}?)(?:\s+in|\s+at|\s+profile|\s+listing|\.|\n|,|$)/i)
+    if (auditForMatch && auditForMatch[1]) {
+      let candidate = auditForMatch[1].trim()
+      candidate = candidate.replace(/^(?:our|my|the)?\s*(?:clinic|business|shop|store|company|firm|salon|hotel|restaurant)\s+/i, '').trim()
+      const black = ['profile', 'listing', 'reviews', 'my', 'the', 'ranking', 'visibility']
+      if (!black.includes(candidate.toLowerCase()) && candidate.length > 1) {
+        business_name = candidate
+      }
+    }
+  }
+  if (!business_name && auditContext?.business_name) {
+    business_name = auditContext.business_name
+  } else if (business_name && auditContext?.business_name) {
+    if (auditContext.business_name.toLowerCase().includes(business_name.toLowerCase()) ||
+        business_name.toLowerCase().includes(auditContext.business_name.toLowerCase())) {
+      business_name = auditContext.business_name
+    }
+  }
+
+  // Step 5: Location from explicit user phrasing or existing audit context
+  let location: string | null = null
+  const locMatch = fullUserText.match(/\b(?:in|at|near|location[:\s]+)\s+([A-Za-z\s]{3,30}?)(?:\.|\n|,|$|my|phone|call|with)/i)
+  if (locMatch && locMatch[1]) {
+    const candidateLoc = locMatch[1].trim()
+    const invalid = ['our', 'my', 'the', 'this', 'that', 'site', 'visit', 'call', 'weekend']
+    if (!invalid.includes(candidateLoc.toLowerCase())) {
+      location = candidateLoc
+    }
+  }
+  if (!location && auditContext?.address_nap) {
+    location = auditContext.address_nap
+  }
+
+  // Step 6: Business category from audit context
+  const business_category = auditContext?.category || null
+
+  return {
+    contact_name,
+    business_name,
+    phone,
+    email,
+    location,
+    business_category,
+    is_lead_ready: true,
   }
 }

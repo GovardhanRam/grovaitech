@@ -7,6 +7,7 @@
  */
 
 import { getCanonicalEmployees, type AIEmployee } from '@/lib/employees/registry'
+import { detectRevenueLeaks } from './revenue-leaks'
 import type { Prospect, RevenueLeak, EmployeeMatch, PublicEmployeeProfile } from './types'
 
 // V1 Explicit Domain-Knowledge Bonuses for Leak Mitigation
@@ -20,10 +21,15 @@ const LEAK_TO_EMPLOYEE_SLUGS: Record<string, string[]> = {
   HR_ONBOARDING: ['hr-onboarding-agent'],
   FINANCIAL_INTAKE: ['financial-advisory-agent'],
   AI_QA: ['ai-qa-inspector'],
+  LOCAL_SEO_REPUTATION: ['gbp-growth-manager', 'google-business-profile'],
 }
+
 
 // V1 Explicit Domain-Knowledge Bonuses for Industry Association
 const INDUSTRY_TO_SLUGS: Record<string, string[]> = {
+  'local business': ['gbp-growth-manager'],
+  'local businesses': ['gbp-growth-manager'],
+  'local services': ['gbp-growth-manager'],
   'real estate': ['real-estate-lead-receptionist', 'whatsapp-lead-agent'],
   'property': ['real-estate-lead-receptionist'],
   'realty': ['real-estate-lead-receptionist'],
@@ -94,7 +100,7 @@ export function sanitizeEmployee(emp: AIEmployee): PublicEmployeeProfile {
  */
 export function matchEmployeesForProspect(
   prospect: Prospect,
-  leaks: RevenueLeak[]
+  leaks: RevenueLeak[] = detectRevenueLeaks(prospect)
 ): {
   recommended_employee: EmployeeMatch | null
   alternative_matches: EmployeeMatch[]
@@ -147,7 +153,7 @@ export function matchEmployeesForProspect(
       score += 30
       industryMatched = true
       reasons.push(`Direct industry specialization in ${emp.industry}.`)
-    } else if (empIndustryLower === 'general') {
+    } else if (empIndustryLower === 'general' || empIndustryLower === 'local businesses') {
       score += 15
       industryMatched = true
       reasons.push(`Cross-industry versatile autonomous worker.`)
@@ -174,7 +180,12 @@ export function matchEmployeesForProspect(
         (capLower.includes('order') && prospectText.includes('order')) ||
         (capLower.includes('onboarding') && prospectText.includes('onboarding')) ||
         (capLower.includes('kyc') && prospectText.includes('kyc')) ||
-        (capLower.includes('qa') && prospectText.includes('qa'))
+        (capLower.includes('qa') && prospectText.includes('qa')) ||
+        (capLower.includes('review') && prospectText.includes('review')) ||
+        (capLower.includes('profile') && (prospectText.includes('profile') || prospectText.includes('google'))) ||
+        (capLower.includes('visibility') && prospectText.includes('visibility')) ||
+        (capLower.includes('local') && prospectText.includes('local')) ||
+        (capLower.includes('gbp') && prospectText.includes('gbp'))
       ) {
         matchedCapabilities.push(cap)
       }
@@ -211,7 +222,9 @@ export function matchEmployeesForProspect(
         (tool.includes('onboarding') && prospectText.includes('onboarding')) ||
         (tool.includes('escalat') && (prospectText.includes('support') || prospectText.includes('escalat'))) ||
         (tool.includes('knowledge') && (prospectText.includes('faq') || prospectText.includes('support'))) ||
-        (tool.includes('audit') && prospectText.includes('qa'))
+        (tool.includes('audit') && (prospectText.includes('audit') || prospectText.includes('qa') || prospectText.includes('profile'))) ||
+        (tool.includes('gbp') && (prospectText.includes('gbp') || prospectText.includes('google') || prospectText.includes('post'))) ||
+        (tool.includes('review') && prospectText.includes('review'))
       ) {
         matchedTools.push(tool)
       }
@@ -250,7 +263,7 @@ export function matchEmployeesForProspect(
     }
 
     // If neither industry matched nor general, and not leak matched, apply vertical penalty
-    if (!industryMatched && empIndustryLower !== 'general') {
+    if (!industryMatched && empIndustryLower !== 'general' && empIndustryLower !== 'local businesses') {
       score = Math.max(10, score - 20)
     }
 

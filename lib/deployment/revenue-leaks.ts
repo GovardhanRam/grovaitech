@@ -220,7 +220,33 @@ export const REVENUE_LEAK_DEFINITIONS: LeakCategoryDefinition[] = [
       'conversation scoring',
     ],
   },
+  {
+    category: 'LOCAL_SEO_REPUTATION',
+    title: 'Google Business Profile Under-Optimization & Unmanaged Reviews',
+    problem: 'Incomplete local profile, low search visibility, and unresponded Google customer reviews',
+    description:
+      'Local business profiles on Google suffer from incomplete NAP details, missing regular posts, and delayed or missing review responses, leading to lost local 3-pack visibility.',
+    severity: 'high',
+    likely_impact: 'Low local Google ranking and unaddressed negative reviews directly divert nearby foot traffic and prospective clients to competing local businesses.',
+    opportunity: 'Deploy autonomous GBP Growth & Reputation Manager to audit profile completeness, draft timely review replies, and publish local promotional posts.',
+    signals: [
+      'google business profile',
+      'gbp',
+      'google reviews',
+      'google maps',
+      'local seo',
+      'negative reviews',
+      'unanswered reviews',
+      'local 3-pack',
+      'local ranking',
+      'profile completeness',
+      'local reputation',
+      'review management',
+      'google listing',
+    ],
+  },
 ]
+
 
 /**
  * Deterministically analyzes a prospect and detects revenue leaks based on keywords,

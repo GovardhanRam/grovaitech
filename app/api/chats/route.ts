@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, createAdminClient } from '@/lib/supabase/server'
 import { runAgentTurn, resolveAuthorizedTools } from '@/lib/ai/runtime'
 import { getCanonicalEmployeeBySlug } from '@/lib/employees/registry'
-import { extractRealEstateLead } from '@/lib/leads/extractor'
+import { extractRealEstateLead, extractGbpLead } from '@/lib/leads/extractor'
 import { executeRealEstateWorkflow, getSiteVisitCustomerMessage } from '@/lib/workflows/executor'
 import { createLead } from '@/app/actions/leads'
 import type { ClientDeployment } from '@/lib/deployment/types'
@@ -198,7 +198,80 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 7. Persist assistant message to database
+    // 7. Vertical Lead Capture: GBP Growth Manager (captures qualified lead ONLY when contact info supplied)
+    const isGbpSlug = (slug?: string) => {
+      if (!slug) return false
+      const s = slug.toLowerCase()
+      return (
+        s === 'gbp-growth-manager' ||
+        s === 'google-business-profile' ||
+        s === 'google_business_profile' ||
+        s === 'emp-012' ||
+        s.includes('gbp') ||
+        s.includes('google-business')
+      )
+    }
+
+    if (isGbpSlug(effectiveEmployeeSlug) && !capturedLead) {
+      try {
+        const turnHistory = [
+          ...(history || []),
+          { role: 'user', content: message },
+          { role: 'assistant', content: finalText },
+        ]
+
+        // Find audit context if audit_gbp_profile executed in this turn
+        const auditTool = turnResult.executedTools.find(
+          (t) => t.toolName === 'audit_gbp_profile'
+        )
+        const auditContext = auditTool?.result
+          ? {
+              business_name: auditTool.result.business_name,
+              category: auditTool.result.category,
+              address_nap: auditTool.result.address_nap,
+            }
+          : undefined
+
+        const extractedGbpLead = await extractGbpLead(turnHistory, auditContext)
+        // STRICT SAFETY CHECK:
+        // Do NOT create a CRM lead merely because audit_gbp_profile executes.
+        // Only capture a lead when the user has actually supplied usable contact/business information through the supported chat flow.
+        if (extractedGbpLead && extractedGbpLead.is_lead_ready && extractedGbpLead.phone) {
+          const leadRecord = {
+            name:
+              extractedGbpLead.contact_name ||
+              extractedGbpLead.business_name ||
+              'Local Business Prospect',
+            phone: extractedGbpLead.phone,
+            email: extractedGbpLead.email || undefined,
+            property_type: 'commercial' as const,
+            location: extractedGbpLead.location || 'India',
+            budget: 'GBP Growth & Reputation Package',
+            timeline: 'Immediate',
+            lead_score: 'warm' as const,
+            lead_status: 'qualified' as const,
+            notes: `[GBP Growth Lead] Business: ${
+              extractedGbpLead.business_name || 'Local Business'
+            }. Category: ${
+              extractedGbpLead.business_category || 'Local Business'
+            }. Interest: Google Business Profile Optimization & Reputation Management.`,
+            source: 'ai_demo' as const,
+            user_id: user?.id || null,
+            client_id: deploymentRecord?.client_id || undefined,
+            deployment_id: deploymentRecord?.id || undefined,
+          }
+
+          const saveRes = await createLead(leadRecord)
+          if (saveRes.success && saveRes.data) {
+            capturedLead = saveRes.data
+          }
+        }
+      } catch (gbpLeadErr) {
+        console.warn('[Chat API] GBP lead capture notice:', gbpLeadErr)
+      }
+    }
+
+    // 8. Persist assistant message to database
     try {
       await supabase.from('messages').insert({
         chat_id: currentChatId,

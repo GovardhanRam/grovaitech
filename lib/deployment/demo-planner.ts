@@ -22,6 +22,7 @@ export const EMPLOYEE_WORKFLOW_MAP: Record<string, string> = {
   'emp-008': 'wf-008', // E-Commerce Support Agent -> wf-008
   'emp-009': 'wf-009', // HR Onboarding Agent -> wf-009
   'emp-010': 'wf-010', // Financial Advisory Agent -> wf-010
+  'emp-012': 'wf-012', // GBP Growth & Reputation Manager -> wf-012
 }
 
 /**
@@ -155,6 +156,17 @@ export function generateDemoPlan(
         `Can I book a financial advisory consultation for this Friday at 3:30 PM? My contact is priya@example.com.`,
       ]
       expectedOutcome = `When deployed, the configured AI Employee is designed to qualify advisory requirements, verify preliminary KYC readiness, and schedule consultation sessions with certified advisors.`
+      break
+
+    case 'emp-012': // GBP Growth & Reputation Manager
+      headline = `Google Business Profile & Reputation Manager Deployment Demo for ${companyName}`
+      scenario = `A local business owner needs to audit their Google listing for completeness, optimize local search visibility, and respond to positive and negative customer reviews.`
+      conversationStarters = [
+        `Can you audit our Google Business Profile for ${companyName} and tell us why competitors rank higher?`,
+        `Draft a professional response to a 2-star Google review complaining about service delay at ${companyName}.`,
+        `Create an engaging local Google Business post promoting our seasonal weekend special offer.`,
+      ]
+      expectedOutcome = `When deployed, this workflow audits Google profile completeness, drafts high-converting local posts, analyzes customer reviews, drafts brand-aligned responses, and captures qualified local business leads.`
       break
 
     default:
