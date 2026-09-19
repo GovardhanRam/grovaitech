@@ -54,14 +54,25 @@ export interface AIEmployee {
   updated_at: string;
 
   // Marketplace & Recipe Metadata (Phase 3)
+  /** Human-facing display name for cards and marketplace listings */
   displayName?: string;
+  /** High-level summary of capabilities for previews */
   shortDescription?: string;
-  category?: MarketplaceCategory | string;
+  /** Primary workforce category */
+  category?: MarketplaceCategory;
+  /** Searchable keywords and tags */
   keywords?: string[];
+  /** Priority ordering for marketplace sorting */
   priority?: number;
+  /** Integration IDs mandatory for this employee's primary workflows */
   requiredIntegrations?: string[];
+  /** Optional integration IDs that enhance capabilities */
   optionalIntegrations?: string[];
+  /** Template ID for associated workflow blueprints */
   workflowTemplateId?: string;
-  configurationSchema?: Record<string, any>;
+  /** Structured configuration schema for tenant onboarding */
+  configurationSchema?: Record<string, unknown>;
+  /** Execution delivery mode */
   deploymentMode?: DeploymentMode;
 }
+

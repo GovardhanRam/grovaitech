@@ -327,4 +327,55 @@ describe('AI Employee Marketplace & Recipe Foundation', () => {
       expect(stage7Res?.result.status).toBe('requires_integration')
     })
   })
+
+  // ── 7. Marketplace Credential Safety & Boundary Handling ────────────────────
+  describe('7. Security & Boundary Guardrails', () => {
+    it('verifies 100% of marketplace employees do not expose sensitive credentials or keys', () => {
+      const sensitiveKeyPattern = /^(api[_-]?key|secret|password|token|credential|private[_-]?key)$/i
+
+      function findSensitiveKeys(obj: unknown, path = ''): string[] {
+        if (!obj || typeof obj !== 'object') return []
+        const found: string[] = []
+
+        if (Array.isArray(obj)) {
+          obj.forEach((item, idx) => {
+            found.push(...findSensitiveKeys(item, `${path}[${idx}]`))
+          })
+          return found
+        }
+
+        for (const [key, val] of Object.entries(obj)) {
+          const currentPath = path ? `${path}.${key}` : key
+          if (sensitiveKeyPattern.test(key)) {
+            found.push(currentPath)
+          }
+          found.push(...findSensitiveKeys(val, currentPath))
+        }
+
+        return found
+      }
+
+      for (const emp of MARKETPLACE_EMPLOYEES) {
+        const sensitiveKeys = findSensitiveKeys(emp)
+        expect(sensitiveKeys, `Found sensitive keys in ${emp.slug}: ${sensitiveKeys.join(', ')}`).toEqual([])
+        expect(emp.capabilities.length).toBeGreaterThan(0)
+      }
+    })
+
+    it('handles boundary and malformed inputs gracefully in recipe lookup functions', () => {
+      const invalidInputs = ['', '   ', '!!!@@@###', 'a'.repeat(300)]
+
+      for (const input of invalidInputs) {
+        expect(getRecipeBySlug(input)).toBeUndefined()
+        expect(getRecipeById(input)).toBeUndefined()
+      }
+
+      expect(getRecipeBySlug(null as unknown as string)).toBeUndefined()
+      expect(getRecipeBySlug(undefined as unknown as string)).toBeUndefined()
+      expect(getRecipeById(null as unknown as string)).toBeUndefined()
+      expect(getRecipeById(undefined as unknown as string)).toBeUndefined()
+    })
+  })
 })
+
+

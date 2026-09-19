@@ -105,4 +105,54 @@ describe('lib/employees/registry - Canonical AI Employee Control Plane', () => {
     expect(emp?.system_prompt).toContain('Google Business Profile Growth & Reputation Manager')
     expect(emp?.system_prompt).toContain('NO FALSE MODIFICATION CLAIMS')
   })
+
+  it('9. verifies 100% of canonical employees do not expose sensitive credentials or keys', () => {
+    const sensitiveKeyPattern = /^(api[_-]?key|secret|password|token|credential|private[_-]?key)$/i
+
+    function findSensitiveKeys(obj: unknown, path = ''): string[] {
+      if (!obj || typeof obj !== 'object') return []
+      const found: string[] = []
+
+      if (Array.isArray(obj)) {
+        obj.forEach((item, idx) => {
+          found.push(...findSensitiveKeys(item, `${path}[${idx}]`))
+        })
+        return found
+      }
+
+      for (const [key, val] of Object.entries(obj)) {
+        const currentPath = path ? `${path}.${key}` : key
+        if (sensitiveKeyPattern.test(key)) {
+          found.push(currentPath)
+        }
+        found.push(...findSensitiveKeys(val, currentPath))
+      }
+
+      return found
+    }
+
+    for (const emp of CANONICAL_EMPLOYEES) {
+      const sensitiveKeys = findSensitiveKeys(emp)
+      expect(sensitiveKeys, `Found sensitive keys in ${emp.slug}: ${sensitiveKeys.join(', ')}`).toEqual([])
+      expect(emp.system_prompt).toBeDefined()
+      expect(emp.system_prompt?.length).toBeGreaterThan(20)
+      expect(emp.tools.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('10. handles edge-case and boundary inputs gracefully in canonical lookup functions', async () => {
+    const invalidInputs = ['', '   ', '!!!@@@###', 'a'.repeat(500)]
+
+    for (const input of invalidInputs) {
+      expect(getCanonicalEmployeeBySlug(input)).toBeUndefined()
+      expect(await getEmployeeBySlug(input)).toBeNull()
+    }
+
+    expect(getCanonicalEmployeeBySlug(null as unknown as string)).toBeUndefined()
+    expect(getCanonicalEmployeeBySlug(undefined as unknown as string)).toBeUndefined()
+    expect(await getEmployeeBySlug(null as unknown as string)).toBeNull()
+    expect(await getEmployeeBySlug(undefined as unknown as string)).toBeNull()
+  })
 })
+
+

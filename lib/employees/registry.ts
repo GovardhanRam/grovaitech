@@ -1544,9 +1544,10 @@ export function getMarketplaceEmployees(): AIEmployee[] {
   return [...MARKETPLACE_EMPLOYEES]
 }
 
-export function getCanonicalEmployeeBySlug(slug: string): AIEmployee | undefined {
-  if (!slug) return undefined
+export function getCanonicalEmployeeBySlug(slug: string | null | undefined): AIEmployee | undefined {
+  if (typeof slug !== 'string') return undefined
   const normalized = slug.trim().toLowerCase()
+  if (!normalized) return undefined
 
   // 1. Check Canonical Employees first (preserves legacy test behavior)
   const canonical = CANONICAL_EMPLOYEES_BY_SLUG.get(normalized)
@@ -1567,9 +1568,10 @@ export function getCanonicalEmployeeBySlug(slug: string): AIEmployee | undefined
   return undefined
 }
 
-export function getCanonicalEmployeeById(id: string): AIEmployee | undefined {
-  if (!id) return undefined
+export function getCanonicalEmployeeById(id: string | null | undefined): AIEmployee | undefined {
+  if (typeof id !== 'string') return undefined
   const normalized = id.trim().toLowerCase()
+  if (!normalized) return undefined
 
   // 1. Check Canonical Employees first
   const canonical = CANONICAL_EMPLOYEES_BY_ID.get(normalized)
@@ -1589,3 +1591,4 @@ export function getCanonicalEmployeeById(id: string): AIEmployee | undefined {
 
   return undefined
 }
+

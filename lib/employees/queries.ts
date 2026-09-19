@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Grovaitech AI Platform
  * lib/employees/queries.ts
  *
@@ -42,8 +42,10 @@ export async function getEmployees(): Promise<AIEmployee[]> {
  * Resolves an AI Employee by slug. Checks Supabase first; if not found,
  * resolves from canonical in-memory registry.
  */
-export async function getEmployeeBySlug(slug: string): Promise<AIEmployee | null> {
-  if (!slug) return null;
+export async function getEmployeeBySlug(slug: string | null | undefined): Promise<AIEmployee | null> {
+  if (typeof slug !== 'string') return null;
+  const trimmed = slug.trim();
+  if (!trimmed) return null;
 
   try {
     const supabase = await createServerClient();
@@ -51,7 +53,7 @@ export async function getEmployeeBySlug(slug: string): Promise<AIEmployee | null
     const { data, error } = await supabase
       .from('ai_employees')
       .select('*')
-      .eq('slug', slug)
+      .eq('slug', trimmed)
       .single();
 
     if (data && !error) {
@@ -61,15 +63,17 @@ export async function getEmployeeBySlug(slug: string): Promise<AIEmployee | null
     console.warn('[Employee Queries] getEmployeeBySlug notice:', err);
   }
 
-  return getCanonicalEmployeeBySlug(slug) || null;
+  return getCanonicalEmployeeBySlug(trimmed) || null;
 }
 
 /**
  * Resolves an AI Employee by unique ID. Checks Supabase first; if not found,
  * resolves from canonical in-memory registry.
  */
-export async function getEmployeeById(id: string): Promise<AIEmployee | null> {
-  if (!id) return null;
+export async function getEmployeeById(id: string | null | undefined): Promise<AIEmployee | null> {
+  if (typeof id !== 'string') return null;
+  const trimmed = id.trim();
+  if (!trimmed) return null;
 
   try {
     const supabase = await createServerClient();
@@ -77,7 +81,7 @@ export async function getEmployeeById(id: string): Promise<AIEmployee | null> {
     const { data, error } = await supabase
       .from('ai_employees')
       .select('*')
-      .eq('id', id)
+      .eq('id', trimmed)
       .single();
 
     if (data && !error) {
@@ -87,5 +91,6 @@ export async function getEmployeeById(id: string): Promise<AIEmployee | null> {
     console.warn('[Employee Queries] getEmployeeById notice:', err);
   }
 
-  return getCanonicalEmployeeById(id) || null;
+  return getCanonicalEmployeeById(trimmed) || null;
 }
+
