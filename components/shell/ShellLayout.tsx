@@ -37,6 +37,7 @@ import {
   ChevronDown,
   Mic,
   MoreHorizontal,
+  CheckSquare,
 } from 'lucide-react'
 import { GovaVoiceModal } from '@/components/voice'
 import { BrandLogo, BottomNavigation } from '@/components/ui'
@@ -47,6 +48,7 @@ interface ShellLayoutProps {
 
 const menuItems = [
   { name: 'Dashboard',     href: '/dashboard',     icon: LayoutDashboard },
+  { name: 'My Work',       href: '/tasks',          icon: CheckSquare },
   { name: 'Conversations', href: '/conversations',  icon: MessageSquare },
   { name: 'Leads',         href: '/leads',          icon: Users },
   { name: 'AI Employees',  href: '/ai-employees',   icon: Bot },
@@ -80,7 +82,7 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
   const supabase = useMemo(() => createClient(), [])
 
   const isMoreActive = useMemo(() => {
-    const secondaryPaths = ['/content', '/workflows', '/analytics', '/integrations', '/blog', '/settings']
+    const secondaryPaths = ['/tasks', '/employee', '/content', '/workflows', '/analytics', '/integrations', '/blog', '/settings']
     return secondaryPaths.some((p) => pathname === p || pathname.startsWith(p + '/'))
   }, [pathname])
 
