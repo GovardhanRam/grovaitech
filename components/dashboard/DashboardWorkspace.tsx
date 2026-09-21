@@ -39,7 +39,9 @@ import {
   StatusBadge,
   PrimaryButton,
   SecondaryButton,
+  Tabs,
 } from '@/components/ui'
+import CustomerHomeWorkspace from '@/components/customer/CustomerHomeWorkspace'
 
 interface DashboardWorkspaceProps {
   initialData: GetDashboardDataResult
@@ -47,6 +49,7 @@ interface DashboardWorkspaceProps {
 
 export default function DashboardWorkspace({ initialData }: DashboardWorkspaceProps) {
   const [data, setData] = useState<GetDashboardDataResult>(initialData)
+  const [activeView, setActiveView] = useState<'founder' | 'customer'>('founder')
   const [isPending, startTransition] = useTransition()
 
   const handleRefresh = () => {
@@ -62,36 +65,25 @@ export default function DashboardWorkspace({ initialData }: DashboardWorkspacePr
 
   const { stats, recentLeads, recentWorkflows, employeesStatus, leadSources, activityTrend, isFallback } = data
 
-  const statsCards = [
-    {
-      name: 'Total Conversations',
-      value: stats.totalConversations,
-      subtext: 'Active conversation threads',
-      icon: MessageSquare,
-      color: 'text-blue-600 bg-blue-50 border-blue-100',
-    },
-    {
-      name: 'New Leads Captured',
-      value: stats.totalLeads,
-      subtext: 'Live CRM qualified leads',
-      icon: Users,
-      color: 'text-emerald-600 bg-emerald-50 border-emerald-100',
-    },
-    {
-      name: 'Appointments Booked',
-      value: stats.totalAppointments,
-      subtext: 'Clinic patient slots scheduled',
-      icon: Calendar,
-      color: 'text-purple-600 bg-purple-50 border-purple-100',
-    },
-    {
-      name: 'Workflow Executions',
-      value: stats.totalWorkflowRuns,
-      subtext: `${stats.workflowSuccessRate}% Success Rate`,
-      icon: Workflow,
-      color: 'text-amber-600 bg-amber-50 border-amber-100',
-    },
+  const dashboardTabs = [
+    { id: 'founder', label: 'Founder Command Center' },
+    { id: 'customer', label: 'Customer Portal View' },
   ]
+
+  if (activeView === 'customer') {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <Tabs
+            tabs={dashboardTabs}
+            activeTab={activeView}
+            onChange={(id) => setActiveView(id as 'founder' | 'customer')}
+          />
+        </div>
+        <CustomerHomeWorkspace initialData={data} />
+      </div>
+    )
+  }
 
   // Chart coordinate calculations
   const chartPoints = activityTrend.length > 0 ? activityTrend : [20, 35, 50, 45, 65, 80, 95, 110, 100, 120, 135, 150]
@@ -110,6 +102,15 @@ export default function DashboardWorkspace({ initialData }: DashboardWorkspacePr
 
   return (
     <div className="space-y-6">
+      {/* Top View Switcher */}
+      <div className="flex items-center justify-between">
+        <Tabs
+          tabs={dashboardTabs}
+          activeTab={activeView}
+          onChange={(id) => setActiveView(id as 'founder' | 'customer')}
+        />
+      </div>
+
       {/* Page Header */}
       <PageHeader
         title="Founder Command Center"
