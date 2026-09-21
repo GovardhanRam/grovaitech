@@ -133,28 +133,30 @@ export default function ChatInterface({ employeeSlug }: ChatInterfaceProps) {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="border-t border-gray-200 p-4 bg-gray-50/50">
-        <div className="flex gap-2 max-w-4xl mx-auto">
+      <div className="border-t border-gray-200 p-3 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] bg-gray-50/50 shrink-0">
+        <div className="flex gap-2 max-w-4xl mx-auto items-center">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type your message..."
             rows={1}
-            className="flex-1 resize-none rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs sm:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#3B82F6]"
+            className="flex-1 resize-none rounded-xl border border-gray-200 bg-white px-4 py-2.5 min-h-[44px] text-xs sm:text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#3B82F6]"
           />
           <button
             type="button"
             onClick={() => setVoiceModalOpen(true)}
-            className="px-3 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl border border-blue-200 transition-colors flex items-center justify-center cursor-pointer shadow-xs"
+            className="min-w-[44px] min-h-[44px] px-3 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl border border-blue-200 transition-colors flex items-center justify-center cursor-pointer shadow-xs"
             title="Talk to GOVA (Voice Mode)"
+            aria-label="Talk to GOVA"
           >
             <Mic className="w-4 h-4 animate-pulse" />
           </button>
           <button
             onClick={sendMessage}
             disabled={!input.trim() || isLoading}
-            className="px-4 py-2.5 bg-[#3B82F6] hover:bg-[#2563EB] disabled:opacity-45 text-white rounded-xl shadow-lg transition-colors flex items-center justify-center cursor-pointer"
+            className="min-w-[44px] min-h-[44px] px-4 py-2.5 bg-[#3B82F6] hover:bg-[#2563EB] disabled:opacity-45 text-white rounded-xl shadow-lg transition-colors flex items-center justify-center cursor-pointer"
+            aria-label="Send message"
           >
             <Send className="w-4 h-4" />
           </button>
