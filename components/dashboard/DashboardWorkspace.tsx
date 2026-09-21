@@ -31,6 +31,15 @@ import {
 import type { GetDashboardDataResult } from '@/types/dashboard'
 import { getDashboardData } from '@/app/actions/dashboard'
 import ClinicBooking from '@/components/ClinicBooking'
+import {
+  PageHeader,
+  SectionHeader,
+  StatCard,
+  GovaCard,
+  StatusBadge,
+  PrimaryButton,
+  SecondaryButton,
+} from '@/components/ui'
 
 interface DashboardWorkspaceProps {
   initialData: GetDashboardDataResult
@@ -102,68 +111,91 @@ export default function DashboardWorkspace({ initialData }: DashboardWorkspacePr
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Command Center</span>
-            {isFallback ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
-                <Database className="w-3 h-3" /> Demo Sandbox Mode
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Live Operational Mode
-              </span>
-            )}
+      <PageHeader
+        title="Founder Command Center"
+        subtitle="Live operational telemetry across AI employees, CRM pipelines, and autonomous workflows."
+        badge={
+          isFallback ? (
+            <StatusBadge status="warning" label="Demo Sandbox Mode" />
+          ) : (
+            <StatusBadge status="live" label="Live Operational Mode" pulse />
+          )
+        }
+        actions={
+          <div className="flex items-center gap-2.5">
+            <SecondaryButton
+              onClick={handleRefresh}
+              disabled={isPending}
+              isLoading={isPending}
+              leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+              size="sm"
+            >
+              Refresh
+            </SecondaryButton>
+            <PrimaryButton
+              href="/ai-employees"
+              leftIcon={<Plus className="w-4 h-4" />}
+              size="sm"
+            >
+              Deploy Employee
+            </PrimaryButton>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
-            Grovaitech AI Workforce OS
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Live operational telemetry across AI employees, CRM pipelines, and autonomous workflows.
-          </p>
-        </div>
+        }
+      />
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleRefresh}
-            disabled={isPending}
-            className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition-all shadow-xs disabled:opacity-50"
-            title="Refresh live metrics"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isPending ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-          <Link
-            href="/ai-employees"
-            className="flex items-center gap-1.5 px-4.5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-500/10"
-          >
-            <Plus className="w-4 h-4" /> Deploy Employee
-          </Link>
-        </div>
-      </div>
+      {/* GOVA AI Briefing Card */}
+      <GovaCard
+        statusText={isFallback ? 'Demo Mode Active' : 'Online & Orchestrating'}
+        prompts={[
+          'Which leads require follow-up today?',
+          'Audit autonomous workflow execution health',
+          'Deploy a new specialized AI Employee',
+        ]}
+        onPromptClick={(p) => {
+          if (p.includes('leads')) window.location.href = '/leads'
+          else if (p.includes('workflow')) window.location.href = '/workflows'
+          else window.location.href = '/ai-employees'
+        }}
+        onChatClick={() => {
+          window.location.href = '/conversations'
+        }}
+      />
 
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        {statsCards.map((card, i) => (
-          <div
-            key={i}
-            className="p-6 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between hover:shadow-md transition-all duration-200"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{card.name}</span>
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${card.color}`}>
-                <card.icon className="w-4.5 h-4.5" />
-              </div>
-            </div>
-            <div className="mt-5 space-y-1">
-              <span className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">{card.value}</span>
-              <p className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
-                <ArrowUpRight className="w-3 h-3" /> {card.subtext}
-              </p>
-            </div>
-          </div>
-        ))}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+        <StatCard
+          title="Total Conversations"
+          value={stats.totalConversations}
+          subtext="Active conversation threads"
+          icon={MessageSquare}
+          iconColor="blue"
+          href="/conversations"
+        />
+        <StatCard
+          title="New Leads Captured"
+          value={stats.totalLeads}
+          subtext="Live CRM qualified leads"
+          icon={Users}
+          iconColor="green"
+          trend={{ value: '+18%', isPositive: true }}
+          href="/leads"
+        />
+        <StatCard
+          title="Appointments Booked"
+          value={stats.totalAppointments}
+          subtext="Clinic patient slots scheduled"
+          icon={Calendar}
+          iconColor="purple"
+          href="/dashboard/bookings"
+        />
+        <StatCard
+          title="Workflow Executions"
+          value={stats.totalWorkflowRuns}
+          subtext={`${stats.workflowSuccessRate}% Success Rate`}
+          icon={Workflow}
+          iconColor="amber"
+          href="/workflows"
+        />
       </div>
 
       {/* Main Grid: Row 1 - Conversations Activity Trend & Lead Sources */}
