@@ -8,11 +8,22 @@
   --brand-green: #00A859;
   --brand-orange: #FFB703;
   --brand-red: #E53935;
+  --brand-lavender: #F3F4FF;
   --surface: #FFFFFF;
   --surface-muted: #F8FAFC;
+  --surface-canvas: #F8FAFC;
+  --surface-card: #FFFFFF;
+  --surface-highlight: #EBF3FF;
   --text-primary: #00142E;
   --text-secondary: #475569;
+  --text-muted: #64748B;
   --border: #E2E8F0;
+  --border-subtle: #E2E8F0;
+  --border-focus: #0066FF;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
 }
 
 @theme {
@@ -23,11 +34,18 @@
   --color-brand-green: var(--brand-green);
   --color-brand-orange: var(--brand-orange);
   --color-brand-red: var(--brand-red);
+  --color-brand-lavender: var(--brand-lavender);
   --color-surface: var(--surface);
   --color-surface-muted: var(--surface-muted);
+  --color-surface-canvas: var(--surface-canvas);
+  --color-surface-card: var(--surface-card);
+  --color-surface-highlight: var(--surface-highlight);
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
   --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-focus: var(--border-focus);
 
   --color-grovaitech-dark: #00142E;
   --color-grovaitech-darker: #0A0F1A;
@@ -46,5 +64,42 @@ body {
   background: var(--surface);
   color: var(--text-primary);
   font-family: 'Inter', system-ui, sans-serif;
+  min-height: 100vh;
+  min-height: 100dvh;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Safe area support for mobile devices and APK webviews */
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.pb-safe-nav {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4.5rem);
+}
+.pl-safe {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+.pr-safe {
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Mobile interactive touch target compliance (>=44px) */
+.min-touch {
+  min-height: 44px;
+  min-width: 44px;
+}
+.touch-target {
+  min-height: 44px;
+}
+
+/* Mobile soft elevation shadows */
+.shadow-soft-card {
+  box-shadow: 0 4px 20px -2px rgba(0, 20, 46, 0.05), 0 2px 6px -1px rgba(0, 20, 46, 0.02);
+}
+.shadow-soft-float {
+  box-shadow: 0 12px 32px -4px rgba(0, 20, 46, 0.08), 0 4px 12px -2px rgba(0, 20, 46, 0.04);
 }
 

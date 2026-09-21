@@ -36,8 +36,10 @@ import {
   Search,
   ChevronDown,
   Mic,
+  MoreHorizontal,
 } from 'lucide-react'
 import { GovaVoiceModal } from '@/components/voice'
+import { BrandLogo, BottomNavigation } from '@/components/ui'
 
 interface ShellLayoutProps {
   children: React.ReactNode
@@ -56,6 +58,13 @@ const menuItems = [
   { name: 'Settings',      href: '/settings',       icon: Settings },
 ]
 
+const mobileBottomNavItems = [
+  { name: 'Dashboard',     href: '/dashboard',     icon: LayoutDashboard },
+  { name: 'Leads',         href: '/leads',          icon: Users },
+  { name: 'Conversations', href: '/conversations',  icon: MessageSquare },
+  { name: 'AI Employees',  href: '/ai-employees',   icon: Bot },
+]
+
 // No mock notifications — notifications will be sourced from real activity only.
 // Until live notification infrastructure is connected, the panel shows an empty state.
 const mockNotifications: { id: number; text: string; time: string; unread: boolean }[] = []
@@ -69,6 +78,11 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
   const router = useRouter()
   const pathname = usePathname()
   const supabase = useMemo(() => createClient(), [])
+
+  const isMoreActive = useMemo(() => {
+    const secondaryPaths = ['/content', '/workflows', '/analytics', '/integrations', '/blog', '/settings']
+    return secondaryPaths.some((p) => pathname === p || pathname.startsWith(p + '/'))
+  }, [pathname])
 
   useEffect(() => {
     async function checkUser() {
@@ -105,24 +119,8 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
       {/* ── Desktop Sidebar ───────────────────────────────────────────────── */}
       <aside className="hidden md:flex flex-col w-64 border-r border-slate-800 bg-slate-950 shrink-0 sticky top-0 h-screen text-slate-400">
         {/* Brand */}
-        <div className="h-16 flex items-center gap-3 px-6 border-b border-slate-900 bg-slate-950">
-          <div className="p-1 rounded-lg bg-slate-900 border border-slate-800 shrink-0">
-            <Image
-              src="/images/Grovaitech_Logo_Optimized.png"
-              alt="Grovaitech Logo"
-              width={26}
-              height={26}
-              className="rounded object-contain"
-            />
-          </div>
-          <div className="flex flex-col">
-            <span className="font-black text-sm tracking-wider text-white uppercase leading-none">
-              GROVAITECH
-            </span>
-            <span className="text-[8px] font-bold text-blue-500 uppercase tracking-wider mt-1.5 leading-none">
-              AI WORKFORCE OS
-            </span>
-          </div>
+        <div className="h-16 flex items-center px-6 border-b border-slate-900 bg-slate-950">
+          <BrandLogo variant="horizontal" size="sm" showTagline={false} inverted priority href="/dashboard" />
         </div>
 
         {/* Nav */}
@@ -171,22 +169,17 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 flex md:hidden bg-slate-950/65 backdrop-blur-xs">
           <div className="relative flex flex-col w-72 max-w-xs bg-slate-950 border-r border-slate-900 text-slate-400">
-            <div className="absolute top-4 right-4">
+            <div className="absolute top-3 right-3">
               <button
                 onClick={() => setSidebarOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white bg-slate-900"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-white bg-slate-900 transition-colors cursor-pointer"
+                aria-label="Close menu"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="h-16 flex items-center gap-3 px-6 border-b border-slate-900">
-              <div className="p-1 rounded-lg bg-slate-900 border border-slate-800 shrink-0">
-                <Image src="/images/Grovaitech_Logo_Optimized.png" alt="Grovaitech Logo" width={26} height={26} className="rounded object-contain" />
-              </div>
-              <div className="flex flex-col">
-                <span className="font-black text-sm tracking-wider text-white uppercase leading-none">GROVAITECH</span>
-                <span className="text-[8px] font-bold text-blue-500 uppercase tracking-wider mt-1.5 leading-none">AI WORKFORCE OS</span>
-              </div>
+            <div className="h-16 flex items-center px-6 border-b border-slate-900">
+              <BrandLogo variant="horizontal" size="sm" showTagline={false} inverted priority href="/dashboard" />
             </div>
             <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
               {menuItems.map((item) => {
@@ -196,7 +189,7 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
                     key={item.name}
                     href={item.href}
                     onClick={() => setSidebarOpen(false)}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+                    className={`flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-xl text-sm font-semibold transition-all ${
                       isActive ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-900'
                     }`}
                   >
@@ -218,7 +211,7 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
               </div>
               <button
                 onClick={handleSignOut}
-                className="w-full mt-2 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                className="w-full mt-2 flex items-center justify-center gap-2 px-3 py-2.5 min-h-[44px] text-xs font-medium text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 Sign Out
@@ -231,14 +224,18 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
       {/* ── Main Area ─────────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         {/* Top Header */}
-        <header className="sticky top-0 z-40 h-16 border-b border-slate-200 bg-white/80 backdrop-blur-md flex items-center justify-between px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-4">
+        <header className="sticky top-0 z-40 h-16 border-b border-slate-200 bg-white/95 backdrop-blur-md pt-safe flex items-center justify-between px-3 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-2 sm:gap-4">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="p-2 rounded-lg text-slate-500 hover:text-slate-800 bg-slate-100 md:hidden"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-slate-600 hover:text-slate-900 bg-slate-100 md:hidden cursor-pointer"
+              aria-label="Open menu drawer"
             >
               <Menu className="w-5 h-5" />
             </button>
+            <div className="md:hidden flex items-center">
+              <BrandLogo variant="horizontal" size="xs" showTagline={false} href="/dashboard" />
+            </div>
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 w-64 md:w-80 rounded-xl bg-slate-100/80 border border-slate-200 text-slate-400 focus-within:border-blue-500/50 transition-colors">
               <Search className="w-4 h-4 text-slate-400" />
               <input
@@ -253,10 +250,10 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
             {/* GOVA Voice Control */}
             <button
               onClick={() => setVoiceModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-xs text-xs font-bold transition-all duration-200 cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 min-h-[44px] rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-xs text-xs font-bold transition-all duration-200 cursor-pointer"
               title="Talk to GOVA (Voice Mode)"
             >
-              <Mic className="w-3.5 h-3.5 animate-pulse" />
+              <Mic className="w-4 h-4 animate-pulse" />
               <span className="hidden sm:inline">Talk to GOVA</span>
             </button>
 
@@ -264,9 +261,10 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
             <div className="relative">
               <button
                 onClick={() => { setNotificationsOpen(!notificationsOpen); setProfileOpen(false) }}
-                className="p-2 rounded-xl text-slate-500 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-all duration-200 relative"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-slate-500 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-all duration-200 relative cursor-pointer"
+                aria-label="Notifications"
               >
-                <Bell className="w-4 h-4" />
+                <Bell className="w-4.5 h-4.5" />
               </button>
               {notificationsOpen && (
                 <div className="absolute right-0 mt-2 w-80 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl z-50 text-slate-800">
@@ -298,7 +296,8 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
             <div className="relative">
               <button
                 onClick={() => { setProfileOpen(!profileOpen); setNotificationsOpen(false) }}
-                className="flex items-center gap-2 group cursor-pointer"
+                className="flex items-center gap-2 min-h-[44px] px-1.5 py-1 rounded-xl hover:bg-slate-100/60 transition-colors group cursor-pointer"
+                aria-label="User Profile"
               >
                 <div className="w-8 h-8 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center font-bold text-blue-600 text-xs group-hover:scale-105 transition-transform duration-200">
                   {user.full_name ? user.full_name.split(' ').map((n: string) => n[0]).join('') : user.email[0].toUpperCase()}
@@ -312,10 +311,10 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
                     <p className="text-xs font-bold text-slate-800 truncate">{user.full_name || 'Administrator'}</p>
                     <p className="text-[10px] text-slate-400 truncate">{user.email}</p>
                   </div>
-                  <Link href="/settings" onClick={() => setProfileOpen(false)} className="flex items-center gap-2 px-4 py-2 text-xs hover:bg-slate-50 transition-colors">
+                  <Link href="/settings" onClick={() => setProfileOpen(false)} className="flex items-center gap-2 px-4 py-2.5 min-h-[44px] text-xs hover:bg-slate-50 transition-colors">
                     <Settings className="w-3.5 h-3.5 text-slate-400" /> Settings
                   </Link>
-                  <button onClick={handleSignOut} className="w-full flex items-center gap-2 px-4 py-2 text-xs text-red-500 hover:bg-red-50 transition-colors text-left border-t border-slate-100 mt-1">
+                  <button onClick={handleSignOut} className="w-full flex items-center gap-2 px-4 py-2.5 min-h-[44px] text-xs text-red-500 hover:bg-red-50 transition-colors text-left border-t border-slate-100 mt-1 cursor-pointer">
                     <LogOut className="w-3.5 h-3.5" /> Sign Out
                   </button>
                 </div>
@@ -325,12 +324,19 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
         </header>
 
         {/* Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 bg-slate-50">
+        <main className="flex-1 p-3.5 sm:p-6 lg:p-8 bg-slate-50 pb-safe-nav md:pb-8">
           <div className="max-w-7xl mx-auto">
             {children}
           </div>
         </main>
       </div>
+
+      {/* ── Mobile Bottom Navigation Bar (Fixed for Mobile & APK WebViews) ──── */}
+      <BottomNavigation
+        items={mobileBottomNavItems}
+        onMoreClick={() => setSidebarOpen(true)}
+        isMoreActive={isMoreActive}
+      />
 
       {/* GOVA Voice Interactive Modal */}
       <GovaVoiceModal isOpen={voiceModalOpen} onClose={() => setVoiceModalOpen(false)} />
