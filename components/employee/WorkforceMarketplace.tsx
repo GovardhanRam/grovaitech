@@ -30,42 +30,42 @@ import {
   ChevronRight,
   CheckCircle2,
   AlertCircle,
+  Sparkles,
 } from 'lucide-react'
+import { SearchInput } from '@/components/ui/SearchInput'
+import { Pill } from '@/components/ui/Pill'
+import { StatusBadge } from '@/components/ui/StatusBadge'
+import { StatCard } from '@/components/ui/StatCard'
 
 // ─── Status Metadata ──────────────────────────────────────────────────────────
 
 const STATUS_META: Record<
   AIEmployee['status'],
-  { label: string; cls: string; dot: string; strip: string }
+  { label: string; status: 'active' | 'demo' | 'in_progress' | 'planned'; strip: string }
 > = {
   live: {
     label: 'READY TO DEPLOY',
-    cls: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    dot: 'bg-emerald-500',
-    strip: 'bg-emerald-400',
+    status: 'active',
+    strip: 'bg-emerald-500',
   },
   beta: {
     label: 'DEMO',
-    cls: 'bg-blue-50 text-blue-700 border-blue-200',
-    dot: 'bg-blue-500',
-    strip: 'bg-blue-500',
+    status: 'demo',
+    strip: 'bg-[#0066FF]',
   },
   demo: {
     label: 'DEMO',
-    cls: 'bg-blue-50 text-blue-700 border-blue-200',
-    dot: 'bg-blue-500',
-    strip: 'bg-blue-500',
+    status: 'demo',
+    strip: 'bg-[#0066FF]',
   },
   in_development: {
     label: 'IN PROGRESS',
-    cls: 'bg-amber-50 text-amber-700 border-amber-200',
-    dot: 'bg-amber-400',
+    status: 'in_progress',
     strip: 'bg-amber-400',
   },
   planned: {
-    label: 'UNDER DEVELOPMENT',
-    cls: 'bg-slate-100 text-slate-500 border-slate-200',
-    dot: 'bg-slate-400',
+    label: 'UNDER DEV',
+    status: 'planned',
     strip: 'bg-slate-300',
   },
 }
@@ -155,24 +155,23 @@ function MarketplaceCard({ emp }: { emp: AIEmployee }) {
           {/* Header row: avatar + category + status badge */}
           <div className="flex items-start justify-between gap-3 mb-2.5">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center shrink-0">
-                <Bot className="w-5 h-5 text-blue-600" />
+              <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#0066FF] shrink-0 shadow-2xs">
+                <Bot className="w-5 h-5 text-[#0066FF]" />
               </div>
               <div>
-                <span className="text-[10px] font-extrabold text-blue-600 uppercase tracking-wider block">
+                <span className="text-[10px] font-extrabold text-[#0066FF] uppercase tracking-wider block">
                   {category}
                 </span>
-                <h3 className="font-extrabold text-sm text-slate-900 leading-snug">
+                <h3 className="font-extrabold text-sm text-[#00142E] leading-snug">
                   {displayName}
                 </h3>
               </div>
             </div>
-            <span
-              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded border text-[9px] font-black uppercase tracking-wide shrink-0 ${sm.cls}`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full ${sm.dot}`} />
-              {sm.label}
-            </span>
+            <StatusBadge
+              status={sm.status}
+              label={sm.label}
+              size="sm"
+            />
           </div>
 
           <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
@@ -180,23 +179,23 @@ function MarketplaceCard({ emp }: { emp: AIEmployee }) {
           </p>
 
           {/* Description */}
-          <p className="text-[11px] text-slate-600 leading-relaxed mt-2.5 flex-1 line-clamp-3">
+          <p className="text-xs text-slate-600 leading-relaxed mt-2.5 flex-1 line-clamp-3">
             {shortDescription}
           </p>
 
           {/* Capabilities */}
           {emp.capabilities?.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-3">
+            <div className="flex flex-wrap gap-1.5 mt-3">
               {emp.capabilities.slice(0, 3).map((cap) => (
                 <span
                   key={cap}
-                  className="text-[9px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium"
+                  className="text-[10px] px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 font-medium"
                 >
                   {cap}
                 </span>
               ))}
               {emp.capabilities.length > 3 && (
-                <span className="text-[9px] text-slate-400 font-bold px-1 self-center">
+                <span className="text-[10px] text-slate-400 font-bold px-1 self-center">
                   +{emp.capabilities.length - 3} more
                 </span>
               )}
@@ -209,18 +208,18 @@ function MarketplaceCard({ emp }: { emp: AIEmployee }) {
               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
                 Required Integrations
               </span>
-              <div className="flex flex-wrap gap-1">
+              <div className="flex flex-wrap gap-1.5">
                 {requiredIntegrations.slice(0, 2).map((integ, idx) => (
                   <span
                     key={idx}
-                    className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-50 text-slate-600 text-[9px] font-semibold rounded border border-slate-200"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-50 text-slate-600 text-[10px] font-medium rounded-md border border-slate-200"
                   >
-                    <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500" />
+                    <CheckCircle2 className="w-3 h-3 text-emerald-500" />
                     {integ}
                   </span>
                 ))}
                 {requiredIntegrations.length > 2 && (
-                  <span className="text-[9px] text-slate-400 font-semibold self-center">
+                  <span className="text-[10px] text-slate-400 font-semibold self-center">
                     +{requiredIntegrations.length - 2} more
                   </span>
                 )}
@@ -229,33 +228,33 @@ function MarketplaceCard({ emp }: { emp: AIEmployee }) {
           )}
 
           {/* Action buttons: View Employee, Configure, Deploy */}
-          <div className="flex items-center gap-1.5 mt-4 pt-3 border-t border-slate-100">
+          <div className="flex items-center gap-2 mt-4 pt-3 border-t border-slate-100">
             {/* View Employee */}
             <Link
               href={`/ai-employees/${emp.slug}`}
-              className="flex-1 flex items-center justify-center gap-1 px-2.5 py-1.5 bg-white border border-slate-200 hover:border-blue-400 hover:text-blue-600 text-slate-700 text-[11px] font-bold rounded-xl transition"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 min-h-[44px] bg-white border border-slate-200 hover:border-[#0066FF] hover:text-[#0066FF] text-[#00142E] text-xs font-bold rounded-xl transition cursor-pointer"
             >
-              <span>View Employee</span>
-              <ArrowRight className="w-3 h-3" />
+              <span>Profile</span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </Link>
 
             {/* Configure Action */}
             {isConfigurable ? (
               <Link
                 href={`/ai-employees/${emp.slug}#configure`}
-                className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-white border border-slate-200 hover:border-blue-300 hover:text-blue-600 text-slate-600 text-[11px] font-bold rounded-xl transition"
+                className="flex items-center justify-center gap-1.5 px-3 min-h-[44px] bg-white border border-slate-200 hover:border-blue-300 hover:text-[#0066FF] text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
                 title="Configure brand parameters"
               >
-                <Settings className="w-3 h-3" />
-                <span>Configure</span>
+                <Settings className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Configure</span>
               </Link>
             ) : (
               <span
-                className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-slate-50 border border-slate-200/60 text-slate-400 text-[11px] font-medium rounded-xl cursor-not-allowed"
+                className="flex items-center justify-center gap-1.5 px-3 min-h-[44px] bg-slate-50 border border-slate-200/60 text-slate-400 text-xs font-medium rounded-xl cursor-not-allowed"
                 title="Default configuration applied"
               >
-                <Settings className="w-3 h-3 opacity-40" />
-                <span>Configure</span>
+                <Settings className="w-3.5 h-3.5 opacity-40" />
+                <span className="hidden sm:inline">Configure</span>
               </span>
             )}
 
@@ -263,26 +262,26 @@ function MarketplaceCard({ emp }: { emp: AIEmployee }) {
             {isDeployable ? (
               <Link
                 href={`/deploy?employee=${emp.slug}`}
-                className="flex items-center justify-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold rounded-xl shadow-xs transition"
+                className="flex items-center justify-center gap-1.5 px-4 min-h-[44px] bg-[#0066FF] hover:bg-blue-700 active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
               >
-                <Rocket className="w-3 h-3" />
+                <Rocket className="w-3.5 h-3.5" />
                 <span>Deploy</span>
               </Link>
             ) : hasDemo ? (
               <button
                 onClick={() => setDemoOpen(true)}
-                className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-[11px] font-bold rounded-xl transition"
+                className="flex items-center justify-center gap-1.5 px-3.5 min-h-[44px] bg-blue-50 text-[#0066FF] border border-blue-200 hover:bg-blue-100 active:scale-95 text-xs font-bold rounded-xl transition cursor-pointer"
                 title="Try interactive demonstration"
               >
-                <Play className="w-3 h-3" />
+                <Play className="w-3.5 h-3.5" />
                 <span>Demo</span>
               </button>
             ) : (
               <span
-                className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-slate-50 border border-slate-200/60 text-slate-400 text-[11px] font-medium rounded-xl cursor-not-allowed"
+                className="flex items-center justify-center gap-1.5 px-3 min-h-[44px] bg-slate-50 border border-slate-200/60 text-slate-400 text-xs font-medium rounded-xl cursor-not-allowed"
                 title="Pipeline validation pending"
               >
-                <AlertCircle className="w-3 h-3 opacity-40" />
+                <AlertCircle className="w-3.5 h-3.5 opacity-40" />
                 <span>Deploy</span>
               </span>
             )}
@@ -292,9 +291,9 @@ function MarketplaceCard({ emp }: { emp: AIEmployee }) {
 
       {/* Demo modal */}
       {demoOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-3xl max-h-[85vh] h-[600px] rounded-2xl overflow-hidden shadow-2xl border border-slate-200 flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50 shrink-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-0 sm:p-4">
+          <div className="bg-white w-full max-w-3xl h-[100dvh] sm:h-[600px] sm:max-h-[85dvh] rounded-none sm:rounded-2xl overflow-hidden shadow-2xl border-0 sm:border border-slate-200 flex flex-col pb-[env(safe-area-inset-bottom,0px)]">
+            <div className="flex items-center justify-between px-6 py-4 pt-[max(1rem,env(safe-area-inset-top,0px))] sm:pt-4 border-b border-slate-100 bg-slate-50 shrink-0">
               <div className="flex items-center gap-2">
                 <span className="flex h-2.5 w-2.5 relative">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
@@ -304,12 +303,12 @@ function MarketplaceCard({ emp }: { emp: AIEmployee }) {
               </div>
               <button
                 onClick={() => setDemoOpen(false)}
-                className="px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
+                className="min-h-[44px] px-3.5 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer flex items-center justify-center"
               >
                 ✕ Close
               </button>
             </div>
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-hidden">
               <ChatInterface employeeSlug={emp.slug} />
             </div>
           </div>
@@ -403,37 +402,38 @@ export function WorkforceMarketplace({ employees, isDemo }: WorkforceProps) {
       {/* ── Header & Positioning ──────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
-          <span className="text-[10px] font-extrabold text-blue-600 uppercase tracking-widest">
+          <span className="text-[10px] font-extrabold text-[#0066FF] uppercase tracking-widest">
             Grovaitech AI Workforce OS
           </span>
-          <div className="flex items-center gap-2 mt-0.5">
-            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
+          <div className="flex items-center gap-2 mt-1">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#00142E]">
               We Don&apos;t Sell Software. We Deploy AI Employees.
             </h1>
             {isDemo && (
-              <span className="text-[8px] px-2 py-0.5 rounded-full font-black border bg-amber-50 text-amber-600 border-amber-200 uppercase tracking-wide">
+              <span className="text-[9px] px-2.5 py-0.5 rounded-full font-black border bg-amber-50 text-amber-700 border-amber-200 uppercase tracking-wide">
                 Demo Registry
               </span>
             )}
           </div>
-          <p className="text-xs text-slate-500 mt-0.5 max-w-xl">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
             Autonomous digital employees engineered for specialized business operations with verified human-in-the-loop governance.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Link
             href="/deploy"
-            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition"
+            className="flex items-center justify-center gap-2 px-5 min-h-[44px] bg-[#0066FF] hover:bg-blue-700 active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
           >
-            <Plus className="w-3.5 h-3.5" /> Deploy AI Employee
+            <Plus className="w-4 h-4" />
+            <span>Deploy AI Employee</span>
           </Link>
         </div>
       </div>
 
       {/* ── KPI strip ───────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-6 px-5 py-3.5 bg-white border border-slate-200 rounded-2xl overflow-x-auto">
+      <div className="flex items-center gap-3 sm:gap-6 px-4 py-3 bg-white border border-slate-200 rounded-2xl overflow-x-auto">
         {kpis.map((k) => (
-          <div key={k.label} className="flex items-baseline gap-1.5 shrink-0">
+          <div key={k.label} className="flex items-baseline gap-2 shrink-0">
             <span className={`text-xl font-black ${k.cls}`}>{k.value}</span>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{k.label}</span>
           </div>
@@ -441,7 +441,7 @@ export function WorkforceMarketplace({ employees, isDemo }: WorkforceProps) {
       </div>
 
       {/* ── Product flow ─────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 px-5 py-3 bg-slate-50 border border-slate-200 rounded-xl overflow-x-auto">
+      <div className="flex items-center gap-2 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl overflow-x-auto">
         <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest shrink-0 mr-1">
           Execution Lifecycle:
         </span>
@@ -455,8 +455,8 @@ export function WorkforceMarketplace({ employees, isDemo }: WorkforceProps) {
         ].map((step, i, arr) => (
           <div key={step} className="flex items-center gap-2 shrink-0">
             <span
-              className={`text-[10px] font-black px-2 py-1 rounded-lg ${
-                i === 0 ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600'
+              className={`text-[10px] font-black px-2.5 py-1 rounded-lg ${
+                i === 0 ? 'bg-[#0066FF] text-white' : 'bg-white border border-slate-200 text-slate-600'
               }`}
             >
               {step}
@@ -466,64 +466,71 @@ export function WorkforceMarketplace({ employees, isDemo }: WorkforceProps) {
         ))}
       </div>
 
-      {/* ── Categories Bar ──────────────────────────────────────────────── */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1 shrink-0">
-          Category:
-        </span>
-        {MARKETPLACE_CATEGORIES.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setCategoryFilter(cat)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-              categoryFilter === cat
-                ? 'bg-blue-600 text-white shadow-2xs'
-                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-            }`}
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
-
-      {/* ── Search & Status Filters ─────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search AI employees, keywords, capabilities..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8 pr-3 py-2 text-xs font-medium bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-400 transition w-72"
-          />
+      {/* ── Search & Filter Row ────────────────────────────────────────── */}
+      <div className="space-y-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="flex-1 max-w-md">
+            <SearchInput
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onClear={() => setSearch('')}
+              placeholder="Search AI employees, keywords, capabilities..."
+            />
+          </div>
+          {/* Status filter pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+            {[
+              { key: 'all', label: 'All Statuses' },
+              { key: 'ready', label: 'Ready' },
+              { key: 'demo', label: 'Demo' },
+              { key: 'in_progress', label: 'In Progress' },
+              { key: 'planned', label: 'Under Dev' },
+            ].map((f) => (
+              <Pill
+                key={f.key}
+                label={f.label}
+                selected={statusFilter === f.key}
+                onClick={() => setStatusFilter(f.key)}
+                variant={statusFilter === f.key ? 'default' : 'subtle'}
+                size="sm"
+              />
+            ))}
+          </div>
         </div>
-        {[
-          { key: 'all', label: 'All Statuses' },
-          { key: 'ready', label: 'Ready' },
-          { key: 'demo', label: 'Demo' },
-          { key: 'in_progress', label: 'In Progress' },
-          { key: 'planned', label: 'Under Dev' },
-        ].map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setStatusFilter(f.key)}
-            className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition whitespace-nowrap ${
-              statusFilter === f.key
-                ? 'bg-slate-900 text-white'
-                : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
+
+        {/* ── Categories Bar ──────────────────────────────────────────────── */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1 shrink-0">
+            Category:
+          </span>
+          {MARKETPLACE_CATEGORIES.map((cat) => (
+            <Pill
+              key={cat}
+              label={cat}
+              selected={categoryFilter === cat}
+              onClick={() => setCategoryFilter(cat)}
+              variant={categoryFilter === cat ? 'primary' : 'outline'}
+              size="sm"
+            />
+          ))}
+        </div>
       </div>
 
       {/* ── Sectioned Grid ───────────────────────────────────────────────── */}
       {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-slate-400 text-xs gap-2">
-          <Bot className="w-10 h-10 opacity-30" />
-          No AI Employees match your search or filter.
+        <div className="flex flex-col items-center justify-center py-16 text-slate-400 text-xs gap-3 bg-white border border-dashed border-slate-200 rounded-2xl">
+          <Bot className="w-10 h-10 opacity-30 text-slate-400" />
+          <p className="text-sm font-semibold text-slate-600">No AI Employees match your search or filter.</p>
+          <button
+            onClick={() => {
+              setSearch('')
+              setStatusFilter('all')
+              setCategoryFilter('All')
+            }}
+            className="min-h-[44px] px-4 py-2 text-xs font-bold text-[#0066FF] bg-blue-50 hover:bg-blue-100 rounded-xl transition cursor-pointer"
+          >
+            Reset Filters
+          </button>
         </div>
       ) : (
         <div className="space-y-10">
