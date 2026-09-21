@@ -43,3 +43,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# android build artifacts
+.gradle/
+android/app/build/
+android/.gradle/
+android/build/
+*.apk
+.screen_preview.png
