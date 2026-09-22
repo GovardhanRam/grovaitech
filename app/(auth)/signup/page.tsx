@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { Mail, Key, User, Loader2, ArrowRight } from 'lucide-react'
+import { BrandLogo } from '@/components/ui'
 
 export default function SignupPage() {
   const [email, setEmail] = useState('')
@@ -50,16 +50,7 @@ export default function SignupPage() {
         
         <div className="text-center space-y-2">
           <div className="flex justify-center mb-2">
-            <Link href="/" className="inline-block hover:opacity-90 transition">
-              <Image
-                src="/images/Grovaitech_Logo_Optimized.png"
-                alt="Grovaitech Logo"
-                width={120}
-                height={120}
-                priority
-                className="h-14 w-auto object-contain bg-white rounded-xl p-1.5 shadow-md"
-              />
-            </Link>
+            <BrandLogo variant="stacked" size="lg" inverted priority href="/" />
           </div>
           <h2 className="text-2xl font-bold tracking-tight text-white pt-1">
             Create Account

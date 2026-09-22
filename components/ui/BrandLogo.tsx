@@ -4,8 +4,12 @@
  * Grovaitech Mobile & Web Design System
  * components/ui/BrandLogo.tsx
  *
- * Official Grovaitech GR logo component supporting symbol, horizontal, and stacked variants.
- * Uses exact SVG vector definitions for pixel-perfect crispness across high-DPI Android displays.
+ * Official Grovaitech logo component using authentic master brand artwork:
+ * - Master Square Emblem: public/images/Grovaitech_Logo_Optimized.png
+ * - Master Horizontal Lockup: public/images/grovaitech-navbar-logo-240x84.png
+ *
+ * Preserves authentic brand colors without artificial color inversions.
+ * On dark backgrounds, renders inside a clean high-contrast container.
  */
 
 import React from 'react'
@@ -19,10 +23,10 @@ export interface BrandLogoProps {
   className?: string
   priority?: boolean
   showTagline?: boolean
-  inverted?: boolean // for dark navy backgrounds
+  inverted?: boolean // for dark backgrounds
 }
 
-const sizeHeights = {
+const sizeHeights: Record<'xs' | 'sm' | 'md' | 'lg' | 'xl', number> = {
   xs: 24,
   sm: 32,
   md: 40,
@@ -30,6 +34,10 @@ const sizeHeights = {
   xl: 64,
 }
 
+/**
+ * @deprecated Use BrandLogo component which renders the authentic master artwork.
+ * Kept for backwards compatibility with existing contracts and unit tests.
+ */
 export function BrandLogoSymbol({
   size = 36,
   className = '',
@@ -82,57 +90,93 @@ export function BrandLogo({
 
   let content: React.ReactNode
 
-  if (variant === 'raster') {
+  if (variant === 'stacked' || variant === 'raster') {
+    // Official Master Square Emblem Artwork
+    const containerClasses = inverted
+      ? 'bg-white rounded-xl p-1.5 shadow-md inline-flex items-center justify-center'
+      : 'inline-flex items-center justify-center'
+
     content = (
-      <Image
-        src="/images/Grovaitech_Logo_Optimized.png"
-        alt="Grovaitech"
-        width={pixelHeight * 3.5}
-        height={pixelHeight}
-        priority={priority}
-        className={`h-auto max-h-[${pixelHeight}px] w-auto object-contain ${className}`}
-      />
+      <div className={`${containerClasses} ${className}`}>
+        <Image
+          src="/images/Grovaitech_Logo_Optimized.png"
+          alt="Grovaitech"
+          width={pixelHeight * 2}
+          height={pixelHeight * 2}
+          priority={priority}
+          className="h-auto max-h-[64px] w-auto object-contain"
+          style={{ height: pixelHeight }}
+        />
+      </div>
     )
   } else if (variant === 'symbol') {
-    content = <BrandLogoSymbol size={pixelHeight} className={className} />
-  } else if (variant === 'stacked') {
+    // Compact symbol derived from authentic horizontal lockup (left GR mark)
+    const symbolWidth = Math.round(pixelHeight * 1.05)
+    const containerClasses = inverted
+      ? 'bg-white/95 rounded-lg p-1 shadow-xs inline-flex items-center justify-center'
+      : 'inline-flex items-center justify-center'
+
     content = (
-      <div className={`flex flex-col items-center gap-1.5 ${className}`}>
-        <BrandLogoSymbol size={pixelHeight * 0.9} />
-        <span
-          className={`font-black tracking-wider text-sm ${
-            inverted ? 'text-white' : 'text-[#00142E]'
-          }`}
-        >
-          GROVAITECH
-        </span>
+      <div
+        className={`relative overflow-hidden rounded-md ${containerClasses} ${className}`}
+        style={{ height: pixelHeight, width: symbolWidth }}
+      >
+        <Image
+          src="/images/grovaitech-navbar-logo-240x84.png"
+          alt="Grovaitech"
+          width={Math.round(pixelHeight * 3.5)}
+          height={Math.round(pixelHeight * 1.6)}
+          priority={priority}
+          className="object-cover object-left h-full max-w-none"
+        />
       </div>
     )
   } else {
-    // Horizontal full lockup
-    content = (
-      <div className={`inline-flex items-center gap-2.5 ${className}`}>
-        <BrandLogoSymbol size={pixelHeight * 0.78} />
-        <div className="flex flex-col justify-center">
-          <span
-            className={`font-black text-base sm:text-lg leading-none tracking-tight ${
-              inverted ? 'text-white' : 'text-[#00142E]'
-            }`}
-          >
-            GROVAITECH
-          </span>
-          {showTagline && size !== 'xs' && (
-            <span
-              className={`text-[8px] sm:text-[9px] font-semibold tracking-tight mt-0.5 leading-tight ${
-                inverted ? 'text-slate-300' : 'text-slate-600'
-              }`}
-            >
-              We Don&apos;t Sell Software. We Deploy AI Employees.
-            </span>
-          )}
+    // variant === 'horizontal'
+    // Intrinsic navbar artwork is 1024x471 (~2.17:1 ratio)
+    if (showTagline) {
+      // Full horizontal lockup including tagline
+      const fullWidth = Math.round(pixelHeight * (1024 / 471))
+      const containerClasses = inverted
+        ? 'bg-white/95 rounded-lg px-2 py-1 shadow-xs inline-flex items-center'
+        : 'inline-flex items-center'
+
+      content = (
+        <div className={`${containerClasses} ${className}`}>
+          <Image
+            src="/images/grovaitech-navbar-logo-240x84.png"
+            alt="Grovaitech — We Don't Sell Software. We Deploy AI Employees."
+            width={fullWidth}
+            height={pixelHeight}
+            priority={priority}
+            className="w-auto object-contain"
+            style={{ height: pixelHeight }}
+          />
         </div>
-      </div>
-    )
+      )
+    } else {
+      // Compact horizontal lockup without tagline (tagline in lower 30% is clipped)
+      const compactWidth = Math.round(pixelHeight * 2.05)
+      const containerClasses = inverted
+        ? 'bg-white/95 rounded-lg px-2 py-0.5 shadow-xs inline-flex items-center'
+        : 'inline-flex items-center'
+
+      content = (
+        <div
+          className={`relative overflow-hidden ${containerClasses} ${className}`}
+          style={{ height: pixelHeight, width: compactWidth }}
+        >
+          <Image
+            src="/images/grovaitech-navbar-logo-240x84.png"
+            alt="Grovaitech"
+            width={Math.round(compactWidth * 1.15)}
+            height={Math.round(pixelHeight * 1.45)}
+            priority={priority}
+            className="object-cover object-top w-full h-[145%]"
+          />
+        </div>
+      )
+    }
   }
 
   if (href) {

@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 /**
  * Grovaitech AI Platform
@@ -11,9 +11,9 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2, ShieldCheck } from 'lucide-react'
+import { BrandLogo } from '@/components/ui'
 
 export default function LoginPage() {
   const [googleLoading, setGoogleLoading] = useState(false)
@@ -63,16 +63,7 @@ export default function LoginPage() {
         
         <div className="text-center space-y-2">
           <div className="flex justify-center mb-2">
-            <Link href="/" className="inline-block hover:opacity-90 transition">
-              <Image
-                src="/images/Grovaitech_Logo_Optimized.png"
-                alt="Grovaitech Logo"
-                width={120}
-                height={120}
-                priority
-                className="h-14 w-auto object-contain bg-white rounded-xl p-1.5 shadow-md"
-              />
-            </Link>
+            <BrandLogo variant="stacked" size="lg" inverted priority href="/" />
           </div>
           <h2 className="text-2xl font-bold tracking-tight text-white pt-1">
             Welcome to Grovaitech

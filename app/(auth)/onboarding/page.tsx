@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 /**
  * Grovaitech AI Platform
@@ -12,10 +12,10 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { ShieldCheck, LogOut, Loader2, Building2, ArrowRight, KeyRound } from 'lucide-react'
 import { submitWorkspaceOnboarding, submitAcceptInvitation } from '@/app/actions/onboarding'
+import { BrandLogo } from '@/components/ui'
 
 export default function OnboardingPage() {
   const [userEmail, setUserEmail] = useState<string | null>(null)
@@ -132,16 +132,7 @@ export default function OnboardingPage() {
       <div className="max-w-lg w-full p-8 border border-slate-900/80 bg-slate-900/40 backdrop-blur-2xl rounded-3xl shadow-2xl relative space-y-6 text-center">
         {/* Logo */}
         <div className="flex justify-center mb-1">
-          <Link href="/" className="inline-block hover:opacity-90 transition">
-            <Image
-              src="/images/Grovaitech_Logo_Optimized.png"
-              alt="Grovaitech Logo"
-              width={120}
-              height={120}
-              priority
-              className="h-14 w-auto object-contain bg-white rounded-xl p-1.5 shadow-md"
-            />
-          </Link>
+          <BrandLogo variant="stacked" size="lg" inverted priority href="/" />
         </div>
 
         {/* Status Badge */}

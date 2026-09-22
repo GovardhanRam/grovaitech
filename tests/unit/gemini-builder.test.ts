@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { GeminiCliBuilderAdapter } from '@/orchestrator/adapters/builder/gemini-cli'
+import { ClaudeCodeBuilderAdapter } from '@/orchestrator/adapters/builder/claude-code'
 import { createBuilderAdapter } from '@/orchestrator/adapters/builder/factory'
 import { ManualBuilderAdapter } from '@/orchestrator/adapters/builder/manual'
 
@@ -83,11 +84,16 @@ describe('Gemini CLI Builder Adapter & Factory', () => {
     })
 
     it('8. falls back to manual when claude-code is unauthenticated', async () => {
+      vi.spyOn(ClaudeCodeBuilderAdapter.prototype, 'checkAvailability').mockResolvedValue({
+        available: false,
+        reason:
+          'Claude Code is not authenticated. Run `claude auth login` in your terminal to enable automated Builder. Until then, the manual fallback is active.',
+      })
       const logs: string[] = []
       const adapter = await createBuilderAdapter('claude-code', (msg) => logs.push(msg))
       expect(adapter).toBeInstanceOf(ManualBuilderAdapter)
       expect(adapter.adapterId).toBe('manual')
       expect(logs.some((l) => l.includes('Falling back to manual adapter'))).toBe(true)
-    }, 15000)
+    })
   })
 })

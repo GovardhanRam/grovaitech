@@ -104,6 +104,31 @@ describe('Grovaitech Mobile Design System — Tokens & Components', () => {
       expect(element.props.width).toBeCloseTo(36 * (148 / 90), 1)
     })
 
+    it('renders BrandLogo using authentic master square logo for stacked/raster variants', () => {
+      const element = UI.BrandLogo({ variant: 'stacked', size: 'lg', inverted: true })
+      // Verify element renders a container with white background badge in inverted mode
+      expect(element.props.className).toContain('bg-white')
+      // Find the Image child
+      const imgChild = element.props.children
+      expect(imgChild.props.src).toBe('/images/Grovaitech_Logo_Optimized.png')
+      expect(imgChild.props.alt).toBe('Grovaitech')
+    })
+
+    it('renders BrandLogo using authentic horizontal lockup for horizontal variant', () => {
+      const element = UI.BrandLogo({ variant: 'horizontal', size: 'md', showTagline: true })
+      const imgChild = element.props.children
+      expect(imgChild.props.src).toBe('/images/grovaitech-navbar-logo-240x84.png')
+      expect(imgChild.props.alt).toContain('Grovaitech')
+    })
+
+    it('renders BrandLogo in compact mode without tagline when showTagline is false', () => {
+      const element = UI.BrandLogo({ variant: 'horizontal', size: 'sm', showTagline: false, inverted: true })
+      expect(element.props.className).toContain('overflow-hidden')
+      expect(element.props.className).toContain('bg-white')
+      const imgChild = element.props.children
+      expect(imgChild.props.src).toBe('/images/grovaitech-navbar-logo-240x84.png')
+    })
+
     it('renders PrimaryButton with 44px+ touch styles and busy state', () => {
       const buttonEl = React.createElement(
         UI.PrimaryButton,
