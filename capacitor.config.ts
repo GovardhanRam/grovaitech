@@ -1,8 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
-// Default to local reverse proxy (http://localhost:3000/app-entry) for active USB device testing;
-// Can be overridden with production URL via CAPACITOR_SERVER_URL=https://grovaitech.vercel.app
-const baseServerUrl = (process.env.CAPACITOR_SERVER_URL || 'http://localhost:3000').replace(/\/+$/, '');
+// Deployed Grovaitech production server URL for native mobile shell
+const baseServerUrl = (process.env.CAPACITOR_SERVER_URL || 'https://grovaitech.vercel.app').replace(/\/+$/, '');
 const appEntryUrl = baseServerUrl.endsWith('/app-entry')
   ? baseServerUrl
   : `${baseServerUrl}/app-entry`;
