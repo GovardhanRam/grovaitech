@@ -32,10 +32,10 @@ export default function PublicNav() {
               <Image
                 src="/images/grovaitech-navbar-logo-240x84.png"
                 alt="Grovaitech — We Don't Sell Software. We Deploy AI Employees."
-                width={140}
-                height={64}
+                width={175}
+                height={61}
                 priority
-                className="w-[115px] sm:w-[140px] h-auto object-contain"
+                className="w-[140px] sm:w-[175px] h-auto object-contain"
               />
             </Link>
           </div>
