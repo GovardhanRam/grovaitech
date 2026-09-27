@@ -30,12 +30,12 @@ export default function PublicNav() {
               aria-label="Grovaitech Home"
             >
               <Image
-                src="/images/grovaitech-navbar-logo-240x84.png"
+                src="/images/grovaitech-navbar-logo-hd.png"
                 alt="Grovaitech — We Don't Sell Software. We Deploy AI Employees."
-                width={175}
-                height={61}
+                width={320}
+                height={51}
                 priority
-                className="w-[140px] sm:w-[175px] h-auto object-contain"
+                className="w-[195px] sm:w-[240px] lg:w-[285px] xl:w-[320px] h-auto object-contain"
               />
             </Link>
           </div>
