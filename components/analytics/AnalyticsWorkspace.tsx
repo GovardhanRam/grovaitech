@@ -67,30 +67,30 @@ export function AnalyticsWorkspace() {
   const [chartMetric, setChartMetric] = useState<'total' | 'ai' | 'human'>('total')
   const [exportNotice, setExportNotice] = useState(false)
 
-  // 1. KPI Summary Data
+  // 1. KPI Summary Data (Honest Zero-State for fresh workspace)
   const kpis = [
     {
       label: 'Total Conversations',
-      value: '1,428',
-      change: '+18.4%',
+      value: '0',
+      change: '0%',
       isPositive: true,
-      sub: '94.2% AI automated',
+      sub: '0% AI automated',
       icon: MessageSquare,
       color: 'text-blue-600 bg-blue-50 border-blue-100',
     },
     {
       label: 'Leads Captured',
-      value: '264',
-      change: '+24.1%',
+      value: '0',
+      change: '0%',
       isPositive: true,
-      sub: '18.5% of total chats',
+      sub: '0% of total chats',
       icon: Users,
       color: 'text-emerald-600 bg-emerald-50 border-emerald-100',
     },
     {
       label: 'Appointments Booked',
-      value: '48',
-      change: '+12.5%',
+      value: '0',
+      change: '0%',
       isPositive: true,
       sub: 'Direct calendar locks',
       icon: Calendar,
@@ -98,8 +98,8 @@ export function AnalyticsWorkspace() {
     },
     {
       label: 'Conversion Rate',
-      value: '18.5%',
-      change: '+3.2%',
+      value: '0%',
+      change: '0%',
       isPositive: true,
       sub: 'Visitor to qualified lead',
       icon: TrendingUp,
@@ -107,22 +107,22 @@ export function AnalyticsWorkspace() {
     },
     {
       label: 'Estimated Pipeline Value',
-      value: '₹3.42 Cr',
-      change: '+₹45L this mo.',
+      value: '₹0',
+      change: '₹0 this mo.',
       isPositive: true,
-      sub: 'Demo estimated value',
+      sub: 'Estimated pipeline value',
       icon: DollarSign,
       color: 'text-indigo-600 bg-indigo-50 border-indigo-100',
     },
   ]
 
-  // 2. Conversation Chart Points (12 interval series)
-  const totalSeries = [45, 62, 58, 80, 110, 95, 125, 140, 130, 160, 175, 190]
-  const aiSeries = [42, 58, 55, 76, 104, 90, 118, 134, 124, 152, 166, 180]
-  const humanSeries = [3, 4, 3, 4, 6, 5, 7, 6, 6, 8, 9, 10]
+  // 2. Conversation Chart Points (12 interval baseline series)
+  const totalSeries = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  const aiSeries = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  const humanSeries = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
   const activeSeries = chartMetric === 'ai' ? aiSeries : chartMetric === 'human' ? humanSeries : totalSeries
-  const maxVal = Math.max(...activeSeries)
+  const maxVal = Math.max(...activeSeries, 10)
   const chartWidth = 600
   const chartHeight = 160
 
@@ -135,16 +135,16 @@ export function AnalyticsWorkspace() {
   const pathData = `M 0,${chartHeight} L ${coordinates.join(' L ')} L ${chartWidth},${chartHeight} Z`
   const strokePathData = `M ${coordinates.join(' L ')}`
 
-  // 3. Lead Funnel Data
+  // 3. Lead Funnel Data (Honest Zero-State)
   const funnelSteps = [
-    { step: 'New Inquiries', count: 1428, pct: 100, color: 'bg-blue-500' },
-    { step: 'Contacted & Engaged', count: 890, pct: 62.3, color: 'bg-indigo-500' },
-    { step: 'AI Qualified', count: 264, pct: 18.5, color: 'bg-purple-500' },
-    { step: 'Site Visit / Appt.', count: 48, pct: 3.4, color: 'bg-amber-500' },
-    { step: 'Converted Client', count: 18, pct: 1.3, color: 'bg-emerald-500' },
+    { step: 'New Inquiries', count: 0, pct: 0, color: 'bg-blue-500' },
+    { step: 'Contacted & Engaged', count: 0, pct: 0, color: 'bg-indigo-500' },
+    { step: 'AI Qualified', count: 0, pct: 0, color: 'bg-purple-500' },
+    { step: 'Site Visit / Appt.', count: 0, pct: 0, color: 'bg-amber-500' },
+    { step: 'Converted Client', count: 0, pct: 0, color: 'bg-emerald-500' },
   ]
 
-  // 4. Canonical 10 AI Employees Metrics
+  // 4. Canonical 10 AI Employees Metrics (Zero-state)
   const employeeMetrics: EmployeeMetric[] = [
     {
       name: 'Real Estate Lead Receptionist',
@@ -152,11 +152,11 @@ export function AnalyticsWorkspace() {
       role: 'Sales / Lead Capture',
       status: 'DEMO',
       statusCls: 'bg-blue-50 text-blue-700 border-blue-200',
-      conversations: 642,
-      leads: 142,
-      appointments: 28,
-      conversionRate: 22.1,
-      impactScore: 96,
+      conversations: 0,
+      leads: 0,
+      appointments: 0,
+      conversionRate: 0,
+      impactScore: 0,
     },
     {
       name: 'Clinic Receptionist',
@@ -164,11 +164,11 @@ export function AnalyticsWorkspace() {
       role: 'Operations / Bookings',
       status: 'IN PROGRESS',
       statusCls: 'bg-amber-50 text-amber-700 border-amber-200',
-      conversations: 384,
-      leads: 58,
-      appointments: 20,
-      conversionRate: 15.1,
-      impactScore: 84,
+      conversations: 0,
+      leads: 0,
+      appointments: 0,
+      conversionRate: 0,
+      impactScore: 0,
     },
     {
       name: 'WhatsApp Lead Agent',
@@ -176,11 +176,11 @@ export function AnalyticsWorkspace() {
       role: 'Sales / WhatsApp',
       status: 'IN PROGRESS',
       statusCls: 'bg-amber-50 text-amber-700 border-amber-200',
-      conversations: 265,
-      leads: 48,
+      conversations: 0,
+      leads: 0,
       appointments: 0,
-      conversionRate: 18.1,
-      impactScore: 78,
+      conversionRate: 0,
+      impactScore: 0,
     },
     {
       name: 'Salon & Spa Receptionist',
@@ -188,11 +188,11 @@ export function AnalyticsWorkspace() {
       role: 'Operations / Appointments',
       status: 'IN PROGRESS',
       statusCls: 'bg-amber-50 text-amber-700 border-amber-200',
-      conversations: 82,
-      leads: 12,
+      conversations: 0,
+      leads: 0,
       appointments: 0,
-      conversionRate: 14.6,
-      impactScore: 52,
+      conversionRate: 0,
+      impactScore: 0,
     },
     {
       name: 'Customer Support Agent',
@@ -200,11 +200,11 @@ export function AnalyticsWorkspace() {
       role: 'Support / Tier-1',
       status: 'UNDER DEVELOPMENT',
       statusCls: 'bg-slate-100 text-slate-500 border-slate-200',
-      conversations: 45,
-      leads: 4,
+      conversations: 0,
+      leads: 0,
       appointments: 0,
-      conversionRate: 8.8,
-      impactScore: 40,
+      conversionRate: 0,
+      impactScore: 0,
     },
     {
       name: 'AI QA Inspector',
@@ -212,11 +212,11 @@ export function AnalyticsWorkspace() {
       role: 'Operations / Quality',
       status: 'UNDER DEVELOPMENT',
       statusCls: 'bg-slate-100 text-slate-500 border-slate-200',
-      conversations: 10,
+      conversations: 0,
       leads: 0,
       appointments: 0,
       conversionRate: 0,
-      impactScore: 30,
+      impactScore: 0,
     },
     {
       name: 'Legal Intake Agent',
@@ -268,14 +268,14 @@ export function AnalyticsWorkspace() {
     },
   ]
 
-  // 5. Canonical 6 Workflows Metrics
+  // 5. Canonical 6 Workflows Metrics (Zero-state)
   const workflowMetrics: WorkflowMetric[] = [
     {
       name: 'Real Estate Lead ➔ WhatsApp & Site Visit Sync',
       status: 'ACTIVE',
       statusCls: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      totalRuns: 48,
-      successRate: 100,
+      totalRuns: 0,
+      successRate: 0,
       failedRuns: 0,
       assignedEmployee: 'Real Estate Lead Receptionist',
     },
@@ -283,17 +283,17 @@ export function AnalyticsWorkspace() {
       name: 'Clinic Appointment Booking & Reminder Pipeline',
       status: 'ACTIVE',
       statusCls: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      totalRuns: 62,
-      successRate: 98.4,
-      failedRuns: 1,
+      totalRuns: 0,
+      successRate: 0,
+      failedRuns: 0,
       assignedEmployee: 'Clinic Receptionist',
     },
     {
       name: 'Urgent Escalation ➔ Human Agent Dispatch',
       status: 'ACTIVE',
       statusCls: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      totalRuns: 14,
-      successRate: 100,
+      totalRuns: 0,
+      successRate: 0,
       failedRuns: 0,
       assignedEmployee: 'Customer Support Agent',
     },
@@ -301,9 +301,9 @@ export function AnalyticsWorkspace() {
       name: 'Inbound WhatsApp Lead Qualification Pipeline (n8n)',
       status: 'IN PROGRESS',
       statusCls: 'bg-blue-50 text-blue-700 border-blue-200',
-      totalRuns: 18,
-      successRate: 94.4,
-      failedRuns: 1,
+      totalRuns: 0,
+      successRate: 0,
+      failedRuns: 0,
       assignedEmployee: 'WhatsApp Lead Agent',
     },
     {
@@ -311,7 +311,7 @@ export function AnalyticsWorkspace() {
       status: 'IN PROGRESS',
       statusCls: 'bg-blue-50 text-blue-700 border-blue-200',
       totalRuns: 0,
-      successRate: 100,
+      successRate: 0,
       failedRuns: 0,
       assignedEmployee: 'AI QA Inspector',
     },
@@ -320,60 +320,14 @@ export function AnalyticsWorkspace() {
       status: 'DRAFT',
       statusCls: 'bg-slate-100 text-slate-500 border-slate-200',
       totalRuns: 0,
-      successRate: 100,
+      successRate: 0,
       failedRuns: 0,
       assignedEmployee: 'Legal Intake Agent',
     },
   ]
 
-  // 6. Recent Activity Stream
-  const activityEvents: ActivityEvent[] = [
-    {
-      id: 'ev-1',
-      type: 'lead',
-      title: 'High-Value Lead Captured',
-      description: 'Suresh Kumar qualified for 3BHK Villa (₹1.2 Cr) in Tirupati.',
-      time: '12m ago',
-      metric: 'Score: 85',
-      statusCls: 'text-emerald-600 bg-emerald-50 border-emerald-100',
-    },
-    {
-      id: 'ev-2',
-      type: 'appointment',
-      title: 'Site Visit Confirmed',
-      description: 'Saturday 11:00 AM slot booked for Ram Charan at Fortune Gardens.',
-      time: '45m ago',
-      metric: 'Calendar Blocked',
-      statusCls: 'text-purple-600 bg-purple-50 border-purple-100',
-    },
-    {
-      id: 'ev-3',
-      type: 'workflow',
-      title: 'Workflow Executed: Real Estate Sync',
-      description: 'Dispatched WhatsApp template & synced lead record to CRM.',
-      time: '1h ago',
-      metric: 'Latency: 320ms',
-      statusCls: 'text-blue-600 bg-blue-50 border-blue-100',
-    },
-    {
-      id: 'ev-4',
-      type: 'conversation',
-      title: 'Conversation Resolved',
-      description: 'Patient Priya Sharma booked Dr. Verma dental appointment.',
-      time: '2h ago',
-      metric: 'AI Automated',
-      statusCls: 'text-emerald-600 bg-emerald-50 border-emerald-100',
-    },
-    {
-      id: 'ev-5',
-      type: 'escalation',
-      title: 'Human Escalation Dispatched',
-      description: 'Lakshmi Devi requested live agent. Slack alert sent to team.',
-      time: '4h ago',
-      metric: 'Escalated',
-      statusCls: 'text-amber-600 bg-amber-50 border-amber-100',
-    },
-  ]
+  // 6. Recent Activity Stream (Genuine Zero-State for fresh account)
+  const activityEvents: ActivityEvent[] = []
 
   const handleExport = () => {
     setExportNotice(true)
@@ -646,8 +600,8 @@ export function AnalyticsWorkspace() {
           <div className="border-b border-slate-100 pb-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Business Revenue Impact</h3>
-              <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full">
-                Simulated
+              <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full">
+                Live
               </span>
             </div>
             <p className="text-[11px] text-slate-500">Pipeline generated by deployed AI workforce</p>
@@ -656,23 +610,23 @@ export function AnalyticsWorkspace() {
           <div className="grid grid-cols-2 gap-3">
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
               <span className="text-[10px] font-bold text-slate-400 uppercase">Estimated Pipeline</span>
-              <p className="text-xl font-black text-slate-900 mt-1">₹3.42 Cr</p>
-              <span className="text-[9px] text-emerald-600 font-bold">+18.5% MoM</span>
+              <p className="text-xl font-black text-slate-900 mt-1">₹0</p>
+              <span className="text-[9px] text-slate-400 font-bold">0% MoM</span>
             </div>
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
               <span className="text-[10px] font-bold text-slate-400 uppercase">Converted Revenue</span>
-              <p className="text-xl font-black text-emerald-600 mt-1">₹34.5 Lakhs</p>
-              <span className="text-[9px] text-slate-500 font-bold">18 Closed Sales</span>
+              <p className="text-xl font-black text-slate-900 mt-1">₹0</p>
+              <span className="text-[9px] text-slate-400 font-bold">0 Closed Sales</span>
             </div>
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
               <span className="text-[10px] font-bold text-slate-400 uppercase">AI Influenced</span>
-              <p className="text-xl font-black text-blue-600 mt-1">88.4%</p>
-              <span className="text-[9px] text-slate-500 font-bold">Touchpoints</span>
+              <p className="text-xl font-black text-slate-900 mt-1">0%</p>
+              <span className="text-[9px] text-slate-400 font-bold">Touchpoints</span>
             </div>
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
               <span className="text-[10px] font-bold text-slate-400 uppercase">Site Visits Booked</span>
-              <p className="text-xl font-black text-purple-600 mt-1">48</p>
-              <span className="text-[9px] text-slate-500 font-bold">Direct Calendar</span>
+              <p className="text-xl font-black text-slate-900 mt-1">0</p>
+              <span className="text-[9px] text-slate-400 font-bold">Direct Calendar</span>
             </div>
           </div>
 
@@ -850,20 +804,28 @@ export function AnalyticsWorkspace() {
           </div>
 
           <div className="space-y-3">
-            {activityEvents.map((ev) => (
-              <div key={ev.id} className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-slate-50 transition">
-                <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0 mt-0.5">
-                  <Activity className="w-3.5 h-3.5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <h5 className="text-xs font-bold text-slate-800 truncate">{ev.title}</h5>
-                    <span className="text-[9px] text-slate-400 font-semibold">{ev.time}</span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{ev.description}</p>
-                </div>
+            {activityEvents.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center text-slate-400 text-xs">
+                <Clock className="w-6 h-6 mb-2 opacity-40" />
+                <p className="font-semibold text-slate-600">No activity events yet</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Events from conversations, leads, and workflows will appear here live.</p>
               </div>
-            ))}
+            ) : (
+              activityEvents.map((ev) => (
+                <div key={ev.id} className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-slate-50 transition">
+                  <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0 mt-0.5">
+                    <Activity className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-xs font-bold text-slate-800 truncate">{ev.title}</h5>
+                      <span className="text-[9px] text-slate-400 font-semibold">{ev.time}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{ev.description}</p>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

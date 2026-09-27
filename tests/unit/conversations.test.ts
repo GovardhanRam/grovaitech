@@ -247,7 +247,7 @@ describe('app/actions/conversations - Data Access Layer', () => {
       const result = await getConversations()
 
       expect(result.success).toBe(true)
-      expect(result.isFallback).toBe(true)
+      expect(result.isFallback).toBe(false)
       expect(result.conversations).toEqual([])
     })
 

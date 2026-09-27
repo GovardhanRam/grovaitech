@@ -11,10 +11,11 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createLead, type LeadData } from '@/app/actions/leads'
-import { createServerClient } from '@/lib/supabase/server'
+import { createServerClient, createAdminClient } from '@/lib/supabase/server'
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerClient: vi.fn(),
+  createAdminClient: vi.fn(),
 }))
 
 describe('Tenant-Scoped Lead Deduplication in createLead()', () => {
@@ -108,6 +109,7 @@ describe('Tenant-Scoped Lead Deduplication in createLead()', () => {
     }
 
     vi.mocked(createServerClient).mockResolvedValue(mockSupabase as any)
+    vi.mocked(createAdminClient).mockResolvedValue(mockSupabase as any)
   })
 
   it('1. updates the existing lead when the SAME client submits the same phone number', async () => {

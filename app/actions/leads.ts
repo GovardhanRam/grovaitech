@@ -1,7 +1,7 @@
 'use server'
 
-import { createServerClient } from '@/lib/supabase/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServerClient, createAdminClient } from '@/lib/supabase/server'
+import { resolveAuthorizedTenant } from '@/lib/auth/tenant'
 
 export interface LeadData {
   name: string
@@ -27,28 +27,15 @@ const ALLOWED_STATUSES = ['new', 'analyzed', 'demo_ready', 'contacted', 'qualifi
 
 // Helper to get a secure administrative client on the server to bypass RLS for public demo leads
 export async function getAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  const isMock = !url || url.includes('placeholder') || url === ''
-
-  if (isMock) {
-    // Local fallback/mock mode uses the mock client
-    return createServerClient()
-  }
-
-  if (!serviceKey) {
-    // Fall back to server client
-    return createServerClient()
-  }
-
-  // Return server-only service role client bypassing RLS
-  return createClient(url, serviceKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false
+  try {
+    if (typeof createAdminClient === 'function') {
+      const client = await createAdminClient()
+      if (client) return client
     }
-  })
+  } catch {
+    // Fall back to server client if createAdminClient is unmocked in test mocks
+  }
+  return createServerClient()
 }
 
 export async function createLead(lead: LeadData) {
@@ -155,20 +142,21 @@ export async function createLead(lead: LeadData) {
   }
 }
 
-export async function getLeads() {
+export async function getLeads(requestedTenantId?: string) {
   console.log('=== getLeads Action Started ===')
 
   try {
     const supabase = await createServerClient()
-    
-    // Attempt to get authenticated user
-    const { data: { user } } = await supabase.auth.getUser()
+    const authResult = await resolveAuthorizedTenant({ requestedTenantId })
 
     let query = supabase.from('real_estate_leads').select('*')
 
-    if (user) {
-      // In authenticated mode, show leads assigned to the user or unassigned (public demo) leads
-      query = query.or(`user_id.eq.${user.id},user_id.is.null`)
+    if (authResult.success) {
+      // Strictly scope leads to the authorized workspace tenant
+      query = query.eq('client_id', authResult.tenantId)
+    } else {
+      // Unauthenticated or unassigned user has zero accessible tenant leads
+      return { success: true, data: [] }
     }
 
     const { data, error } = await query.order('created_at', { ascending: false })

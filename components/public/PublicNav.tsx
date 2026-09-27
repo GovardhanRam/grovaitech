@@ -4,7 +4,6 @@ import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Menu, X, ArrowRight, Bot } from 'lucide-react'
-import { BrandLogo } from '@/components/ui'
 
 export default function PublicNav() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -25,7 +24,20 @@ export default function PublicNav() {
           
           {/* Left: Official Grovaitech Logo Asset */}
           <div className="flex items-center shrink-0">
-            <BrandLogo variant="horizontal" size="md" href="/" priority />
+            <Link
+              href="/"
+              className="inline-flex items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 rounded-lg transition-opacity hover:opacity-90"
+              aria-label="Grovaitech Home"
+            >
+              <Image
+                src="/images/grovaitech-navbar-logo-240x84.png"
+                alt="Grovaitech — We Don't Sell Software. We Deploy AI Employees."
+                width={140}
+                height={64}
+                priority
+                className="w-[115px] sm:w-[140px] h-auto object-contain"
+              />
+            </Link>
           </div>
 
           {/* Center: Desktop Navigation */}

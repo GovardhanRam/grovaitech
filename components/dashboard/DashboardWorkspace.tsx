@@ -86,7 +86,7 @@ export default function DashboardWorkspace({ initialData }: DashboardWorkspacePr
   }
 
   // Chart coordinate calculations
-  const chartPoints = activityTrend.length > 0 ? activityTrend : [20, 35, 50, 45, 65, 80, 95, 110, 100, 120, 135, 150]
+  const chartPoints = activityTrend.length > 0 ? activityTrend : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
   const maxVal = Math.max(...chartPoints, 10)
   const chartWidth = 500
   const chartHeight = 120

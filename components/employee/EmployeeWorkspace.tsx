@@ -69,9 +69,9 @@ export function EmployeeWorkspace({
   const [activeTab, setActiveTab] = useState<'today' | 'completed'>('today')
   const [eodSubmitted, setEodSubmitted] = useState(false)
 
-  // Seed tasks from real leads or workflows requiring team attention
+  // Derive tasks from genuine workspace leads requiring team attention
   const [tasks, setTasks] = useState<AssignedTask[]>(() => {
-    if (recentLeads.length > 0) {
+    if (recentLeads && recentLeads.length > 0) {
       return recentLeads.map((l, idx) => ({
         id: l.id || `task-${idx}`,
         title: `Follow up with ${l.name} (${l.status})`,
@@ -82,17 +82,7 @@ export function EmployeeWorkspace({
         category: l.source || 'Inbound Lead',
       }))
     }
-    return [
-      {
-        id: 'task-1',
-        title: 'Review qualified real estate leads',
-        clientName: 'CRM Pipeline',
-        priority: 'high',
-        dueTime: 'Today, 2:30 PM',
-        completed: false,
-        category: 'Lead Review',
-      },
-    ]
+    return []
   })
 
   const toggleTask = (id: string) => {

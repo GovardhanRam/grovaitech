@@ -10,6 +10,7 @@
  */
 
 import { createServerClient } from '@/lib/supabase/server'
+import { resolveAuthorizedTenant } from '@/lib/auth/tenant'
 import type {
   GetDashboardDataResult,
   DashboardStats,
@@ -21,33 +22,64 @@ import type {
 import { formatRelativeTime } from '@/lib/conversations/utils'
 import { CANONICAL_FALLBACK_DASHBOARD } from '@/lib/dashboard/utils'
 
-export async function getDashboardData(): Promise<GetDashboardDataResult> {
+export async function getDashboardData(requestedTenantId?: string): Promise<GetDashboardDataResult> {
   try {
+    // 1. Authoritatively resolve the authenticated user and authorized workspace tenant
+    const authResult = await resolveAuthorizedTenant({ requestedTenantId })
+    if (!authResult.success) {
+      return {
+        ...CANONICAL_FALLBACK_DASHBOARD,
+        isFallback: true,
+        error: authResult.error,
+      }
+    }
+
+    const tenantId = authResult.tenantId
+    const userId = authResult.user.id
     const supabase = await createServerClient()
 
-    // 1. Parallel fetch across all relevant Supabase tables
+    // 2. Parallel fetch across tenant-scoped Supabase tables
+    // Strictly isolate queries to the active tenant to prevent cross-tenant telemetry leakage
     const [
       chatsRes,
-      messagesRes,
       leadsRes,
       bookingsRes,
-      workflowsRes,
       docsRes,
     ] = await Promise.allSettled([
-      supabase.from('chats').select('id, title, created_at').order('created_at', { ascending: false }),
-      supabase.from('messages').select('id, chat_id, role, created_at').order('created_at', { ascending: false }),
-      supabase.from('real_estate_leads').select('*').order('created_at', { ascending: false }),
-      supabase.from('clinic_bookings').select('*').order('created_at', { ascending: false }),
-      supabase.from('workflow_executions').select('*').order('created_at', { ascending: false }),
+      supabase.from('chats').select('id, title, created_at').eq('user_id', userId).order('created_at', { ascending: false }),
+      supabase.from('real_estate_leads').select('*').eq('client_id', tenantId).order('created_at', { ascending: false }),
+      supabase.from('clinic_bookings').select('*').eq('clinic_id', tenantId).order('created_at', { ascending: false }),
       supabase.from('documents').select('id, name'),
     ])
 
     const chats = chatsRes.status === 'fulfilled' && !chatsRes.value.error ? chatsRes.value.data || [] : []
-    const messages = messagesRes.status === 'fulfilled' && !messagesRes.value.error ? messagesRes.value.data || [] : []
     const leads = leadsRes.status === 'fulfilled' && !leadsRes.value.error ? leadsRes.value.data || [] : []
     const bookings = bookingsRes.status === 'fulfilled' && !bookingsRes.value.error ? bookingsRes.value.data || [] : []
-    const workflowExecutions = workflowsRes.status === 'fulfilled' && !workflowsRes.value.error ? workflowsRes.value.data || [] : []
     const documents = docsRes.status === 'fulfilled' && !docsRes.value.error ? docsRes.value.data || [] : []
+
+    // 3. Concurrently fetch dependent tenant records: messages and workflow executions
+    // Neither depends on the other: messages depends on chats, workflows depends on leads
+    const chatIds = chats.map((c: any) => c.id).filter(Boolean)
+    const leadIds = leads.map((l: any) => l.id).filter(Boolean)
+
+    const [messagesRes, wfRes] = await Promise.allSettled([
+      chatIds.length > 0
+        ? supabase
+            .from('messages')
+            .select('id')
+            .in('chat_id', chatIds)
+        : Promise.resolve({ data: [], error: null }),
+      leadIds.length > 0
+        ? supabase
+            .from('workflow_executions')
+            .select('id, workflow_id, status, overall_status, duration_ms, lead_name, started_at, created_at, payload_summary')
+            .in('lead_id', leadIds)
+            .order('created_at', { ascending: false })
+        : Promise.resolve({ data: [], error: null }),
+    ])
+
+    const messages = messagesRes.status === 'fulfilled' && !messagesRes.value.error ? (messagesRes.value as any).data || [] : []
+    const workflowExecutions = wfRes.status === 'fulfilled' && !wfRes.value.error ? (wfRes.value as any).data || [] : []
 
     // If completely unpopulated database, return fallback
     const hasLiveRecords =
@@ -237,7 +269,7 @@ export async function getDashboardData(): Promise<GetDashboardDataResult> {
             Math.max(10, Math.round(messages.length * 0.95)),
             messages.length,
           ]
-        : [15, 25, 30, 45, 60, 55, 70, 80, 95, 85, 105, 120]
+        : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
     return {
       success: true,

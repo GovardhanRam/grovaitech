@@ -287,6 +287,44 @@ describe('Phase 5B: Reusable Server-Side Tenant Authorization', () => {
       const result = await isPlatformAdmin('customer-user')
       expect(result).toBe(false)
     })
+
+    it('evaluates platform-admin in-memory with zero database queries when memberships are supplied', async () => {
+      const mockMemberships: any[] = [
+        {
+          id: 'mem-admin',
+          tenant_id: 'client-test-synthetic-01',
+          user_id: 'user-admin',
+          role: 'platform_super_admin',
+          status: 'active',
+          tenant: {
+            id: 'client-test-synthetic-01',
+            type: 'customer',
+          },
+        },
+      ]
+
+      const result = await isPlatformAdmin('user-admin', mockMemberships)
+      expect(result).toBe(true)
+      expect(createServerClient).not.toHaveBeenCalled()
+      expect(createAdminClient).not.toHaveBeenCalled()
+
+      const nonAdminMemberships: any[] = [
+        {
+          id: 'mem-cust',
+          tenant_id: 'client-test-01',
+          user_id: 'user-cust',
+          role: 'member',
+          status: 'active',
+          tenant: {
+            id: 'client-test-01',
+            type: 'customer',
+          },
+        },
+      ]
+      const nonAdminResult = await isPlatformAdmin('user-cust', nonAdminMemberships)
+      expect(nonAdminResult).toBe(false)
+      expect(createServerClient).not.toHaveBeenCalled()
+    })
   })
 
   describe('4. resolveAuthorizedTenant() & requireTenantAccess()', () => {

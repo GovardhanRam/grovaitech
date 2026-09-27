@@ -121,7 +121,7 @@ export async function getConversations(): Promise<GetConversationsResult> {
       return {
         success: true,
         conversations: [],
-        isFallback: true,
+        isFallback: false,
       }
     }
 

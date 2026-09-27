@@ -224,7 +224,7 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
       )}
 
       {/* ── Main Area ─────────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto overflow-x-hidden">
         {/* Top Header */}
         <header className="sticky top-0 z-40 h-16 border-b border-slate-200 bg-white/95 backdrop-blur-md pt-safe flex items-center justify-between px-3 sm:px-6 lg:px-8">
           <div className="flex items-center gap-2 sm:gap-4">
@@ -326,8 +326,8 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
         </header>
 
         {/* Content */}
-        <main className="flex-1 p-3.5 sm:p-6 lg:p-8 bg-slate-50 pb-safe-nav md:pb-8">
-          <div className="max-w-7xl mx-auto">
+        <main className="flex-1 w-full p-4 sm:p-6 lg:p-8 bg-slate-50 pb-safe-nav md:pb-8">
+          <div className="max-w-7xl mx-auto w-full">
             {children}
           </div>
         </main>

@@ -124,12 +124,16 @@ export async function getActiveTenantMemberships(
  * Determines whether a user holds platform administrative authority.
  * Privileges must be database-backed via explicit role or internal tenant membership.
  */
-export async function isPlatformAdmin(userId: string): Promise<boolean> {
+export async function isPlatformAdmin(
+  userId: string,
+  memberships?: TenantMembership[]
+): Promise<boolean> {
   if (!userId) return false
 
-  const memberships = await getActiveTenantMemberships(userId)
+  const activeMemberships =
+    memberships !== undefined ? memberships : await getActiveTenantMemberships(userId)
 
-  for (const m of memberships) {
+  for (const m of activeMemberships) {
     // 1. Explicit global platform super admin or operator role
     if (m.role === 'platform_super_admin' || m.role === 'platform_operator') {
       return true
@@ -168,7 +172,7 @@ export async function resolveAuthorizedTenant(
 
   // 2. Query active memberships from database
   const memberships = await getActiveTenantMemberships(user.id)
-  const userIsPlatformAdmin = await isPlatformAdmin(user.id)
+  const userIsPlatformAdmin = await isPlatformAdmin(user.id, memberships)
 
   const requested = options.requestedTenantId?.trim()
 

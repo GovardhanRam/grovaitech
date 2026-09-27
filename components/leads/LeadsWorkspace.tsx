@@ -416,7 +416,7 @@ function LeadDrawer({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4 pb-28 lg:pb-6 space-y-5 text-xs">
+      <div className="flex-1 overflow-y-auto px-5 py-4 pb-[calc(env(safe-area-inset-bottom,0px)+5rem)] lg:pb-6 space-y-5 text-xs">
 
         {/* Identity */}
         <div className="flex items-center gap-3">
@@ -852,13 +852,13 @@ function LeadDrawer({
 // ─── Main Client Component ────────────────────────────────────────────────────
 
 interface LeadsWorkspaceProps {
-  /** Pass result of getLeads() from the server parent. Falls back to DEMO_LEADS if empty. */
+  /** Pass result of getLeads() from the server parent. */
   serverLeads: Lead[]
 }
 
 export function LeadsWorkspace({ serverLeads }: LeadsWorkspaceProps) {
-  const initialLeads: Lead[] = serverLeads.length > 0 ? serverLeads : DEMO_LEADS
-  const isDemo = serverLeads.length === 0
+  const initialLeads: Lead[] = serverLeads
+  const isDemo = false
 
   const [leads, setLeads] = useState<Lead[]>(initialLeads)
   const [search, setSearch] = useState('')
@@ -908,10 +908,10 @@ export function LeadsWorkspace({ serverLeads }: LeadsWorkspaceProps) {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-4rem)] md:h-[calc(100vh-0px)] -m-4 sm:-m-6 lg:-m-8 bg-slate-50 overflow-hidden">
+    <div className="flex flex-col h-[calc(100dvh-8rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] md:h-[calc(100vh-4rem)] -m-4 sm:-m-6 lg:-m-8 -mb-[calc(env(safe-area-inset-bottom,0px)+4.5rem)] md:-mb-8 bg-slate-50 overflow-hidden">
 
       {/* ── Header ───────────────────────────────────────────────────── */}
-      <div className="shrink-0 px-6 pt-6 pb-4 bg-white border-b border-slate-200">
+      <div className="shrink-0 px-4 sm:px-6 pt-4 sm:pt-6 pb-4 bg-white border-b border-slate-200">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">AI Workforce OS</span>
@@ -994,9 +994,16 @@ export function LeadsWorkspace({ serverLeads }: LeadsWorkspaceProps) {
         {/* Table / Cards area */}
         <div className={`flex-1 overflow-auto ${selectedLead ? 'hidden lg:block' : 'block'}`}>
           {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-40 text-slate-400 text-xs gap-2">
+            <div className="flex flex-col items-center justify-center h-48 text-slate-400 text-xs gap-2">
               <User className="w-8 h-8 opacity-40" />
-              No leads match your filter.
+              <p className="font-semibold text-slate-600">
+                {leads.length === 0 ? 'No leads captured yet' : 'No leads match your filter'}
+              </p>
+              <p className="text-[11px] text-slate-400">
+                {leads.length === 0
+                  ? 'Inbound leads captured by your AI Employees across WhatsApp and Web will appear here.'
+                  : 'Try changing your search query or status filter.'}
+              </p>
             </div>
           ) : (
             <>
@@ -1189,12 +1196,12 @@ export function LeadsWorkspace({ serverLeads }: LeadsWorkspaceProps) {
           <>
             {/* Mobile overlay */}
             <div
-              className={`fixed inset-0 bg-black/30 z-30 lg:hidden ${mobileDrawer ? 'block' : 'hidden'}`}
+              className={`fixed inset-0 bg-black/40 backdrop-blur-2xs z-40 lg:hidden ${mobileDrawer ? 'block' : 'hidden'}`}
               onClick={handleClose}
             />
             {/* Drawer panel */}
             <div className={`
-              fixed right-0 top-0 h-full w-full sm:w-96 bg-white shadow-xl z-40 border-l border-slate-200 overflow-hidden
+              fixed right-0 top-0 h-full w-full sm:w-96 bg-white shadow-2xl z-50 border-l border-slate-200 overflow-hidden
               lg:relative lg:w-96 lg:shrink-0 lg:shadow-none lg:z-auto lg:border-l lg:border-slate-200
               ${mobileDrawer ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
               transition-transform
