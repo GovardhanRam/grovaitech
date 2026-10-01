@@ -25,6 +25,10 @@ import { generateWebsiteStrategy, generateUIUXPlan } from './strategy'
 import { generatePreviewPlan } from './preview-planner'
 import { evaluateCrmReadiness, type Prospect } from '@/lib/deployment'
 import { detectIndustryFamily, getIndustryConfig } from './industry-context'
+import {
+  generateRevenueOpportunities,
+  summarizeRevenueOpportunities,
+} from './revenue-opportunity-engine'
 
 /**
  * Deterministically analyzes a website or business profile for full conversion upgrade.
@@ -60,6 +64,7 @@ export function analyzeWebsiteForUpgrade(input: WebsiteUpgradeInput): WebsiteUpg
     timeline: input.timeline?.trim() || undefined,
     raw_site_text: input.raw_site_text?.trim() || undefined,
     supplied_evidence: Array.isArray(input.supplied_evidence) ? input.supplied_evidence : [],
+    crawl_summary: input.crawl_summary,
   }
 
   // 1. Scan and Audit Claims
@@ -94,16 +99,24 @@ export function analyzeWebsiteForUpgrade(input: WebsiteUpgradeInput): WebsiteUpg
   // 4. 8-Stage Revenue Leak Model
   const revenueLeaks = analyzeWebsiteRevenueLeaks(sanitizedInput, auditFindings)
 
-  // 5. Upgrade Strategy & AI Opportunities (Canonical Registry)
+  // 5. Commercial Revenue Opportunities Engine
+  const revenueOpportunities = generateRevenueOpportunities(
+    sanitizedInput,
+    auditFindings,
+    revenueLeaks
+  )
+  const revenueOpportunitySummary = summarizeRevenueOpportunities(revenueOpportunities)
+
+  // 6. Upgrade Strategy & AI Opportunities (Canonical Registry)
   const strategy = generateWebsiteStrategy(sanitizedInput, auditFindings, revenueLeaks)
 
-  // 6. UI/UX Implementation Blueprint
+  // 7. UI/UX Implementation Blueprint
   const uiPlan = generateUIUXPlan(sanitizedInput)
 
-  // 7. Preview Plan with Strict Gating
+  // 8. Preview Plan with Strict Gating
   const previewPlan = generatePreviewPlan(sanitizedInput, strategy, uiPlan, analyzedClaims)
 
-  // 8. Prepare Safe Deployment Engine Handoff (No DB Writes in Preview)
+  // 9. Prepare Safe Deployment Engine Handoff (No DB Writes in Preview)
   const prospect: Prospect = {
     company_name: sanitizedInput.business_name,
     industry: sanitizedInput.industry,
@@ -136,6 +149,7 @@ export function analyzeWebsiteForUpgrade(input: WebsiteUpgradeInput): WebsiteUpg
       url: sanitizedInput.url,
       audit_findings_count: auditFindings.length,
       revenue_leaks_count: revenueLeaks.length,
+      revenue_opportunities_count: revenueOpportunities.length,
       verified_claims_count: verifiedClaimsCount,
       gated_claims_count: gatedClaimsCount,
       ui_direction: uiPlan.design_direction,
@@ -161,9 +175,12 @@ export function analyzeWebsiteForUpgrade(input: WebsiteUpgradeInput): WebsiteUpg
         gated: gatedClaimsCount,
         proposed: proposedClaimsCount,
       },
+      crawl_summary: sanitizedInput.crawl_summary,
     },
     audit_findings: auditFindings,
     revenue_leaks: revenueLeaks,
+    revenue_opportunities: revenueOpportunities,
+    revenue_opportunity_summary: revenueOpportunitySummary,
     strategy,
     ui_ux_plan: uiPlan,
     preview_plan: previewPlan,

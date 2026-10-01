@@ -26,13 +26,119 @@ import {
   MessageSquare,
   Phone,
   ChevronRight,
+  X,
+  Calendar,
 } from 'lucide-react'
 
-interface WebsitePreviewProps {
+export const APPOINTMENT_REQUEST_CONFIRMATION_TITLE = 'Appointment request received'
+export const APPOINTMENT_REQUEST_CONFIRMATION_SUBTITLE =
+  'A clinic receptionist can follow up to confirm the requested time.'
+
+export const DEFAULT_PREVIEW_SERVICES = [
+  'Dental Implants',
+  'Braces',
+  'Root Canal',
+  'Cosmetic Dentistry',
+]
+
+export const DEFAULT_PREVIEW_WHATSAPP_URL = 'https://wa.me/918919457887'
+export const DEFAULT_PREVIEW_PHONE = '+918919457887'
+
+export interface AppointmentRequestData {
+  patientName: string
+  phoneNumber: string
+  service: string
+  preferredDate: string
+  preferredTime: string
+}
+
+export function validateAppointmentRequest(data: Partial<AppointmentRequestData>): {
+  isValid: boolean
+  errors: Record<string, string>
+} {
+  const errors: Record<string, string> = {}
+  if (!data.patientName || !data.patientName.trim()) {
+    errors.patientName = 'Patient name is required.'
+  }
+  if (!data.phoneNumber || !data.phoneNumber.trim()) {
+    errors.phoneNumber = 'Phone number is required.'
+  }
+  if (!data.service || !data.service.trim()) {
+    errors.service = 'Service is required.'
+  }
+  if (!data.preferredDate || !data.preferredDate.trim()) {
+    errors.preferredDate = 'Preferred date is required.'
+  }
+  if (!data.preferredTime || !data.preferredTime.trim()) {
+    errors.preferredTime = 'Preferred time is required.'
+  }
+
+  return {
+    isValid: Object.keys(errors).length === 0,
+    errors,
+  }
+}
+
+export function resolvePreviewCtaConfig(params: {
+  whatsappUrl?: string
+  contactPhone?: string
+  services?: string[]
+}): {
+  effectiveWhatsappUrl: string
+  effectivePhone: string
+  availableServices: string[]
+} {
+  const effectiveWhatsappUrl = (() => {
+    try {
+      const candidate =
+        params.whatsappUrl && params.whatsappUrl.trim()
+          ? params.whatsappUrl.trim()
+          : DEFAULT_PREVIEW_WHATSAPP_URL
+
+      const url = new URL(candidate)
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        return DEFAULT_PREVIEW_WHATSAPP_URL
+      }
+      const phoneParam = url.searchParams.get('phone')
+      url.search = ''
+      url.hash = ''
+      if (phoneParam) {
+        url.searchParams.set('phone', phoneParam)
+      }
+      url.searchParams.set(
+        'text',
+        'Hi, I would like to ask about an appointment.'
+      )
+      return url.toString()
+    } catch {
+      return DEFAULT_PREVIEW_WHATSAPP_URL
+    }
+  })()
+  const effectivePhone =
+    params.contactPhone && params.contactPhone.trim()
+      ? params.contactPhone.trim()
+      : DEFAULT_PREVIEW_PHONE
+
+  const availableServices =
+    params.services && params.services.length > 0
+      ? params.services
+      : DEFAULT_PREVIEW_SERVICES
+
+  return {
+    effectiveWhatsappUrl,
+    effectivePhone,
+    availableServices,
+  }
+}
+
+export interface WebsitePreviewProps {
   previewPlan: WebsitePreviewPlan
   uiPlan: UIUXPlan
   businessName: string
   industry: string
+  services?: string[]
+  contactPhone?: string
+  whatsappUrl?: string
 }
 
 export default function WebsitePreview({
@@ -40,9 +146,45 @@ export default function WebsitePreview({
   uiPlan,
   businessName,
   industry,
+  services,
+  contactPhone,
+  whatsappUrl,
 }: WebsitePreviewProps) {
   const [activeTab, setActiveTab] = useState<'mockup' | 'manifest' | 'gated' | 'inputs'>('mockup')
   const [previewDevice, setPreviewDevice] = useState<'desktop' | 'mobile'>('desktop')
+
+  const { effectiveWhatsappUrl, availableServices } = resolvePreviewCtaConfig({
+    whatsappUrl,
+    contactPhone,
+    services,
+  })
+
+  // In-Sandbox Appointment Request Modal State
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
+  const [isBookingSubmitted, setIsBookingSubmitted] = useState(false)
+  const [bookingForm, setBookingForm] = useState<AppointmentRequestData>({
+    patientName: '',
+    phoneNumber: '',
+    service: availableServices[0] || 'General Consultation',
+    preferredDate: '',
+    preferredTime: 'Morning (9:00 AM - 12:00 PM)',
+  })
+
+  const handleOpenBooking = () => {
+    setIsBookingSubmitted(false)
+    setIsBookingModalOpen(true)
+  }
+
+  const handleCloseBooking = () => {
+    setIsBookingModalOpen(false)
+    setIsBookingSubmitted(false)
+  }
+
+  const handleAppointmentSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    // Demonstration only: do NOT write to Supabase, do NOT send real messages
+    setIsBookingSubmitted(true)
+  }
 
   return (
     <div className="space-y-8">
@@ -51,44 +193,40 @@ export default function WebsitePreview({
         <div className="flex gap-2">
           <button
             onClick={() => setActiveTab('mockup')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
-              activeTab === 'mockup'
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${activeTab === 'mockup'
                 ? 'bg-blue-600 text-white'
                 : 'text-slate-600 hover:text-slate-900 bg-slate-100'
-            }`}
+              }`}
           >
             <Eye className="w-3.5 h-3.5" />
             Interactive Mockup
           </button>
           <button
             onClick={() => setActiveTab('manifest')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
-              activeTab === 'manifest'
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${activeTab === 'manifest'
                 ? 'bg-blue-600 text-white'
                 : 'text-slate-600 hover:text-slate-900 bg-slate-100'
-            }`}
+              }`}
           >
             <FileText className="w-3.5 h-3.5" />
             Copy Manifest ({previewPlan.copy_manifest.length})
           </button>
           <button
             onClick={() => setActiveTab('gated')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
-              activeTab === 'gated'
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${activeTab === 'gated'
                 ? 'bg-blue-600 text-white'
                 : 'text-slate-600 hover:text-slate-900 bg-slate-100'
-            }`}
+              }`}
           >
             <Lock className="w-3.5 h-3.5" />
             Gated Claims ({previewPlan.gated_claims.length})
           </button>
           <button
             onClick={() => setActiveTab('inputs')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
-              activeTab === 'inputs'
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${activeTab === 'inputs'
                 ? 'bg-blue-600 text-white'
                 : 'text-slate-600 hover:text-slate-900 bg-slate-100'
-            }`}
+              }`}
           >
             <HelpCircle className="w-3.5 h-3.5" />
             Required Inputs ({previewPlan.required_customer_inputs.length})
@@ -99,18 +237,16 @@ export default function WebsitePreview({
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
             <button
               onClick={() => setPreviewDevice('desktop')}
-              className={`p-1.5 rounded-md text-xs font-medium flex items-center gap-1 transition-colors ${
-                previewDevice === 'desktop' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'
-              }`}
+              className={`p-1.5 rounded-md text-xs font-medium flex items-center gap-1 transition-colors ${previewDevice === 'desktop' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'
+                }`}
             >
               <Monitor className="w-4 h-4" />
               Desktop
             </button>
             <button
               onClick={() => setPreviewDevice('mobile')}
-              className={`p-1.5 rounded-md text-xs font-medium flex items-center gap-1 transition-colors ${
-                previewDevice === 'mobile' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'
-              }`}
+              className={`p-1.5 rounded-md text-xs font-medium flex items-center gap-1 transition-colors ${previewDevice === 'mobile' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'
+                }`}
             >
               <Smartphone className="w-4 h-4" />
               Mobile
@@ -123,9 +259,8 @@ export default function WebsitePreview({
       {activeTab === 'mockup' && (
         <div className="flex justify-center">
           <div
-            className={`transition-all duration-300 w-full bg-white rounded-2xl border border-slate-300 shadow-lg overflow-hidden ${
-              previewDevice === 'mobile' ? 'max-w-sm' : 'max-w-5xl'
-            }`}
+            className={`transition-all duration-300 w-full bg-white rounded-2xl border border-slate-300 shadow-lg overflow-hidden ${previewDevice === 'mobile' ? 'max-w-sm' : 'max-w-5xl'
+              }`}
           >
             {/* Browser Frame Header */}
             <div className="bg-slate-100 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between text-xs text-slate-500 font-mono">
@@ -143,7 +278,7 @@ export default function WebsitePreview({
             </div>
 
             {/* Mockup Canvas */}
-            <div className="divide-y divide-slate-100 font-sans">
+            <div className="divide-y divide-slate-100 font-sans relative min-h-[500px]">
               {/* Mock Nav */}
               <div className="p-4 flex items-center justify-between bg-white">
                 <div className="font-extrabold text-base text-slate-900 flex items-center gap-1.5">
@@ -157,12 +292,20 @@ export default function WebsitePreview({
                     <span>Services</span>
                     <span>Reviews</span>
                     <span>About</span>
-                    <button className="px-3 py-1.5 bg-blue-600 text-white rounded-lg font-semibold text-xs shadow-xs">
+                    <button
+                      type="button"
+                      onClick={handleOpenBooking}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs shadow-xs transition-colors cursor-pointer"
+                    >
                       {previewPlan.cta_configuration.primary.label}
                     </button>
                   </div>
                 ) : (
-                  <button className="px-2.5 py-1 bg-blue-600 text-white rounded-md text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={handleOpenBooking}
+                    className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs font-semibold transition-colors cursor-pointer"
+                  >
                     {previewPlan.cta_configuration.primary.label}
                   </button>
                 )}
@@ -180,13 +323,22 @@ export default function WebsitePreview({
                   {previewPlan.copy_manifest.find((c) => c.element === 'Subheadline')?.content}
                 </p>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                  <button className="w-full sm:w-auto px-5 py-2.5 bg-blue-600 text-white font-bold text-xs sm:text-sm rounded-lg shadow-sm">
+                  <button
+                    type="button"
+                    onClick={handleOpenBooking}
+                    className="w-full sm:w-auto px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm rounded-lg shadow-sm transition-colors cursor-pointer"
+                  >
                     {previewPlan.cta_configuration.primary.label}
                   </button>
-                  <button className="w-full sm:w-auto px-5 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-300 font-bold text-xs sm:text-sm rounded-lg flex items-center justify-center gap-2">
-                    <MessageSquare className="w-4 h-4 text-emerald-600" />
-                    {previewPlan.cta_configuration.secondary.label}
-                  </button>
+                  <a
+                    href={effectiveWhatsappUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full sm:w-auto px-5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 font-bold text-xs sm:text-sm rounded-lg flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{previewPlan.cta_configuration.secondary.label}</span>
+                  </a>
                 </div>
               </div>
 
@@ -218,12 +370,213 @@ export default function WebsitePreview({
               {/* Mock Sticky Mobile CTA preview */}
               {previewDevice === 'mobile' && previewPlan.cta_configuration.sticky_mobile.enabled && (
                 <div className="p-3 bg-white border-t border-slate-200 flex items-center gap-2 sticky bottom-0">
-                  <button className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold shadow-xs">
+                  <button
+                    type="button"
+                    onClick={handleOpenBooking}
+                    className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                  >
                     {previewPlan.cta_configuration.primary.label}
                   </button>
-                  <button className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold flex items-center justify-center">
+                  <a
+                    href={effectiveWhatsappUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center justify-center transition-colors"
+                    aria-label={previewPlan.cta_configuration.secondary.label || 'Ask on WhatsApp'}
+                    title={previewPlan.cta_configuration.secondary.label || 'Ask on WhatsApp'}
+                  >
                     <MessageSquare className="w-4 h-4" />
-                  </button>
+                  </a>
+                </div>
+              )}
+
+              {/* In-Sandbox Appointment Request Modal */}
+              {isBookingModalOpen && (
+                <div
+                  className="absolute inset-0 z-30 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                      handleCloseBooking()
+                    }
+                  }}
+                  data-testid="appointment-modal-overlay"
+                >
+                  <div
+                    className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md p-4 sm:p-6 text-left relative my-auto animate-in fade-in duration-150"
+                    data-testid="appointment-modal-dialog"
+                  >
+                    <button
+                      type="button"
+                      onClick={handleCloseBooking}
+                      className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 p-1 rounded-md transition-colors"
+                      aria-label="Close modal"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+
+                    {!isBookingSubmitted ? (
+                      <form onSubmit={handleAppointmentSubmit} className="space-y-3.5">
+                        <div>
+                          <div className="flex items-center gap-1.5 text-blue-600 font-semibold text-[11px] uppercase tracking-wide">
+                            <Calendar className="w-3.5 h-3.5" />
+                            <span>Appointment Request Demo</span>
+                          </div>
+                          <h3 className="text-base font-bold text-slate-900 mt-0.5">
+                            Request an Appointment
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Share your preferred time for {businessName}.
+                          </p>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Patient Name <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={bookingForm.patientName}
+                            onChange={(e) =>
+                              setBookingForm({ ...bookingForm, patientName: e.target.value })
+                            }
+                            placeholder="e.g. Ramesh Kumar"
+                            className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 bg-white text-slate-900"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Phone Number <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="tel"
+                            required
+                            value={bookingForm.phoneNumber}
+                            onChange={(e) =>
+                              setBookingForm({ ...bookingForm, phoneNumber: e.target.value })
+                            }
+                            placeholder="e.g. +91 98765 43210"
+                            className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 bg-white text-slate-900"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Service <span className="text-rose-500">*</span>
+                          </label>
+                          <select
+                            value={bookingForm.service}
+                            onChange={(e) =>
+                              setBookingForm({ ...bookingForm, service: e.target.value })
+                            }
+                            className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 bg-white text-slate-900"
+                          >
+                            {availableServices.map((svc) => (
+                              <option key={svc} value={svc}>
+                                {svc}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">
+                              Preferred Date <span className="text-rose-500">*</span>
+                            </label>
+                            <input
+                              type="date"
+                              required
+                              value={bookingForm.preferredDate}
+                              onChange={(e) =>
+                                setBookingForm({ ...bookingForm, preferredDate: e.target.value })
+                              }
+                              className="w-full px-2.5 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 bg-white text-slate-900"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">
+                              Preferred Time <span className="text-rose-500">*</span>
+                            </label>
+                            <select
+                              value={bookingForm.preferredTime}
+                              onChange={(e) =>
+                                setBookingForm({ ...bookingForm, preferredTime: e.target.value })
+                              }
+                              className="w-full px-2.5 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 bg-white text-slate-900"
+                            >
+                              <option value="Morning (9:00 AM - 12:00 PM)">
+                                Morning (9:00 AM - 12:00 PM)
+                              </option>
+                              <option value="Afternoon (12:00 PM - 4:00 PM)">
+                                Afternoon (12:00 PM - 4:00 PM)
+                              </option>
+                              <option value="Evening (4:00 PM - 8:00 PM)">
+                                Evening (4:00 PM - 8:00 PM)
+                              </option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="pt-2">
+                          <button
+                            type="submit"
+                            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-sm transition-colors cursor-pointer"
+                          >
+                            Request Appointment
+                          </button>
+                          <p className="text-[10px] text-slate-400 text-center mt-1.5">
+                            Appointment request demonstration • Receptionist will confirm time
+                          </p>
+                        </div>
+                      </form>
+                    ) : (
+                      <div
+                        className="text-center py-4 space-y-3"
+                        data-testid="appointment-confirmation"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+                          <CheckCircle2 className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <h4 className="text-base font-bold text-slate-900">
+                            {APPOINTMENT_REQUEST_CONFIRMATION_TITLE}
+                          </h4>
+                          <p className="text-xs text-slate-600 mt-1 max-w-xs mx-auto">
+                            {APPOINTMENT_REQUEST_CONFIRMATION_SUBTITLE}
+                          </p>
+                        </div>
+
+                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-left space-y-1 text-slate-700">
+                          <div>
+                            <span className="font-semibold text-slate-500">Patient:</span>{' '}
+                            {bookingForm.patientName}
+                          </div>
+                          <div>
+                            <span className="font-semibold text-slate-500">Service:</span>{' '}
+                            {bookingForm.service}
+                          </div>
+                          <div>
+                            <span className="font-semibold text-slate-500">Requested:</span>{' '}
+                            {bookingForm.preferredDate} ({bookingForm.preferredTime})
+                          </div>
+                          <div>
+                            <span className="font-semibold text-slate-500">Phone:</span>{' '}
+                            {bookingForm.phoneNumber}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleCloseBooking}
+                          className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition-colors cursor-pointer"
+                        >
+                          Close Preview
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

@@ -30,6 +30,14 @@ import {
 import { provisionClientDeploymentFromLead } from '@/app/actions/deployment'
 import { evaluateCrmReadiness, type ProvisionClientResult } from '@/lib/deployment'
 
+import {
+  validateUntrustedUrl,
+  crawlWebsite,
+  enrichInputWithCrawlResult,
+  type WebsiteCrawlResult,
+} from '@/lib/website-intelligence'
+import type { WebsiteEvidence } from '@/lib/website-upgrade/types'
+
 export interface UpgradeActionResult<T> {
   success: boolean
   data?: T
@@ -41,6 +49,54 @@ export interface DeploymentHandoffActionResult {
   handoffStatus: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED'
   deploymentResult?: ProvisionClientResult
   error?: string
+}
+
+/**
+ * Server action to validate an untrusted website URL for SSRF and protocol safety.
+ */
+export async function validateWebsiteUrlAction(
+  url: string
+): Promise<{ success: boolean; valid: boolean; normalizedUrl?: string; reason?: string }> {
+  try {
+    const result = await validateUntrustedUrl(url)
+    return {
+      success: true,
+      valid: result.valid,
+      normalizedUrl: result.normalizedUrl,
+      reason: result.reason,
+    }
+  } catch (err: any) {
+    return {
+      success: false,
+      valid: false,
+      reason: err?.message || 'URL validation failed.',
+    }
+  }
+}
+
+/**
+ * Server action to crawl and extract live website intelligence safely.
+ */
+export async function crawlWebsiteIntelligenceAction(
+  url: string
+): Promise<UpgradeActionResult<WebsiteCrawlResult>> {
+  try {
+    const crawl = await crawlWebsite(url)
+    if (!crawl.success) {
+      const firstError = crawl.errors[0]?.error || 'Failed to crawl website.'
+      return {
+        success: false,
+        data: crawl,
+        error: `Website could not be fully analyzed: ${firstError}`,
+      }
+    }
+    return { success: true, data: crawl }
+  } catch (err: any) {
+    return {
+      success: false,
+      error: `Website could not be fully analyzed: ${err?.message || 'Crawl failed.'}`,
+    }
+  }
 }
 
 /**
@@ -61,7 +117,12 @@ export async function analyzeWebsiteUpgradeAction(
       return { success: false, error: 'Industry is required.' }
     }
 
-    const result = analyzeWebsiteForUpgrade(input)
+    let payload = { ...input }
+    if (payload.crawl_result) {
+      payload = enrichInputWithCrawlResult(payload, payload.crawl_result)
+    }
+
+    const result = analyzeWebsiteForUpgrade(payload)
     return { success: true, data: result }
   } catch (err: any) {
     console.error('[Website Upgrade Action Error]', err)

@@ -275,17 +275,37 @@ export function executeWebsiteAudit(
   })
 
   // 12. PERFORMANCE OBSERVATIONS
-  findings.push({
-    id: 'audit-perf-1',
-    category: 'PERFORMANCE_OBSERVATIONS',
-    title: 'Core Web Vitals & Asset Delivery Architecture',
-    priority: 'P2',
-    severity: 'medium',
-    observation: 'Heavy uncompressed images or render-blocking scripts create load latency, directly causing high bounce rates on cellular connections.',
-    evidence: [hasUrl ? `Target URL analyzed: ${input.url}` : 'Standard web performance baseline.'],
-    recommendation: 'Leverage Next.js Image optimization (WebP/AVIF), edge static rendering, and CSS font preloading.',
-    evidence_status: 'INFERENCE',
-  })
+  const isSpa = Boolean(input.crawl_summary?.isSpaShell)
+  if (isSpa) {
+    findings.push({
+      id: 'audit-perf-spa-1',
+      category: 'PERFORMANCE_OBSERVATIONS',
+      title: 'Static HTML Pre-Rendering & Search Crawler Visibility',
+      priority: 'P2',
+      severity: 'medium',
+      observation:
+        'Live site uses client-side rendering. Static crawler cannot fully verify rendered DOM elements without JavaScript execution.',
+      evidence: [
+        `Detected ${input.crawl_summary?.spaFramework || 'client-side SPA'} shell architecture.`,
+      ],
+      recommendation:
+        'Consider SSR or pre-rendering where appropriate to improve crawlability, initial HTML content, and SEO.',
+      evidence_status: 'OBSERVATION',
+    })
+  } else {
+    findings.push({
+      id: 'audit-perf-1',
+      category: 'PERFORMANCE_OBSERVATIONS',
+      title: 'Core Web Vitals & Asset Delivery Architecture',
+      priority: 'P2',
+      severity: 'medium',
+      observation:
+        'Heavy uncompressed images or render-blocking scripts create load latency, directly causing high bounce rates on cellular connections.',
+      evidence: [hasUrl ? `Target URL analyzed: ${input.url}` : 'Standard web performance baseline.'],
+      recommendation: 'Leverage Next.js Image optimization (WebP/AVIF), edge static rendering, and CSS font preloading.',
+      evidence_status: 'INFERENCE',
+    })
+  }
 
   // 13. TECHNICAL UX
   findings.push({

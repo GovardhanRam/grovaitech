@@ -21,7 +21,11 @@ import type {
   WebsiteUpgradeResult,
   WebsiteEvidence,
 } from '@/lib/website-upgrade/types'
-import { analyzeWebsiteUpgradeAction } from '@/app/actions/website-upgrade'
+import {
+  analyzeWebsiteUpgradeAction,
+  validateWebsiteUrlAction,
+  crawlWebsiteIntelligenceAction,
+} from '@/app/actions/website-upgrade'
 import WebsiteAudit from './WebsiteAudit'
 import WebsiteStrategy from './WebsiteStrategy'
 import WebsitePreview from './WebsitePreview'
@@ -77,27 +81,98 @@ const INDUSTRY_PRESETS = [
   'General Business',
 ]
 
-const ANALYSIS_STAGES = [
-  'Website information received',
-  'Business information identified',
-  'Services analyzed',
-  'Checking conversion journey',
-  'Detecting revenue leaks',
-  'Building upgrade strategy',
-  'Matching AI Employees',
+export interface WebsiteUpgradeDemoPreset {
+  businessName: string
+  url: string
+  industry: string
+  location: string
+  services: string[]
+  channels: string[]
+  phone?: string
+  whatsappUrl?: string
+}
+
+export const DHARMAS_DENTAL_DEMO_PRESET: WebsiteUpgradeDemoPreset = {
+  businessName: 'Dharmas Dental',
+  url: 'https://dharmasdental.com/',
+  industry: 'Healthcare & Dental',
+  location: 'Tirupati',
+  services: [
+    'Dental Implants',
+    'Braces',
+    'Root Canal',
+    'Cosmetic Dentistry',
+  ],
+  channels: ['WhatsApp', 'Phone'],
+  phone: '+918919457887',
+  whatsappUrl: 'https://wa.me/918919457887',
+}
+
+export interface WebsiteUpgradeFormValues {
+  url: string
+  businessName: string
+  industry: string
+  location: string
+  servicesInput: string
+  channelsInput: string
+  phone?: string
+  whatsappUrl?: string
+  isContextOpen: boolean
+}
+
+export function applyDemoPresetToForm(
+  preset: WebsiteUpgradeDemoPreset = DHARMAS_DENTAL_DEMO_PRESET,
+  currentValues?: Partial<WebsiteUpgradeFormValues>
+): WebsiteUpgradeFormValues {
+  return {
+    ...currentValues,
+    url: preset.url,
+    businessName: preset.businessName,
+    industry: preset.industry,
+    location: preset.location,
+    servicesInput: preset.services.join(', '),
+    channelsInput: preset.channels.join(', '),
+    phone: preset.phone,
+    whatsappUrl: preset.whatsappUrl,
+    isContextOpen: true,
+  }
+}
+
+export interface OperationStage {
+  id: string
+  label: string
+}
+
+const LIVE_CRAWL_STAGES: OperationStage[] = [
+  { id: 'validate', label: 'URL validated' },
+  { id: 'connect', label: 'Website connected' },
+  { id: 'homepage', label: 'Homepage analyzed' },
+  { id: 'internal', label: 'Discovering internal pages' },
+  { id: 'extract', label: 'Extracting website evidence' },
+  { id: 'audit', label: 'Building evidence-backed audit & revenue leaks' },
+  { id: 'match', label: 'Matching AI Employees & conversion strategy' },
+]
+
+const MANUAL_INTAKE_STAGES: OperationStage[] = [
+  { id: 'validate', label: 'Business context validated' },
+  { id: 'audit', label: 'Building evidence-backed audit & revenue leaks' },
+  { id: 'match', label: 'Matching AI Employees & conversion strategy' },
 ]
 
 export default function WebsiteUpgradeWorkspace() {
   const [currentStep, setCurrentStep] = useState<number>(1)
   const [isPending, startTransition] = useTransition()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [crawlNotice, setCrawlNotice] = useState<string | null>(null)
 
   // Expandable Section Toggles
   const [isContextOpen, setIsContextOpen] = useState(false)
   const [isEvidenceOpen, setIsEvidenceOpen] = useState(false)
 
-  // Working State Animation
-  const [analyzingStage, setAnalyzingStage] = useState<number | null>(null)
+  // Real Operational Working State
+  const [activeStages, setActiveStages] = useState<OperationStage[]>([])
+  const [completedStageIds, setCompletedStageIds] = useState<string[]>([])
+  const [currentStageId, setCurrentStageId] = useState<string | null>(null)
 
   // Intake State
   const [url, setUrl] = useState('')
@@ -125,6 +200,22 @@ export default function WebsiteUpgradeWorkspace() {
   const [upgradeResult, setUpgradeResult] = useState<WebsiteUpgradeResult | null>(null)
   const [activeDeployment, setActiveDeployment] = useState<ProvisionClientResult | null>(null)
 
+  const handleLoadDharmasDemo = () => {
+    const updated = applyDemoPresetToForm(DHARMAS_DENTAL_DEMO_PRESET)
+    setUrl(updated.url)
+    setBusinessName(updated.businessName)
+    setIndustry(updated.industry)
+    setLocation(updated.location)
+    setServicesInput(updated.servicesInput)
+    setChannelsInput(updated.channelsInput)
+    if (updated.phone) {
+      setContactPhone(updated.phone)
+    }
+    setIsContextOpen(true)
+    setErrorMessage(null)
+    setCrawlNotice(null)
+  }
+
   const handleAddEvidence = () => {
     if (!newEvidenceFact.trim()) return
     const newEv: WebsiteEvidence = {
@@ -148,9 +239,15 @@ export default function WebsiteUpgradeWorkspace() {
     }
 
     setErrorMessage(null)
-    setAnalyzingStage(0)
+    setCrawlNotice(null)
 
-    const payload: WebsiteUpgradeInput = {
+    const hasUrl = Boolean(url.trim())
+    const stages = hasUrl ? LIVE_CRAWL_STAGES : MANUAL_INTAKE_STAGES
+    setActiveStages(stages)
+    setCompletedStageIds([])
+    setCurrentStageId('validate')
+
+    const basePayload: WebsiteUpgradeInput = {
       url: url.trim() || undefined,
       business_name: businessName.trim(),
       industry: industry.trim(),
@@ -176,19 +273,72 @@ export default function WebsiteUpgradeWorkspace() {
     }
 
     startTransition(async () => {
-      // Step through stages visibly to reflect the AI Employee processing
-      for (let i = 0; i < ANALYSIS_STAGES.length; i++) {
-        setAnalyzingStage(i)
-        await new Promise((resolve) => setTimeout(resolve, 240))
+      let enrichedPayload = { ...basePayload }
+
+      if (hasUrl) {
+        // Step 1: Real URL Validation
+        const urlValidation = await validateWebsiteUrlAction(url.trim())
+        if (!urlValidation.valid) {
+          setCurrentStageId(null)
+          setErrorMessage(
+            urlValidation.reason ||
+              'Website URL could not be validated. Only public http/https URLs are permitted.'
+          )
+          return
+        }
+        setCompletedStageIds((prev) => [...prev, 'validate'])
+
+        // Step 2: Live Website Fetch & Crawl
+        setCurrentStageId('connect')
+        const crawlRes = await crawlWebsiteIntelligenceAction(url.trim())
+
+        if (crawlRes.success && crawlRes.data) {
+          setCompletedStageIds((prev) => [
+            ...prev,
+            'connect',
+            'homepage',
+            'internal',
+          ])
+          setCurrentStageId('extract')
+          enrichedPayload = {
+            ...basePayload,
+            crawl_result: crawlRes.data,
+            crawl_summary: crawlRes.data.summary,
+          }
+          setCompletedStageIds((prev) => [...prev, 'extract'])
+        } else {
+          // Graceful fallback: notify user and proceed with manually supplied context
+          setCrawlNotice(
+            crawlRes.error ||
+              'Website could not be fully analyzed. Proceeding with manually supplied information.'
+          )
+          setCompletedStageIds((prev) => [
+            ...prev,
+            'connect',
+            'homepage',
+            'internal',
+            'extract',
+          ])
+        }
+      } else {
+        setCompletedStageIds((prev) => [...prev, 'validate'])
       }
 
-      const res = await analyzeWebsiteUpgradeAction(payload)
+      // Step 3: Build Structured Audit
+      setCurrentStageId('audit')
+      setCompletedStageIds((prev) => [...prev, 'audit'])
+
+      // Step 4: AI Matching & Strategy
+      setCurrentStageId('match')
+      const res = await analyzeWebsiteUpgradeAction(enrichedPayload)
+
       if (res.success && res.data) {
+        setCompletedStageIds((prev) => [...prev, 'match'])
         setUpgradeResult(res.data)
-        setAnalyzingStage(null)
+        setCurrentStageId(null)
         setCurrentStep(2) // Advance to Results-First Intelligence Dashboard
       } else {
-        setAnalyzingStage(null)
+        setCurrentStageId(null)
         setErrorMessage(res.error || 'Failed to complete website analysis.')
       }
     })
@@ -238,7 +388,8 @@ export default function WebsiteUpgradeWorkspace() {
     : 0
 
   const aiEmployeeOppCount = upgradeResult
-    ? upgradeResult.strategy.ai_employee_opportunities.length
+    ? (upgradeResult.revenue_opportunity_summary?.totalOpportunities ??
+        upgradeResult.strategy.ai_employee_opportunities.length)
     : 0
 
   // Top priority findings (P0 and P1 first, then P2)
@@ -304,7 +455,7 @@ export default function WebsiteUpgradeWorkspace() {
       </div>
 
       {/* 4. AI EMPLOYEE WORKING STATE MODAL / OVERLAY */}
-      {analyzingStage !== null && (
+      {currentStageId !== null && (
         <div className="bg-white p-6 sm:p-8 rounded-2xl border border-blue-200 shadow-md space-y-6">
           <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
             <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
@@ -312,19 +463,19 @@ export default function WebsiteUpgradeWorkspace() {
             </div>
             <div>
               <h3 className="text-lg font-bold text-slate-900">GOVA Website Upgrade Employee</h3>
-              <p className="text-xs text-slate-500">Autonomous website intelligence pipeline running</p>
+              <p className="text-xs text-slate-500">Autonomous live website intelligence pipeline running</p>
             </div>
           </div>
 
           <div className="space-y-3 font-mono text-xs">
-            {ANALYSIS_STAGES.map((label, idx) => {
-              const isDone = analyzingStage > idx
-              const isWorking = analyzingStage === idx
-              const isPending = analyzingStage < idx
+            {activeStages.map((stage) => {
+              const isDone = completedStageIds.includes(stage.id)
+              const isWorking = currentStageId === stage.id && !isDone
+              const isPending = !isDone && !isWorking
 
               return (
                 <div
-                  key={idx}
+                  key={stage.id}
                   className={`flex items-center gap-3 p-2.5 rounded-lg transition-all ${
                     isWorking
                       ? 'bg-blue-50 text-blue-900 font-bold border border-blue-200'
@@ -335,8 +486,10 @@ export default function WebsiteUpgradeWorkspace() {
                 >
                   {isDone && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
                   {isWorking && <Loader2 className="w-4 h-4 text-blue-600 animate-spin shrink-0" />}
-                  {isPending && <span className="w-4 h-4 rounded-full border border-slate-300 inline-block shrink-0" />}
-                  <span>{label}</span>
+                  {isPending && (
+                    <span className="w-4 h-4 rounded-full border border-slate-300 inline-block shrink-0" />
+                  )}
+                  <span>{stage.label}</span>
                 </div>
               )
             })}
@@ -345,16 +498,27 @@ export default function WebsiteUpgradeWorkspace() {
       )}
 
       {/* STEP 1: SIMPLIFIED INITIAL INTAKE */}
-      {currentStep === 1 && analyzingStage === null && (
+      {currentStep === 1 && currentStageId === null && (
         <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
-          <div className="border-b border-slate-100 pb-4">
-            <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-              <Globe className="w-5 h-5 text-blue-600" />
-              Website & Business Intake
-            </h3>
-            <p className="text-xs text-slate-600 mt-1">
-              Enter your website URL or business information to initiate autonomous conversion analysis.
-            </p>
+          <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                <Globe className="w-5 h-5 text-blue-600" />
+                Website & Business Intake
+              </h3>
+              <p className="text-xs text-slate-600 mt-1">
+                Enter your website URL or business information to initiate autonomous conversion analysis.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleLoadDharmasDemo}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 hover:text-blue-900 border border-blue-200 text-xs font-semibold transition-colors shrink-0 shadow-2xs cursor-pointer"
+              title="Quick-fill verified demo data for Dharmas Dental"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+              Load Dharmas Dental Demo
+            </button>
           </div>
 
           {/* Above-The-Fold Inputs */}
@@ -606,6 +770,13 @@ export default function WebsiteUpgradeWorkspace() {
             )}
           </div>
 
+          {crawlNotice && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+              <span>{crawlNotice}</span>
+            </div>
+          )}
+
           {errorMessage && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-800 flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
@@ -716,14 +887,133 @@ export default function WebsiteUpgradeWorkspace() {
 
               <div className="p-3.5 rounded-xl border border-emerald-100 bg-emerald-50/50 col-span-2 sm:col-span-1">
                 <span className="text-[10px] font-bold uppercase text-emerald-700 block">
-                  AI Employee Ops
+                  Revenue Opportunities
                 </span>
                 <span className="text-2xl font-black text-emerald-950 mt-1 block">
                   {aiEmployeeOppCount}
                 </span>
-                <span className="text-[11px] text-emerald-600">canonical matches</span>
+                <span className="text-[11px] text-emerald-600">commercial interventions</span>
               </div>
             </div>
+
+            {/* Live Website Intelligence Evidence Block */}
+            {upgradeResult.intelligence.crawl_summary && (
+              <div className="mt-4 p-4 rounded-xl bg-slate-900 text-white space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-emerald-400" />
+                    <span className="text-xs font-bold text-slate-100">Live Website Evidence Discovered</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-semibold">
+                      {upgradeResult.intelligence.crawl_summary.totalPagesCrawled} Page(s) Crawled
+                    </span>
+                    {upgradeResult.intelligence.crawl_summary.isSpaShell && (
+                      <span className="px-2 py-0.5 rounded-full bg-indigo-950 text-indigo-300 border border-indigo-800 text-[10px] font-semibold">
+                        {upgradeResult.intelligence.crawl_summary.spaFramework || 'Client-Side SPA'}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] font-mono text-slate-400">Strict SSRF & Same-Origin Verified</span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60">
+                    <span className="text-[10px] text-slate-400 uppercase block">Headings Found</span>
+                    <span className="text-base font-bold text-white mt-0.5 block">
+                      {upgradeResult.intelligence.crawl_summary.totalHeadingsFound}
+                    </span>
+                  </div>
+                  <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60">
+                    <span className="text-[10px] text-slate-400 uppercase block">Forms Detected</span>
+                    <span className="text-base font-bold text-white mt-0.5 block">
+                      {upgradeResult.intelligence.crawl_summary.totalFormsFound}
+                    </span>
+                  </div>
+                  <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60">
+                    <span className="text-[10px] text-slate-400 uppercase block">CTAs Detected</span>
+                    <span className="text-base font-bold text-white mt-0.5 block">
+                      {upgradeResult.intelligence.crawl_summary.totalCtasFound}
+                    </span>
+                  </div>
+                  <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60">
+                    <span className="text-[10px] text-slate-400 uppercase block">Contacts Extracted</span>
+                    <span className="text-base font-bold text-white mt-0.5 block">
+                      {upgradeResult.intelligence.crawl_summary.phoneNumbers.length +
+                        upgradeResult.intelligence.crawl_summary.emailAddresses.length +
+                        (upgradeResult.intelligence.crawl_summary.whatsappLinks?.length || 0)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Discovered Phone, Email, WhatsApp, Routes, Services */}
+                <div className="space-y-1.5 pt-1 text-[11px] text-slate-300">
+                  {upgradeResult.intelligence.crawl_summary.phoneNumbers.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400 font-semibold">Phone:</span>
+                      <span className="font-mono text-emerald-400">
+                        {upgradeResult.intelligence.crawl_summary.phoneNumbers.join(', ')}
+                      </span>
+                    </div>
+                  )}
+                  {upgradeResult.intelligence.crawl_summary.emailAddresses.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400 font-semibold">Email:</span>
+                      <span className="font-mono text-emerald-400">
+                        {upgradeResult.intelligence.crawl_summary.emailAddresses.join(', ')}
+                      </span>
+                    </div>
+                  )}
+                  {upgradeResult.intelligence.crawl_summary.whatsappLinks &&
+                    upgradeResult.intelligence.crawl_summary.whatsappLinks.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-400 font-semibold">WhatsApp:</span>
+                        <span className="font-mono text-emerald-400 truncate max-w-sm">
+                          {upgradeResult.intelligence.crawl_summary.whatsappLinks[0]}
+                        </span>
+                      </div>
+                    )}
+                  {upgradeResult.intelligence.crawl_summary.discoveredRoutes &&
+                    upgradeResult.intelligence.crawl_summary.discoveredRoutes.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                        <span className="text-slate-400 font-semibold">Discovered Routes:</span>
+                        {upgradeResult.intelligence.crawl_summary.discoveredRoutes.slice(0, 6).map((route: string, i: number) => (
+                          <span
+                            key={i}
+                            className="px-2 py-0.5 rounded bg-slate-800 text-cyan-300 border border-slate-700 text-[10px] font-mono"
+                          >
+                            {route}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  {upgradeResult.intelligence.crawl_summary.detectedServices.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      <span className="text-slate-400 font-semibold">Observed Services:</span>
+                      {upgradeResult.intelligence.crawl_summary.detectedServices.slice(0, 6).map((svc, i) => (
+                        <span
+                          key={i}
+                          className="px-2 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700 text-[10px]"
+                        >
+                          {svc}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {upgradeResult.intelligence.crawl_summary.missingCriticalElements.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1 text-amber-300">
+                      <span className="text-amber-400 font-semibold">Missing Elements:</span>
+                      {upgradeResult.intelligence.crawl_summary.missingCriticalElements.map((elem, i) => (
+                        <span
+                          key={i}
+                          className="px-2 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-800 text-[10px]"
+                        >
+                          {elem}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Top Opportunities Section */}
@@ -790,51 +1080,148 @@ export default function WebsiteUpgradeWorkspace() {
             </div>
           </div>
 
-          {/* GOVA Recommends Section: Canonical AI Employees */}
-          <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          {/* GOVA Revenue Opportunities Section */}
+          <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
               <div>
                 <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <Bot className="w-5 h-5 text-indigo-600" />
-                  GOVA Recommends
+                  <Sparkles className="w-5 h-5 text-indigo-600" />
+                  GOVA Revenue Opportunities
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Matched canonical AI Employees from the existing Grovaitech workforce registry.
+                  Evidence-backed commercial opportunities connected directly to deployable Grovaitech AI Employees.
                 </p>
               </div>
-              <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-200">
-                {upgradeResult.strategy.ai_employee_opportunities.length} Matched Agents
-              </span>
+
+              {/* Revenue Summary Pills */}
+              {upgradeResult.revenue_opportunity_summary && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-200">
+                    {upgradeResult.revenue_opportunity_summary.totalOpportunities} Opportunities
+                  </span>
+                  <span className="px-2.5 py-1 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg border border-amber-200">
+                    {upgradeResult.revenue_opportunity_summary.highPriorityCount} High-Priority
+                  </span>
+                  <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-200">
+                    {upgradeResult.revenue_opportunity_summary.aiEmployeeCount} AI Employees
+                  </span>
+                </div>
+              )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {upgradeResult.strategy.ai_employee_opportunities.map((opp) => (
+            {/* Opportunities List / Cards */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {(upgradeResult.revenue_opportunities || []).map((opp) => (
                 <div
-                  key={opp.employee_id}
-                  className="p-4 rounded-xl border border-indigo-100 bg-linear-to-b from-indigo-50/30 to-white flex flex-col justify-between"
+                  key={opp.id}
+                  className="p-5 rounded-xl border border-slate-200 bg-linear-to-b from-slate-50/50 to-white flex flex-col justify-between space-y-4 hover:border-indigo-200 transition-colors"
                 >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="font-mono text-indigo-600 font-bold">{opp.employee_id}</span>
-                      <span className="text-slate-500">{opp.department}</span>
-                    </div>
-                    <h4 className="font-extrabold text-sm text-slate-900">{opp.employee_name}</h4>
-                    <p className="text-xs font-semibold text-indigo-700">{opp.role}</p>
-
-                    <div className="bg-white p-2.5 rounded-lg border border-slate-200 text-xs space-y-1 mt-2">
-                      <span className="font-semibold text-slate-400 block uppercase text-[10px]">
-                        Matched Need
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold uppercase tracking-wider rounded">
+                        {opp.journeyTransition || opp.journeyStage}
                       </span>
-                      <p className="text-slate-800 text-[11px] leading-snug">{opp.matched_need}</p>
+                      <span
+                        className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${
+                          opp.priority === 'HIGH'
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            : opp.priority === 'MEDIUM'
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {opp.priority} Priority
+                      </span>
                     </div>
+
+                    <h4 className="font-extrabold text-sm text-slate-900 leading-snug">
+                      {opp.title}
+                    </h4>
+
+                    {/* Evidence & Status */}
+                    <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs space-y-1">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="font-semibold text-slate-500 uppercase tracking-wide">
+                          Evidence
+                        </span>
+                        <span
+                          className={`font-mono text-[9px] px-1.5 py-0.5 rounded font-bold ${
+                            opp.evidenceStatus === 'VERIFIED'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : opp.evidenceStatus === 'OBSERVED'
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {opp.evidenceStatus}
+                        </span>
+                      </div>
+                      <p className="text-slate-700 text-[11px] leading-relaxed">
+                        {opp.evidence[0]}
+                      </p>
+                    </div>
+
+                    {/* Commercial Opportunity */}
+                    <div className="bg-indigo-50/40 p-2.5 rounded-lg border border-indigo-100 text-xs space-y-1">
+                      <span className="font-semibold text-indigo-700 block uppercase text-[10px] tracking-wide">
+                        Commercial Opportunity
+                      </span>
+                      <p className="text-slate-800 text-[11px] leading-relaxed">
+                        {opp.opportunity}
+                      </p>
+                    </div>
+
+                    {/* Priority Rationale */}
+                    <p className="text-[11px] text-slate-500 italic leading-snug">
+                      <span className="font-semibold not-italic text-slate-600">Why {opp.priority}:</span> {opp.priorityReason}
+                    </p>
                   </div>
 
-                  <div className="pt-3 mt-3 border-t border-indigo-100 flex items-center justify-between text-xs text-slate-600">
-                    <span className="flex items-center gap-1 font-medium text-[11px]">
-                      <Workflow className="w-3.5 h-3.5 text-indigo-500" />
-                      {opp.workflow_name}
-                    </span>
-                  </div>
+                  {/* AI Employee & Deployment Handoff Footer */}
+                  {opp.recommendedEmployee && (
+                    <div className="pt-3 border-t border-slate-100 space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Bot className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                          <span className="font-bold text-slate-900 truncate">
+                            {opp.recommendedEmployee.name}
+                          </span>
+                          <span className="text-slate-400 text-[11px] truncate hidden sm:inline">
+                            • {opp.recommendedEmployee.role}
+                          </span>
+                        </div>
+                        {opp.deploymentReady && (
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
+                            Deployment Ready
+                          </span>
+                        )}
+                      </div>
+
+                      {opp.recommendedWorkflow && (
+                        <div className="flex items-center gap-1 text-[11px] text-slate-600">
+                          <Workflow className="w-3 h-3 text-indigo-500 shrink-0" />
+                          <span className="truncate">{opp.recommendedWorkflow.name}</span>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setCurrentStep(4)}
+                          className="px-2.5 py-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                        >
+                          See AI Employee →
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCurrentStep(5)}
+                          className="px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                        >
+                          View Preview
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -926,6 +1313,25 @@ export default function WebsiteUpgradeWorkspace() {
             uiPlan={upgradeResult.ui_ux_plan}
             businessName={upgradeResult.input.business_name}
             industry={upgradeResult.input.industry}
+            services={
+              upgradeResult.input.current_services && upgradeResult.input.current_services.length > 0
+                ? upgradeResult.input.current_services
+                : upgradeResult.intelligence?.crawl_summary?.detectedServices &&
+                  upgradeResult.intelligence.crawl_summary.detectedServices.length > 0
+                ? upgradeResult.intelligence.crawl_summary.detectedServices
+                : DHARMAS_DENTAL_DEMO_PRESET.services
+            }
+            contactPhone={
+              upgradeResult.input.contact_phone ||
+              upgradeResult.intelligence?.crawl_summary?.phoneNumbers?.[0] ||
+              DHARMAS_DENTAL_DEMO_PRESET.phone ||
+              '+918919457887'
+            }
+            whatsappUrl={
+              upgradeResult.intelligence?.crawl_summary?.whatsappLinks?.[0] ||
+              DHARMAS_DENTAL_DEMO_PRESET.whatsappUrl ||
+              'https://wa.me/918919457887'
+            }
           />
           <div className="flex justify-between items-center">
             <button

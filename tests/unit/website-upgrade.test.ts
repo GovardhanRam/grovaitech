@@ -21,10 +21,26 @@ import {
   analyzeWebsiteForUpgrade,
   resolveAIOpportunities,
   isHealthcareRecommendationSafe,
+  generateRevenueOpportunities,
+  summarizeRevenueOpportunities,
+  type RevenueOpportunity,
   type WebsiteUpgradeInput,
   type WebsiteEvidence,
 } from '@/lib/website-upgrade'
 import { CANONICAL_EMPLOYEES } from '@/lib/employees/registry'
+import {
+  DHARMAS_DENTAL_DEMO_PRESET,
+  applyDemoPresetToForm,
+} from '@/components/website-upgrade/WebsiteUpgradeWorkspace'
+import {
+  APPOINTMENT_REQUEST_CONFIRMATION_TITLE,
+  APPOINTMENT_REQUEST_CONFIRMATION_SUBTITLE,
+  DEFAULT_PREVIEW_SERVICES,
+  DEFAULT_PREVIEW_WHATSAPP_URL,
+  DEFAULT_PREVIEW_PHONE,
+  validateAppointmentRequest,
+  resolvePreviewCtaConfig,
+} from '@/components/website-upgrade/WebsitePreview'
 
 describe('GOVA Website Upgrade Employee Domain', () => {
   // ─── 1. CLAIM GUARD & UNSUPPORTED CLAIM GATING ─────────────────────────────
@@ -666,5 +682,433 @@ describe('GOVA Website Upgrade Employee Domain', () => {
       })
     })
   })
-})
 
+  // ─── 8. MILESTONE 3: REVENUE OPPORTUNITY ENGINE ───────────────────────────
+  describe('8. Milestone 3: Revenue Opportunity Engine', () => {
+    const dharmasFixture: WebsiteUpgradeInput = {
+      business_name: 'Dharmas Dental',
+      industry: 'Healthcare & Dental',
+      url: 'https://dharmasdental.com/',
+      location: 'Tirupati',
+      current_description:
+        'Award-winning dental care in Tirupati. Dental Implants, Braces, Root Canal, Cosmetic Dentistry.',
+      current_services: [
+        'Dental Implants',
+        'Braces',
+        'Root Canal Treatment',
+        'Cosmetic Dentistry',
+      ],
+      current_channels: ['WhatsApp', 'Phone'],
+      crawl_summary: {
+        totalPagesCrawled: 1,
+        totalHeadingsFound: 0,
+        totalFormsFound: 0,
+        totalCtasFound: 0,
+        phoneNumbers: ['+918919457887'],
+        emailAddresses: ['dharmasdental@gmail.com'],
+        whatsappLinks: ['https://wa.me/918919457887'],
+        detectedServices: [
+          'Dental Implants',
+          'Braces',
+          'Root Canal',
+          'Cosmetic Dentistry',
+        ],
+        detectedLocation: 'Tirupati',
+        missingCriticalElements: [],
+        isSpaShell: true,
+        spaFramework: 'React / Vite',
+        discoveredRoutes: ['/services', '/contact', '/doctors', '/gallery', '/blog'],
+      },
+    }
+
+    it('1. generates structured revenue opportunities and summary with valid fields', () => {
+      const result = analyzeWebsiteForUpgrade(dharmasFixture)
+      expect(result.revenue_opportunities).toBeDefined()
+      expect(result.revenue_opportunities.length).toBeGreaterThan(0)
+      expect(result.revenue_opportunity_summary).toBeDefined()
+      expect(result.revenue_opportunity_summary.totalOpportunities).toBe(
+        result.revenue_opportunities.length
+      )
+
+      for (const opp of result.revenue_opportunities) {
+        expect(opp.id).toBeDefined()
+        expect(opp.title).toBeDefined()
+        expect(opp.journeyStage).toBeDefined()
+        expect(opp.evidence.length).toBeGreaterThan(0)
+        expect(opp.evidenceStatus).toBeDefined()
+        expect(opp.problem).toBeDefined()
+        expect(opp.opportunity).toBeDefined()
+        expect(opp.impactType).toBeDefined()
+        expect(opp.confidence).toBeDefined()
+        expect(opp.priority).toBeDefined()
+        expect(opp.priorityReason).toBeDefined()
+        expect(opp.rationale).toBeDefined()
+      }
+    })
+
+    it('2. maps verified evidence (WhatsApp / Phone) to CONTACT -> BOOKING opportunity with provenance', () => {
+      const result = analyzeWebsiteForUpgrade(dharmasFixture)
+      const waOpp = result.revenue_opportunities.find(
+        (o) => o.id === 'opp-whatsapp-inquiry-speed'
+      )
+      expect(waOpp).toBeDefined()
+      expect(waOpp?.journeyStage).toBe('CONTACT')
+      expect(waOpp?.journeyTransition).toBe('CONTACT → BOOKING')
+      expect(waOpp?.evidenceStatus).toBe('VERIFIED')
+      expect(waOpp?.evidenceProvenance).toBe('same_origin_bundle')
+      expect(waOpp?.evidence[0]).toContain('+918919457887')
+      expect(waOpp?.recommendedEmployee?.slug).toBe('whatsapp-lead-agent')
+      expect(waOpp?.priority).toBe('HIGH')
+    })
+
+    it('3. ensures UNKNOWN/unverified evidence is marked MISSING_INFORMATION, never a fabricated problem', () => {
+      const result = analyzeWebsiteForUpgrade(dharmasFixture)
+      const followUpOpp = result.revenue_opportunities.find(
+        (o) => o.id === 'opp-inquiry-followup-leakage'
+      )
+      expect(followUpOpp).toBeDefined()
+      expect(followUpOpp?.evidenceStatus).toBe('MISSING_INFORMATION')
+      expect(followUpOpp?.evidence[0]).toContain('could not be verified')
+      expect(followUpOpp?.missingInformation).toBeDefined()
+      expect(followUpOpp?.missingInformation?.length).toBeGreaterThan(0)
+      // Must not fabricate that the clinic is definitely losing leads
+      expect(followUpOpp?.problem).not.toMatch(/losing \d+/i)
+      expect(followUpOpp?.problem).not.toMatch(/lost ₹/i)
+    })
+
+    it('4. strictly produces zero invented monetary values or synthetic ROI numbers', () => {
+      const result = analyzeWebsiteForUpgrade(dharmasFixture)
+      for (const opp of result.revenue_opportunities) {
+        const fullText = `${opp.title} ${opp.problem} ${opp.opportunity} ${opp.rationale} ${opp.priorityReason} ${opp.evidence.join(' ')}`
+        // Never contains currency signs or fabricated ROI metrics
+        expect(fullText).not.toMatch(/[₹$]/)
+        expect(fullText).not.toMatch(/\b\d+%\s*conversion\b/i)
+        expect(fullText).not.toMatch(/\blost\s+revenue\b/i)
+        expect(fullText).not.toMatch(/\blakh\b/i)
+        expect(fullText).not.toMatch(/\bcrore\b/i)
+      }
+    })
+
+    it('5. enforces Healthcare clinical safety across all generated opportunities', () => {
+      const result = analyzeWebsiteForUpgrade(dharmasFixture)
+      for (const opp of result.revenue_opportunities) {
+        const textsToCheck = [
+          opp.title,
+          opp.problem,
+          opp.opportunity,
+          opp.rationale,
+          opp.priorityReason,
+          opp.recommendedWorkflow?.name || '',
+          opp.recommendedWorkflow?.description || '',
+        ]
+
+        textsToCheck.forEach((text) => {
+          const safety = isHealthcareRecommendationSafe(text)
+          if (!safety.isSafe) {
+            console.error(`Healthcare safety violation in "${text}":`, safety.violations)
+          }
+          expect(safety.isSafe).toBe(true)
+        })
+      }
+    })
+
+    it('6. maps opportunities to industry-specific AI employees from canonical workforce', () => {
+      // Healthcare
+      const healthResult = analyzeWebsiteForUpgrade(dharmasFixture)
+      const healthSlugs = healthResult.revenue_opportunities
+        .map((o) => o.recommendedEmployee?.slug)
+        .filter(Boolean)
+      expect(healthSlugs).toContain('clinic-receptionist')
+      expect(healthSlugs).toContain('whatsapp-lead-agent')
+      expect(healthSlugs).toContain('gbp-growth-manager')
+
+      // Real Estate
+      const realEstateInput: WebsiteUpgradeInput = {
+        business_name: 'Skyline Properties',
+        industry: 'Real Estate',
+        location: 'Hyderabad',
+        current_channels: ['WhatsApp', 'Website'],
+      }
+      const reResult = analyzeWebsiteForUpgrade(realEstateInput)
+      const reSlugs = reResult.revenue_opportunities
+        .map((o) => o.recommendedEmployee?.slug)
+        .filter(Boolean)
+      expect(reSlugs).toContain('real-estate-lead-receptionist')
+      expect(reSlugs).not.toContain('clinic-receptionist')
+
+      // Legal
+      const legalInput: WebsiteUpgradeInput = {
+        business_name: 'Apex Legal Advocates',
+        industry: 'Legal Services',
+        location: 'Bengaluru',
+      }
+      const legalResult = analyzeWebsiteForUpgrade(legalInput)
+      const legalSlugs = legalResult.revenue_opportunities
+        .map((o) => o.recommendedEmployee?.slug)
+        .filter(Boolean)
+      expect(legalSlugs).toContain('legal-intake-agent')
+      expect(legalSlugs).not.toContain('clinic-receptionist')
+      expect(legalSlugs).not.toContain('real-estate-lead-receptionist')
+    })
+
+    it('7. guarantees zero Real Estate terminology contamination in Healthcare opportunities', () => {
+      const result = analyzeWebsiteForUpgrade(dharmasFixture)
+      const combined = result.revenue_opportunities
+        .map(
+          (o) =>
+            `${o.title} ${o.problem} ${o.opportunity} ${o.rationale} ${o.recommendedWorkflow?.name || ''} ${o.recommendedWorkflow?.description || ''}`
+        )
+        .join(' ')
+
+      expect(combined).not.toMatch(/\bsite\s*visits?\b/i)
+      expect(combined).not.toMatch(/\bbhk\b/i)
+      expect(combined).not.toMatch(/\bproperty\s*budget\b/i)
+      expect(combined).not.toMatch(/\bproperty\s*type\b/i)
+      expect(combined).not.toMatch(/\breal\s*estate\b/i)
+      expect(combined).not.toMatch(/\binstant\s*estimate\b/i)
+    })
+
+    it('8. calculates priority with deterministic transparent reasoning', () => {
+      const result = analyzeWebsiteForUpgrade(dharmasFixture)
+      const highOpps = result.revenue_opportunities.filter((o) => o.priority === 'HIGH')
+      expect(highOpps.length).toBeGreaterThanOrEqual(2)
+
+      for (const opp of highOpps) {
+        expect(opp.priorityReason).toBeDefined()
+        expect(opp.priorityReason.length).toBeGreaterThan(15)
+        // High priority must be tied to conversion proximity (Contact or Booking)
+        expect(['CONTACT', 'BOOKING', 'QUALIFICATION']).toContain(opp.journeyStage)
+      }
+
+      const mediumOpps = result.revenue_opportunities.filter(
+        (o) => o.priority === 'MEDIUM'
+      )
+      for (const opp of mediumOpps) {
+        expect(opp.priorityReason).toBeDefined()
+        expect(opp.priorityReason.length).toBeGreaterThan(15)
+      }
+    })
+
+    it('9. provides non-empty rationale for every recommended AI employee', () => {
+      const result = analyzeWebsiteForUpgrade(dharmasFixture)
+      for (const opp of result.revenue_opportunities) {
+        if (opp.recommendedEmployee) {
+          expect(opp.rationale).toBeDefined()
+          expect(opp.rationale.length).toBeGreaterThan(20)
+        }
+      }
+    })
+
+    it('10. ensures deployment-ready opportunities specify technical requirements and canonical IDs', () => {
+      const result = analyzeWebsiteForUpgrade(dharmasFixture)
+      const deploymentReadyOpps = result.revenue_opportunities.filter(
+        (o) => o.deploymentReady
+      )
+      expect(deploymentReadyOpps.length).toBeGreaterThan(0)
+
+      for (const opp of deploymentReadyOpps) {
+        expect(opp.recommendedEmployee?.id).toMatch(/^emp-\d{3}$/)
+        expect(opp.recommendedWorkflow?.id).toMatch(/^wf-\d{3}$/)
+        expect(opp.deploymentRequirements).toBeDefined()
+        expect(opp.deploymentRequirements!.length).toBeGreaterThan(0)
+      }
+
+      // Check handoff metadata
+      expect(
+        result.deployment_handoff.website_metadata.revenue_opportunities_count
+      ).toBe(result.revenue_opportunities.length)
+    })
+
+    it('11. verifies Dharmas Dental fixture produces sensible revenue opportunities without false negative claims', () => {
+      const result = analyzeWebsiteForUpgrade(dharmasFixture)
+      const titles = result.revenue_opportunities.map((o) => o.title)
+
+      // Expect Front-Desk Receptionist, WhatsApp Inquiry Speed, and Local Reputation
+      expect(
+        titles.some((t) => t.includes('Clinic Front-Desk Receptionist') || t.includes('Clinic'))
+      ).toBe(true)
+      expect(
+        titles.some((t) => t.includes('WhatsApp Patient Inquiry') || t.includes('WhatsApp'))
+      ).toBe(true)
+      expect(
+        titles.some((t) => t.includes('Reputation') || t.includes('Google Business Profile'))
+      ).toBe(true)
+      expect(
+        titles.some((t) => t.includes('Crawlability') || t.includes('Pre-Rendering'))
+      ).toBe(true)
+
+      // No false negative claims
+      const allProblems = result.revenue_opportunities.map((o) => o.problem).join(' ')
+      expect(allProblems).not.toContain('Missing H1')
+      expect(allProblems).not.toContain('Missing CTA')
+      expect(allProblems).not.toContain('No contact method')
+    })
+  })
+
+  // ─── 13. DHARMAS DENTAL DEMO QUICK-FILL PRESET & INTAKE STATE ─────────────
+  describe('13. Dharmas Dental Demo Quick-Fill Preset & Intake State', () => {
+    it('1. defines accurate and verified preset data for Dharmas Dental', () => {
+      expect(DHARMAS_DENTAL_DEMO_PRESET.businessName).toBe('Dharmas Dental')
+      expect(DHARMAS_DENTAL_DEMO_PRESET.url).toBe('https://dharmasdental.com/')
+      expect(DHARMAS_DENTAL_DEMO_PRESET.industry).toBe('Healthcare & Dental')
+      expect(DHARMAS_DENTAL_DEMO_PRESET.location).toBe('Tirupati')
+      expect(DHARMAS_DENTAL_DEMO_PRESET.services).toEqual([
+        'Dental Implants',
+        'Braces',
+        'Root Canal',
+        'Cosmetic Dentistry',
+      ])
+      expect(DHARMAS_DENTAL_DEMO_PRESET.channels).toEqual(['WhatsApp', 'Phone'])
+    })
+
+    it('2. populates form state with formatted services, channels, and opens context drawer', () => {
+      const initialForm = {
+        url: '',
+        businessName: '',
+        industry: 'Healthcare & Dental',
+        location: '',
+        servicesInput: '',
+        channelsInput: 'Website, WhatsApp, Phone',
+        isContextOpen: false,
+      }
+
+      const updated = applyDemoPresetToForm(DHARMAS_DENTAL_DEMO_PRESET, initialForm)
+
+      expect(updated.url).toBe('https://dharmasdental.com/')
+      expect(updated.businessName).toBe('Dharmas Dental')
+      expect(updated.industry).toBe('Healthcare & Dental')
+      expect(updated.location).toBe('Tirupati')
+      expect(updated.servicesInput).toBe('Dental Implants, Braces, Root Canal, Cosmetic Dentistry')
+      expect(updated.channelsInput).toBe('WhatsApp, Phone')
+      expect(updated.isContextOpen).toBe(true)
+    })
+
+    it('3. uses default preset when called without arguments', () => {
+      const result = applyDemoPresetToForm()
+      expect(result.businessName).toBe('Dharmas Dental')
+      expect(result.url).toBe('https://dharmasdental.com/')
+      expect(result.location).toBe('Tirupati')
+      expect(result.isContextOpen).toBe(true)
+    })
+
+    it('4. transforms populated preset form values directly into valid WebsiteUpgradeInput for analysis', () => {
+      const form = applyDemoPresetToForm(DHARMAS_DENTAL_DEMO_PRESET)
+
+      const input: WebsiteUpgradeInput = {
+        url: form.url,
+        business_name: form.businessName,
+        industry: form.industry,
+        location: form.location,
+        current_services: form.servicesInput.split(',').map((s) => s.trim()).filter(Boolean),
+        current_channels: form.channelsInput.split(',').map((c) => c.trim()).filter(Boolean),
+      }
+
+      const result = analyzeWebsiteForUpgrade(input)
+
+      expect(result.input.business_name).toBe('Dharmas Dental')
+      expect(result.input.industry).toBe('Healthcare & Dental')
+      expect(result.input.location).toBe('Tirupati')
+      expect(result.input.current_services).toEqual([
+        'Dental Implants',
+        'Braces',
+        'Root Canal',
+        'Cosmetic Dentistry',
+      ])
+      expect(result.input.current_channels).toEqual(['WhatsApp', 'Phone'])
+
+      // Primary AI Employee is Clinic Receptionist with wf-002
+      expect(result.deployment_handoff.primary_employee_slug).toBe('clinic-receptionist')
+      expect(result.deployment_handoff.assigned_workflow_id).toBe('wf-002')
+      expect(result.strategy.primary_cta.label).toBe('Book Consultation')
+    })
+  })
+
+  // ─── 14. INTERACTIVE WEBSITE PREVIEW CTAS & IN-SANDBOX DEMO ───────────────────
+  describe('14. Interactive Website Preview CTAs & In-Sandbox Demo', () => {
+    it('1. verifies default WhatsApp destination matches verified Dharmas Dental link', () => {
+      const config = resolvePreviewCtaConfig({})
+      expect(config.effectiveWhatsappUrl).toBe(
+        'https://wa.me/918919457887?text=Hi%2C+I+would+like+to+ask+about+an+appointment.'
+      )
+      expect(config.effectivePhone).toBe('+918919457887')
+      expect(config.availableServices).toEqual([
+        'Dental Implants',
+        'Braces',
+        'Root Canal',
+        'Cosmetic Dentistry',
+      ])
+    })
+
+    it('2. prioritizes passed contact info and extracted services over defaults', () => {
+      const config = resolvePreviewCtaConfig({
+        whatsappUrl: 'https://wa.me/919888877777',
+        contactPhone: '+919888877777',
+        services: ['Teeth Whitening', 'Invisalign'],
+      })
+      expect(config.effectiveWhatsappUrl).toBe(
+        'https://wa.me/919888877777?text=Hi%2C+I+would+like+to+ask+about+an+appointment.'
+      )
+      expect(config.effectivePhone).toBe('+919888877777')
+      expect(config.availableServices).toEqual(['Teeth Whitening', 'Invisalign'])
+    })
+
+    it('3. replaces existing ?text= and query/hash parameters with sanitized appointment prompt', () => {
+      const config = resolvePreviewCtaConfig({
+        whatsappUrl: 'https://wa.me/919888877777?text=Old%20Message&source=google#book',
+      })
+      expect(config.effectiveWhatsappUrl).toBe(
+        'https://wa.me/919888877777?text=Hi%2C+I+would+like+to+ask+about+an+appointment.'
+      )
+    })
+
+    it('4. falls back safely to DEFAULT_PREVIEW_WHATSAPP_URL when given an invalid URL', () => {
+      const config = resolvePreviewCtaConfig({
+        whatsappUrl: 'invalid-url',
+      })
+      expect(config.effectiveWhatsappUrl).toBe(DEFAULT_PREVIEW_WHATSAPP_URL)
+    })
+
+    it('5. validates required fields for appointment intake request', () => {
+      const emptyCheck = validateAppointmentRequest({})
+      expect(emptyCheck.isValid).toBe(false)
+      expect(emptyCheck.errors.patientName).toBeDefined()
+      expect(emptyCheck.errors.phoneNumber).toBeDefined()
+      expect(emptyCheck.errors.service).toBeDefined()
+      expect(emptyCheck.errors.preferredDate).toBeDefined()
+      expect(emptyCheck.errors.preferredTime).toBeDefined()
+
+      const validCheck = validateAppointmentRequest({
+        patientName: 'Kavitha Reddy',
+        phoneNumber: '+91 98765 43210',
+        service: 'Root Canal',
+        preferredDate: '2026-10-05',
+        preferredTime: 'Morning (9:00 AM - 12:00 PM)',
+      })
+      expect(validCheck.isValid).toBe(true)
+      expect(Object.keys(validCheck.errors)).toHaveLength(0)
+    })
+
+    it('6. strictly enforces truthful confirmation copy with zero availability claims or guarantees', () => {
+      expect(APPOINTMENT_REQUEST_CONFIRMATION_TITLE).toBe('Appointment request received')
+      expect(APPOINTMENT_REQUEST_CONFIRMATION_SUBTITLE).toBe(
+        'A clinic receptionist can follow up to confirm the requested time.'
+      )
+
+      // No guaranteed slot availability
+      expect(APPOINTMENT_REQUEST_CONFIRMATION_TITLE).not.toMatch(/confirmed/i)
+      expect(APPOINTMENT_REQUEST_CONFIRMATION_TITLE).not.toMatch(/booked/i)
+      expect(APPOINTMENT_REQUEST_CONFIRMATION_SUBTITLE).not.toMatch(/instant/i)
+      expect(APPOINTMENT_REQUEST_CONFIRMATION_SUBTITLE).not.toMatch(/guarantee/i)
+      expect(APPOINTMENT_REQUEST_CONFIRMATION_SUBTITLE).not.toMatch(/zero hidden fees/i)
+    })
+
+    it('7. verifies Dharmas Dental demo preset includes verified phone and WhatsApp destination', () => {
+      expect(DHARMAS_DENTAL_DEMO_PRESET.phone).toBe('+918919457887')
+      expect(DHARMAS_DENTAL_DEMO_PRESET.whatsappUrl).toBe('https://wa.me/918919457887')
+
+      const populated = applyDemoPresetToForm(DHARMAS_DENTAL_DEMO_PRESET)
+      expect(populated.phone).toBe('+918919457887')
+      expect(populated.whatsappUrl).toBe('https://wa.me/918919457887')
+    })
+  })
+})

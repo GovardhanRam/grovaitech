@@ -70,6 +70,24 @@ export interface WebsiteUpgradeInput {
   timeline?: string
   raw_site_text?: string
   supplied_evidence?: WebsiteEvidence[]
+  crawl_summary?: {
+    totalPagesCrawled: number
+    totalHeadingsFound: number
+    totalFormsFound: number
+    totalCtasFound: number
+    phoneNumbers: string[]
+    emailAddresses: string[]
+    whatsappLinks: string[]
+    detectedServices: string[]
+    detectedTitle?: string
+    detectedDescription?: string
+    detectedLocation?: string
+    missingCriticalElements: string[]
+    isSpaShell?: boolean
+    spaFramework?: string
+    discoveredRoutes?: string[]
+  }
+  crawl_result?: any
 }
 
 // ─── AUDIT DOMAIN ────────────────────────────────────────────────────────────
@@ -137,6 +155,83 @@ export interface WebsiteRevenueLeak {
   applicable_ai_employee_slug?: string
   confidence: 'high' | 'medium' | 'low'
   uncertainty?: string
+}
+
+// ─── REVENUE OPPORTUNITY ENGINE (COMMERCIAL EXPANSION) ────────────────────────
+
+export type CustomerJourneyStage =
+  | 'DISCOVERY'
+  | 'LANDING'
+  | 'CONTACT'
+  | 'QUALIFICATION'
+  | 'BOOKING'
+  | 'CONVERSION'
+  | 'FOLLOW_UP'
+  | 'RETENTION'
+  | 'REPUTATION'
+
+export type OpportunityEvidenceStatus =
+  | 'OBSERVED'
+  | 'VERIFIED'
+  | 'INFERENCE'
+  | 'RECOMMENDATION'
+  | 'MISSING_INFORMATION'
+
+export type RevenueOpportunityImpactType =
+  | 'inquiry_capture'
+  | 'contact_friction'
+  | 'appointment_conversion'
+  | 'response_speed'
+  | 'lead_qualification'
+  | 'lead_follow_up'
+  | 'booking_coordination'
+  | 'local_discovery'
+  | 'reputation_management'
+  | 'retention_customer_success'
+
+export type RevenueOpportunityPriority = 'HIGH' | 'MEDIUM' | 'LOW'
+
+export interface RevenueOpportunity {
+  id: string
+  title: string
+  journeyStage: CustomerJourneyStage
+  journeyTransition?: string // e.g. "CONTACT → BOOKING"
+  evidence: string[]
+  evidenceStatus: OpportunityEvidenceStatus
+  evidenceProvenance?: 'static_html' | 'meta' | 'json_ld' | 'same_origin_bundle' | 'noscript'
+  problem: string
+  opportunity: string
+  impactType: RevenueOpportunityImpactType
+  confidence: 'high' | 'medium' | 'low'
+  priority: RevenueOpportunityPriority
+  priorityReason: string
+  recommendedEmployee?: {
+    id: string
+    name: string
+    slug: string
+    role: string
+    department: string
+  }
+  recommendedWorkflow?: {
+    id: string
+    name: string
+    description: string
+  }
+  deploymentReady: boolean
+  deploymentRequirements?: string[]
+  assumptions?: string[]
+  missingInformation?: string[]
+  rationale: string
+}
+
+export interface RevenueOpportunitySummary {
+  totalOpportunities: number
+  highPriorityCount: number
+  mediumPriorityCount: number
+  lowPriorityCount: number
+  aiEmployeeCount: number
+  verifiedEvidenceCount: number
+  missingInformationCount: number
 }
 
 // ─── STRATEGY DOMAIN ─────────────────────────────────────────────────────────
@@ -293,6 +388,7 @@ export interface DeploymentHandoffPayload {
     url?: string
     audit_findings_count: number
     revenue_leaks_count: number
+    revenue_opportunities_count?: number
     verified_claims_count: number
     gated_claims_count: number
     ui_direction: string
@@ -319,9 +415,28 @@ export interface WebsiteUpgradeResult {
       gated: number
       proposed: number
     }
+    crawl_summary?: {
+      totalPagesCrawled: number
+      totalHeadingsFound: number
+      totalFormsFound: number
+      totalCtasFound: number
+      phoneNumbers: string[]
+      emailAddresses: string[]
+      whatsappLinks: string[]
+      detectedServices: string[]
+      detectedTitle?: string
+      detectedDescription?: string
+      detectedLocation?: string
+      missingCriticalElements: string[]
+      isSpaShell?: boolean
+      spaFramework?: string
+      discoveredRoutes?: string[]
+    }
   }
   audit_findings: WebsiteAuditFinding[]
   revenue_leaks: WebsiteRevenueLeak[]
+  revenue_opportunities: RevenueOpportunity[]
+  revenue_opportunity_summary: RevenueOpportunitySummary
   strategy: WebsiteStrategy
   ui_ux_plan: UIUXPlan
   preview_plan: WebsitePreviewPlan
