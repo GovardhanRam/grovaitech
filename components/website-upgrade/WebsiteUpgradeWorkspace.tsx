@@ -200,7 +200,9 @@ export default function WebsiteUpgradeWorkspace() {
   const [upgradeResult, setUpgradeResult] = useState<WebsiteUpgradeResult | null>(null)
   const [activeDeployment, setActiveDeployment] = useState<ProvisionClientResult | null>(null)
 
-  const handleLoadDharmasDemo = () => {
+  const handleLoadDharmasDemo = (e?: React.MouseEvent) => {
+    e?.preventDefault()
+    e?.stopPropagation()
     const updated = applyDemoPresetToForm(DHARMAS_DENTAL_DEMO_PRESET)
     setUrl(updated.url)
     setBusinessName(updated.businessName)
@@ -512,6 +514,8 @@ export default function WebsiteUpgradeWorkspace() {
             </div>
             <button
               type="button"
+              id="load-dharmas-demo-btn"
+              data-testid="load-dharmas-demo-btn"
               onClick={handleLoadDharmasDemo}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 hover:text-blue-900 border border-blue-200 text-xs font-semibold transition-colors shrink-0 shadow-2xs cursor-pointer"
               title="Quick-fill verified demo data for Dharmas Dental"
@@ -531,6 +535,8 @@ export default function WebsiteUpgradeWorkspace() {
               </label>
               <input
                 type="text"
+                id="website-url-input"
+                data-testid="website-url-input"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://example.com"
@@ -549,6 +555,8 @@ export default function WebsiteUpgradeWorkspace() {
                 </label>
                 <input
                   type="text"
+                  id="business-name-input"
+                  data-testid="business-name-input"
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
                   placeholder="e.g. Apex Dental & Smile Center"
