@@ -293,10 +293,41 @@ export function WorkflowsWorkspace({
       {/* ── Main Workflows Table ─────────────────────────────────────── */}
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
         {filteredWorkflows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-slate-400 text-xs gap-2">
-            <WorkflowIcon className="w-10 h-10 opacity-30" />
-            No workflows match your search or filter.
-          </div>
+          workflows.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-slate-500 text-xs gap-3 max-w-md mx-auto text-center px-4">
+              <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                <WorkflowIcon className="w-6 h-6 opacity-60" />
+              </div>
+              <div>
+                <p className="font-bold text-slate-800 text-sm">No Active Workflow Executions Yet</p>
+                <p className="text-slate-500 text-[11px] mt-1 leading-relaxed">
+                  Canonical AI Employee pipelines (e.g. Clinic Booking <code>wf-002</code>, Real Estate <code>wf-001</code>) are bound directly to client deployments. Execution logs, step audits, and success metrics stream here automatically when live customer requests or test triggers occur.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 pt-1 flex-wrap justify-center">
+                <button
+                  onClick={() => handleRunTest('wf-002')}
+                  disabled={runningTestId === 'wf-002'}
+                  className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-xs font-semibold flex items-center gap-1.5 transition"
+                >
+                  <Play className={`w-3 h-3 ${runningTestId === 'wf-002' ? 'animate-spin' : ''}`} />
+                  Simulate wf-002 Execution
+                </button>
+                <button
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 transition"
+                >
+                  <Plus className="w-3 h-3" />
+                  Create Custom Pipeline
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 text-slate-400 text-xs gap-2">
+              <WorkflowIcon className="w-10 h-10 opacity-30" />
+              No workflows match your search or filter.
+            </div>
+          )
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-separate border-spacing-0">

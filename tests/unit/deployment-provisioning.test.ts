@@ -170,6 +170,33 @@ describe('Client Workspace Provisioning & AI Employee Activation Engine', () => 
     expect(result.deployment?.assigned_workflow_name).toContain('Real Estate Lead')
   })
 
+  it('3b. Canonical clinic workflow is correctly resolved and bound (clinic-receptionist -> wf-002)', async () => {
+    const clinicProspect: Prospect = {
+      company_name: 'Dharmas Dental',
+      industry: 'Healthcare & Dental',
+      contact_name: 'Dr. Dharma',
+      phone: '+91 94400 12345',
+      email: 'contact@dharmasdental.com',
+      location: 'Tirupati, India',
+      budget: '₹40,000 / month',
+      timeline: 'Immediate',
+    }
+
+    const result = await provisionClientDeployment({
+      prospect: clinicProspect,
+      employeeSlug: 'clinic-receptionist',
+      workflowId: 'wf-002',
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.deployment?.assigned_employee_slug).toBe('clinic-receptionist')
+    expect(result.deployment?.assigned_workflow_id).toBe('wf-002')
+    expect(result.deployment?.assigned_workflow_name).toBe('Clinic Appointment Booking & Reminder Pipeline')
+    expect(result.deployment?.runtime_config?.assigned_workflow_id).toBe('wf-002')
+    expect(result.deployment?.runtime_config?.system_context_instruction).toContain('wf-002')
+    expect(result.deployment?.runtime_config?.system_context_instruction).toContain('Clinic Appointment Booking & Reminder Pipeline')
+  })
+
   it('4. Repeated provisioning of the same client/lead is strictly idempotent', async () => {
     const res1 = await provisionClientDeployment({
       prospect: validProspect,

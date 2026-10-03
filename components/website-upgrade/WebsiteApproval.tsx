@@ -126,7 +126,7 @@ export default function WebsiteApproval({ handoff, onDeploymentSuccess }: Websit
           <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
             <span className="text-slate-400 font-semibold block uppercase text-[10px]">Assigned Canonical Agent</span>
             <p className="text-sm font-bold text-indigo-700 mt-0.5">{handoff.primary_employee_slug}</p>
-            <p className="text-slate-500 font-mono text-[10px]">Workflow: {handoff.assigned_workflow_id}</p>
+            <p className="text-slate-500 font-mono text-[10px]">Canonical Pipeline: {handoff.assigned_workflow_id}</p>
           </div>
 
           <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
@@ -306,7 +306,7 @@ export default function WebsiteApproval({ handoff, onDeploymentSuccess }: Websit
               </div>
             </div>
 
-            <div className="bg-white p-4 rounded-lg border border-emerald-200 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="bg-white p-4 rounded-lg border border-emerald-200 grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
               <div>
                 <span className="text-slate-400 font-semibold block uppercase text-[10px]">Deployment ID</span>
                 <span className="font-mono font-bold text-slate-800">
@@ -320,11 +320,27 @@ export default function WebsiteApproval({ handoff, onDeploymentSuccess }: Websit
                 </span>
               </div>
               <div>
+                <span className="text-slate-400 font-semibold block uppercase text-[10px]">Bound Pipeline</span>
+                <span className="font-mono font-bold text-indigo-700 block">
+                  {deploymentResult.deployment?.assigned_workflow_id || 'wf-002'}
+                </span>
+                <span className="text-[10px] text-slate-500 line-clamp-1">
+                  {deploymentResult.deployment?.assigned_workflow_name || 'Clinic Appointment Pipeline'}
+                </span>
+              </div>
+              <div>
                 <span className="text-slate-400 font-semibold block uppercase text-[10px]">Status</span>
                 <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800">
                   {deploymentResult.deployment?.status || 'Active'}
                 </span>
               </div>
+            </div>
+
+            <div className="p-3 bg-white/80 rounded-lg border border-emerald-200 text-xs text-emerald-900 space-y-0.5">
+              <span className="font-bold text-[11px] block">Canonical AI Workforce Pipeline Active</span>
+              <p className="text-[11px] text-emerald-800 leading-relaxed">
+                This client deployment executes via the native AI Employee runtime (<code>{deploymentResult.deployment?.assigned_workflow_id || 'wf-002'}</code>). Execution audit logs stream to the Workflows control plane as incoming customer appointments and triggers are processed.
+              </p>
             </div>
 
             <div className="pt-2 flex items-center gap-3">

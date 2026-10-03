@@ -16,6 +16,7 @@
  */
 
 import React, { useState, useTransition, useEffect } from 'react'
+import Link from 'next/link'
 import type {
   WebsiteUpgradeInput,
   WebsiteUpgradeResult,
@@ -1412,12 +1413,35 @@ export default function WebsiteUpgradeWorkspace() {
                 {activeDeployment.deployment?.assigned_employee_name || 'AI Receptionist'}
               </span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Assigned Workflow:</span>
-              <span className="font-mono text-slate-800">
-                {activeDeployment.deployment?.assigned_workflow_id || 'wf-001'}
-              </span>
+            <div className="flex justify-between items-start">
+              <div>
+                <span className="text-slate-500 block">Assigned Workflow:</span>
+                <span className="text-[10px] text-slate-400">Canonical Built-in Pipeline</span>
+              </div>
+              <div className="text-right">
+                <span className="font-mono font-bold text-slate-800">
+                  {activeDeployment.deployment?.assigned_workflow_id || 'wf-002'}
+                </span>
+                {activeDeployment.deployment?.assigned_workflow_name && (
+                  <span className="block text-[10px] text-indigo-600 font-medium">
+                    {activeDeployment.deployment.assigned_workflow_name}
+                  </span>
+                )}
+              </div>
             </div>
+          </div>
+
+          <div className="p-3 bg-blue-50/80 border border-blue-200/80 rounded-xl text-left text-xs text-blue-900 space-y-1">
+            <div className="font-bold flex items-center gap-1.5 text-blue-950">
+              <Layers className="w-3.5 h-3.5 text-blue-600" />
+              <span>Runtime Architecture Notice</span>
+            </div>
+            <p className="text-[11px] text-blue-800 leading-relaxed">
+              <strong>{activeDeployment.deployment?.assigned_workflow_id || 'wf-002'}</strong> is a <em>canonical runtime pipeline</em> bound directly to the <strong>{activeDeployment.deployment?.assigned_employee_name || 'AI Employee'}</strong> runtime. It executes autonomously during patient and lead interactions (saving bookings, blocking calendar slots, queueing WhatsApp reminders).
+            </p>
+            <p className="text-[10px] text-blue-700/90 leading-relaxed">
+              Execution audit logs stream into <Link href="/workflows" className="underline font-semibold hover:text-blue-900">Workflows</Link> as live customer interactions or test triggers occur. Custom user-created automations live in the Workflows builder.
+            </p>
           </div>
 
           <div className="pt-2 flex justify-center gap-3">
