@@ -225,19 +225,67 @@ function parseConversationState(fullPrompt: string): { state: FallbackConversati
 export const getSimulatedResponse = (prompt: string, systemInstruction?: string): string => {
   const fullContext = systemInstruction ? `${systemInstruction}\n${prompt}` : prompt
   const lowercasePrompt = fullContext.toLowerCase()
-  const isClinic =
+  const lowerSystem = (systemInstruction || '').toLowerCase()
+
+  const { state, latestMessage } = parseConversationState(prompt)
+  const query = latestMessage.toLowerCase()
+
+  // ─── Persona Determination (SystemInstruction-Aware) ─────────────────────────
+  // 1. Explicit domain instruction checks (highest precedence)
+  const isClinicInstruction =
+    lowerSystem.includes("clinic") ||
+    lowerSystem.includes("medical") ||
+    lowerSystem.includes("dental") ||
+    lowerSystem.includes("dentist") ||
+    lowerSystem.includes("doctor") ||
+    lowerSystem.includes("patient") ||
+    lowerSystem.includes("appointment booking") ||
+    lowerSystem.includes("book_clinic_appointment")
+
+  const isRealEstateInstruction =
+    lowerSystem.includes("real estate") ||
+    lowerSystem.includes("property") ||
+    lowerSystem.includes("schedule_site_visit") ||
+    lowerSystem.includes("site visit")
+
+  const isLegalInstruction =
+    lowerSystem.includes("legal") ||
+    lowerSystem.includes("law firm") ||
+    lowerSystem.includes("attorney") ||
+    lowerSystem.includes("book_legal_consultation")
+
+  const isSalonInstruction =
+    lowerSystem.includes("salon") ||
+    lowerSystem.includes("spa") ||
+    lowerSystem.includes("book_salon_service")
+
+  const isHvacInstruction =
+    lowerSystem.includes("hvac") ||
+    lowerSystem.includes("home services") ||
+    lowerSystem.includes("heating") ||
+    lowerSystem.includes("cooling")
+
+  const isEcommerceInstruction =
+    lowerSystem.includes("ecommerce") ||
+    lowerSystem.includes("order") ||
+    lowerSystem.includes("lookup_order_and_support")
+
+  // 2. Prompt content checks (when systemInstruction is absent or generic)
+  const isClinicPrompt =
     lowercasePrompt.includes("medical clinic") ||
     lowercasePrompt.includes("clinic receptionist") ||
+    lowercasePrompt.includes("dental consultation") ||
+    lowercasePrompt.includes("dental") ||
     lowercasePrompt.includes("clinic") ||
     lowercasePrompt.includes("doctor") ||
     lowercasePrompt.includes("dentist") ||
     lowercasePrompt.includes("appointment") ||
     lowercasePrompt.includes("patient")
 
-  const isRealEstate =
+  // Generic "receptionist" is explicitly REMOVED from isRealEstate to prevent persona hijacking
+  const isRealEstatePrompt =
     lowercasePrompt.includes("real estate") ||
     lowercasePrompt.includes("property") ||
-    lowercasePrompt.includes("receptionist") ||
     lowercasePrompt.includes("villa") ||
     lowercasePrompt.includes("apartment") ||
     lowercasePrompt.includes("flat") ||
@@ -246,9 +294,39 @@ export const getSimulatedResponse = (prompt: string, systemInstruction?: string)
     lowercasePrompt.includes("bhk") ||
     lowercasePrompt.includes("site visit")
 
-  const { state, latestMessage } = parseConversationState(prompt)
-  const query = latestMessage.toLowerCase()
+  // Resolve active persona: systemInstruction anchors persona; fallback to prompt heuristic
+  const isClinic = isClinicInstruction || (!isRealEstateInstruction && isClinicPrompt && !isRealEstatePrompt)
+  const isRealEstate = isRealEstateInstruction || (!isClinicInstruction && isRealEstatePrompt)
 
+  // ─── Clinic / Appointment Booking Persona ──────────────────────────────────
+  if (isClinic) {
+    if (state.phone || (state.name && (query.includes("number") || query.includes("phone")))) {
+      const greeting = state.name ? `Thank you, ${state.name}!` : 'Thank you!'
+      const dateText = state.site_visit_date ? ` for ${state.site_visit_date}` : ''
+      const phoneText = state.phone ? ` on ${state.phone}` : ''
+      return `${greeting} I have recorded your clinic appointment request${dateText}. Our medical front-desk team will confirm your slot shortly${phoneText}. Is there anything specific you would like our doctor to prepare for your consultation?`
+    }
+
+    if (state.name && !state.phone) {
+      return `Thank you, ${state.name}! Could you please share your contact phone number and preferred appointment date and time so our clinic team can schedule your consultation?`
+    }
+
+    if (query.includes("book") || query.includes("appointment") || query.includes("schedule") || query.includes("consultation")) {
+      return "Hello! I can certainly help you book an appointment at the clinic. Could you please tell me your full name, phone number, and preferred date/time?"
+    }
+    if (query.includes("timing") || query.includes("hour") || query.includes("time") || query.includes("open")) {
+      return "Our clinic is open from 9 AM to 6 PM, Monday to Saturday. We are closed on Sundays. Let me know if you would like to book a slot!"
+    }
+    if (query.includes("doctor") || query.includes("specialist") || query.includes("dentist")) {
+      return "We have Dr. Verma (General Dentistry) and Dr. Reddy (Orthodontics) available at the clinic. Would you like to schedule a consultation with one of them?"
+    }
+    if (query.includes("hello") || query.includes("hi ") || query.includes("hey")) {
+      return "Hello! Welcome to the Clinic. I am your front-desk AI Receptionist. How can I help you today?"
+    }
+    return "Thank you for the details. I've noted down your request. Our medical front-desk team will confirm your slot shortly. Is there anything else I can assist with?"
+  }
+
+  // ─── Real Estate Persona ───────────────────────────────────────────────────
   if (isRealEstate) {
     const propLabel = `${state.bhk ? `${state.bhk} BHK ` : ''}${state.property_type ? `${state.property_type}` : 'property'}`
     const locLabel = state.location ? ` in ${state.location}` : ''
@@ -291,22 +369,27 @@ export const getSimulatedResponse = (prompt: string, systemInstruction?: string)
     return "Thank you for your enquiry. I would be happy to help you with your property search. Could you please share your preferred location, property type, and budget?"
   }
 
-  if (isClinic) {
-    if (query.includes("book") || query.includes("appointment") || query.includes("schedule")) {
-      return "Hello! I can certainly help you book an appointment at the clinic. Could you please tell me your full name, phone number, and preferred date/time?"
-    }
-    if (query.includes("timing") || query.includes("hour") || query.includes("time") || query.includes("open")) {
-      return "Our clinic is open from 9 AM to 6 PM, Monday to Saturday. We are closed on Sundays. Let me know if you would like to book a slot!"
-    }
-    if (query.includes("doctor") || query.includes("specialist") || query.includes("dentist")) {
-      return "We have Dr. Verma (General Dentistry) and Dr. Reddy (Orthodontics) available at the clinic. Would you like to schedule a consultation with one of them?"
-    }
-    if (query.includes("hello") || query.includes("hi ") || query.includes("hey")) {
-      return "Hello! Welcome to the Clinic. I am your front-desk AI Receptionist. How can I help you today?"
-    }
-    return "Thank you for the details. I've noted down your request. Our medical front-desk team will confirm your slot shortly. Is there anything else I can assist with?"
+  // ─── Legal Intake Persona ──────────────────────────────────────────────────
+  if (isLegalInstruction || lowercasePrompt.includes("legal consultation") || lowercasePrompt.includes("law firm")) {
+    return "Thank you for contacting our legal intake team. Could you please share your full name, contact phone number, and a brief description of your legal inquiry?"
   }
 
+  // ─── Salon & Spa Persona ───────────────────────────────────────────────────
+  if (isSalonInstruction || lowercasePrompt.includes("salon") || lowercasePrompt.includes("spa")) {
+    return "Hello! I would be delighted to help you book a salon and spa appointment. Could you please share your name, preferred service, and desired date/time?"
+  }
+
+  // ─── HVAC / Home Services Persona ──────────────────────────────────────────
+  if (isHvacInstruction || lowercasePrompt.includes("hvac") || lowercasePrompt.includes("air conditioning")) {
+    return "Hello! I can assist you with your home heating and cooling service needs. Could you please provide your name, location, and the service required?"
+  }
+
+  // ─── E-Commerce Support Persona ────────────────────────────────────────────
+  if (isEcommerceInstruction || lowercasePrompt.includes("order tracking") || lowercasePrompt.includes("tracking number")) {
+    return "Hello! I can help you with your order status and support inquiries. Could you please provide your order ID or registered email address?"
+  }
+
+  // ─── General Fallback ──────────────────────────────────────────────────────
   return `Hello! I am **GrovAI**, your business automation partner from Grovaitech. 
 
 I help businesses deploy **AI Employees** to handle voice calls, WhatsApp leads, support queries, and document searches.
@@ -330,7 +413,7 @@ export function extractConversationTextFromContents(
   for (const turn of contents) {
     const rolePrefix =
       turn.role === 'model' || turn.role === 'system'
-        ? 'AI Receptionist: '
+        ? 'Assistant: '
         : 'Customer: '
     const textParts = (turn.parts || [])
       .map((p) => {
