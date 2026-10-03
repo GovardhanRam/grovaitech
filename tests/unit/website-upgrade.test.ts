@@ -103,6 +103,160 @@ describe('GOVA Website Upgrade Employee Domain', () => {
       expect(sanitizedCopy).toContain('[GATED CLAIM:')
       expect(sanitizedCopy).toContain('We offer comprehensive customer consultations')
     })
+
+    // ─── REGRESSION: SUPERLATIVE VS FACTUAL CLAIM VERIFICATION ────────────────
+    it('does not allow superlative claim "Best Dental Hospital in Tirupati" to become VERIFIED_FACT merely because matching text exists in website evidence', () => {
+      const websiteEvidence: WebsiteEvidence[] = [
+        {
+          id: 'crawl-ev-title',
+          fact: 'Title: Dharmas Dental | Best Dental Hospital in Tirupati',
+          source: 'website_content',
+          source_reference: 'https://dharmasdental.com/',
+          raw_text: 'Dharmas Dental | Best Dental Hospital in Tirupati',
+        },
+      ]
+
+      const claim1 = auditSingleClaim(
+        'Dharmas Dental | Best Dental Hospital in Tirupati',
+        websiteEvidence
+      )
+      expect(claim1.claim_type).toBe('superlative')
+      expect(claim1.status).not.toBe('VERIFIED_FACT')
+      expect(claim1.status).toBe('UNKNOWN')
+      expect(claim1.is_gated).toBe(true)
+      expect(claim1.detected_pattern?.toLowerCase()).toBe('best')
+
+      const claim2 = auditSingleClaim('Best Dental Hospital in Tirupati', websiteEvidence)
+      expect(claim2.status).not.toBe('VERIFIED_FACT')
+      expect(claim2.status).toBe('UNKNOWN')
+      expect(claim2.is_gated).toBe(true)
+
+      // Unverified user_input must also remain gated
+      const userInputEvidence: WebsiteEvidence[] = [
+        {
+          id: 'ev-user',
+          fact: 'Best Dental Hospital in Tirupati',
+          source: 'user_input',
+        },
+      ]
+      const claimUser = auditSingleClaim('Best Dental Hospital in Tirupati', userInputEvidence)
+      expect(claimUser.status).not.toBe('VERIFIED_FACT')
+      expect(claimUser.status).toBe('UNKNOWN')
+      expect(claimUser.is_gated).toBe(true)
+    })
+
+    it('allows legitimate factual claims (phone, email, services, address, hours) with matching evidence to become VERIFIED_FACT', () => {
+      const factualEvidence: WebsiteEvidence[] = [
+        {
+          id: 'ev-phone',
+          fact: 'Phone: +918919457887',
+          source: 'website_content',
+          source_reference: 'https://dharmasdental.com/contact',
+        },
+        {
+          id: 'ev-email',
+          fact: 'Email: dharmasdental@gmail.com',
+          source: 'website_content',
+        },
+        {
+          id: 'ev-services',
+          fact: 'Services: Root Canal Treatment, Dental Implants, Braces',
+          source: 'website_content',
+        },
+        {
+          id: 'ev-location',
+          fact: 'Location: Tirupati',
+          source: 'website_content',
+        },
+        {
+          id: 'ev-hours',
+          fact: 'Hours: Mon-Sat 9:00 AM - 8:00 PM',
+          source: 'website_content',
+        },
+      ]
+
+      const phoneClaim = auditSingleClaim('Phone: +918919457887', factualEvidence)
+      expect(phoneClaim.status).toBe('VERIFIED_FACT')
+      expect(phoneClaim.is_gated).toBe(false)
+      expect(phoneClaim.claim_type).toBe('general')
+      expect(phoneClaim.source_reference).toBe('https://dharmasdental.com/contact')
+
+      const emailClaim = auditSingleClaim('dharmasdental@gmail.com', factualEvidence)
+      expect(emailClaim.status).toBe('VERIFIED_FACT')
+      expect(emailClaim.is_gated).toBe(false)
+
+      const serviceClaim = auditSingleClaim('Root Canal Treatment', factualEvidence)
+      expect(serviceClaim.status).toBe('VERIFIED_FACT')
+      expect(serviceClaim.is_gated).toBe(false)
+
+      const locationClaim = auditSingleClaim('Location: Tirupati', factualEvidence)
+      expect(locationClaim.status).toBe('VERIFIED_FACT')
+      expect(locationClaim.is_gated).toBe(false)
+
+      const hoursClaim = auditSingleClaim('Hours: Mon-Sat 9:00 AM - 8:00 PM', factualEvidence)
+      expect(hoursClaim.status).toBe('VERIFIED_FACT')
+      expect(hoursClaim.is_gated).toBe(false)
+    })
+
+    it('keeps unsupported superlative claims gated when no evidence is supplied', () => {
+      const claim = auditSingleClaim('Best Dental Hospital in Tirupati')
+      expect(claim.claim_type).toBe('superlative')
+      expect(claim.status).toBe('UNKNOWN')
+      expect(claim.is_gated).toBe(true)
+      expect(claim.gating_reason).toContain('Superlative claims must be corroborated')
+
+      const claimEmptyEvidence = auditSingleClaim('Best Dental Hospital in Tirupati', [])
+      expect(claimEmptyEvidence.status).toBe('UNKNOWN')
+      expect(claimEmptyEvidence.is_gated).toBe(true)
+    })
+
+    it('allows superlative verification only via explicitly verified third-party citations with source reference', () => {
+      const thirdPartyEvidence: WebsiteEvidence[] = [
+        {
+          id: 'ev-times',
+          fact: 'Voted Best Dental Hospital in Tirupati by Times Health Survey 2024',
+          source: 'third_party_verified',
+          source_reference: 'Times Health Survey 2024',
+        },
+      ]
+
+      const verifiedClaim = auditSingleClaim('Best Dental Hospital in Tirupati', thirdPartyEvidence)
+      expect(verifiedClaim.status).toBe('VERIFIED_FACT')
+      expect(verifiedClaim.is_gated).toBe(false)
+      expect(verifiedClaim.source_reference).toBe('Times Health Survey 2024')
+
+      // Unrelated third-party evidence does not corroborate the claim
+      const unrelatedEvidence: WebsiteEvidence[] = [
+        {
+          id: 'ev-unrelated',
+          fact: 'Awarded Best Cloud Software 2024',
+          source: 'third_party_verified',
+          source_reference: 'Tech Awards 2024',
+        },
+      ]
+      const unverifiedClaim = auditSingleClaim('Best Dental Hospital in Tirupati', unrelatedEvidence)
+      expect(unverifiedClaim.status).toBe('UNKNOWN')
+      expect(unverifiedClaim.is_gated).toBe(true)
+    })
+
+    it('sanitizes proposed copy containing superlatives with matching website evidence by gating them', () => {
+      const websiteEvidence: WebsiteEvidence[] = [
+        {
+          id: 'crawl-ev-title',
+          fact: 'Title: Dharmas Dental | Best Dental Hospital in Tirupati',
+          source: 'website_content',
+          raw_text: 'Dharmas Dental | Best Dental Hospital in Tirupati',
+        },
+      ]
+
+      const copy = 'Dharmas Dental | Best Dental Hospital in Tirupati. We provide root canal treatments.'
+      const { sanitizedCopy, gatedClaims, verifiedClaims } = sanitizeProposedCopy(copy, websiteEvidence)
+
+      expect(gatedClaims.length).toBeGreaterThan(0)
+      expect(gatedClaims.some((c) => c.detected_pattern?.toLowerCase() === 'best')).toBe(true)
+      expect(sanitizedCopy).toContain('[GATED CLAIM: Best — Requires Customer Evidence]')
+      expect(verifiedClaims.some((c) => c.text.includes('Best Dental Hospital'))).toBe(false)
+    })
   })
 
   // ─── 2. EVIDENCE STATUS INTEGRITY ──────────────────────────────────────────
